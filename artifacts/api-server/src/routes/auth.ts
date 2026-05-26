@@ -13,7 +13,7 @@ declare module "express-session" {
 }
 
 router.post("/auth/login", async (req, res): Promise<void> => {
-  const { email, password } = req.body;
+  const { email, password, rememberMe } = req.body;
   if (!email || !password) {
     res.status(400).json({ error: "Email and password required" });
     return;
@@ -29,6 +29,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
   req.session.userId = user.id;
+  if (rememberMe) {
+    req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+  } else {
+    req.session.cookie.expires = undefined;
+  }
   res.json({ id: user.id, name: user.name, email: user.email, role: user.role, status: user.status, createdAt: user.createdAt });
 });
 

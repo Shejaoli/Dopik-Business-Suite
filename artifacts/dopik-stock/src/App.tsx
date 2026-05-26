@@ -51,12 +51,7 @@ function AppRoutes() {
   }
 
   if (!user) {
-    return (
-      <Switch>
-        <Route path="/login" component={LoginPage} />
-        <Route><Redirect to="/login" /></Route>
-      </Switch>
-    );
+    return <LoginPage />;
   }
 
   return (
@@ -74,7 +69,6 @@ function AppRoutes() {
         <Route path="/expenses" component={ExpensesPage} />
         <Route path="/reports" component={ReportsPage} />
         <Route path="/settings" component={SettingsPage} />
-        <Route path="/login"><Redirect to="/" /></Route>
         <Route component={NotFound} />
       </Switch>
     </Layout>
