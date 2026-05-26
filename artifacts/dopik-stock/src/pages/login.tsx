@@ -60,8 +60,10 @@ export default function LoginPage() {
 
       {/* Logo */}
       <div className="flex flex-col items-center mb-6 z-10">
-        <img src="/dopik-logo.png" alt="Dopik Electronics" className="h-16 w-16 object-contain drop-shadow-lg" />
-        <p className="text-gray-600 font-semibold text-sm mt-2 tracking-wide uppercase">Dopik Electronics Ltd</p>
+        <div className="w-20 h-20 rounded-full bg-[#1A2540] shadow-xl flex items-center justify-center ring-4 ring-white/80">
+          <img src="/dopik-logo.png" alt="Dopik Electronics" className="w-14 h-14 object-contain" />
+        </div>
+        <p className="text-gray-700 font-bold text-sm mt-3 tracking-widest uppercase">Dopik Electronics Ltd</p>
       </div>
 
       {/* Card */}
