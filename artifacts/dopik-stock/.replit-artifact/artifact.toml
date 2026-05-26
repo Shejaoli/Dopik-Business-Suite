@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "DOPIK-STOCK-MANAGEMENT"
+version = "1.0.0"
+id = "artifacts/dopik-stock"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20758
+
+[services.development]
+run = "pnpm --filter @workspace/dopik-stock run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/dopik-stock", "run", "build" ]
+publicDir = "artifacts/dopik-stock/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20758"
+BASE_PATH = "/"

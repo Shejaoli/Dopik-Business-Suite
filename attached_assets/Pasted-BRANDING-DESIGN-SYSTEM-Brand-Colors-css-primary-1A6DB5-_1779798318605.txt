@@ -1,0 +1,714 @@
+BRANDING & DESIGN SYSTEM
+Brand Colors
+css--primary:        #1A6DB5;   /* Dopik Blue */
+--accent:         #F5A800;   /* Dopik Gold */
+--dark:           #1A1A1A;   /* Near Black */
+--dark-2:         #111827;   /* Sidebar bg */
+--dark-3:         #1F2937;   /* Card bg */
+--surface:        #FFFFFF;   /* Content area */
+--surface-2:      #F9FAFB;   /* Page bg */
+--text-primary:   #111827;
+--text-secondary: #6B7280;
+--border:         #E5E7EB;
+--success:        #10B981;
+--warning:        #F59E0B;
+--danger:         #EF4444;
+--info:           #3B82F6;
+Design Direction — Modern Apple iOS 26 / Liquid Glass
+The entire UI must feel like Apple's 2026 liquid glass design language fused with Dopik's bold blue-and-gold brand identity. Specific requirements:
+
+Glassmorphism sidebar: Dark navy sidebar (#0F172A) with frosted glass effect on active nav items. Active items get a glowing blue-gold gradient pill background with backdrop-filter: blur(12px).
+Top navbar: Translucent frosted glass bar (rgba(255,255,255,0.7)) with backdrop-filter: blur(20px), subtle bottom border, floating above content.
+Cards: Rounded border-radius: 16px, soft box-shadow: 0 4px 24px rgba(0,0,0,0.06), white background with a faint blue top-border accent on hover.
+Buttons: Primary buttons use a blue-to-gold gradient (linear-gradient(135deg, #1A6DB5, #F5A800)), with pill shape (border-radius: 999px), subtle glow on hover. Secondary buttons are ghost style with blue border.
+Tables: Clean white cards, alternating row subtle tints, sticky headers, smooth row hover highlights.
+Status badges: Pill-shaped, color-coded — Out of Stock (red), Low Stock (amber), In Stock (green), Unpaid (red), Paid (green), Credit (blue).
+Typography: Use 'Sora' (Google Font) as display/heading font and 'DM Sans' as body font. Import both from Google Fonts.
+Animations: Smooth page transitions (fade + slide-up 200ms), table row hover transitions, button press micro-animations, sidebar nav item hover glow effects.
+Logo placement: Show the DOPIK ELECTRONICS logo (DE hexagon icon) in the sidebar top. Text "DOPIK-IT" in Sora bold beside it in white.
+Dashboard cards use glassmorphism: semi-transparent blue or gold tinted backgrounds with blur, white text, animated count-up numbers on load.
+
+
+DATABASE SCHEMA
+Create the following PostgreSQL tables. All monetary values stored as NUMERIC(12,2). All timestamps as TIMESTAMP DEFAULT NOW().
+sql-- Users (auth)
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(150) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(20) DEFAULT 'user',   -- 'admin' or 'user'
+  status VARCHAR(20) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Items (product catalog)
+CREATE TABLE items (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  qty_type VARCHAR(50) NOT NULL,     -- 'piece', 'kg', 'box', 'M', 'pack', etc.
+  purchase_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  alternative_item_id INT REFERENCES items(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Stock
+CREATE TABLE stock (
+  id SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  quantity NUMERIC(12,2) NOT NULL DEFAULT 0,
+  min_stock NUMERIC(12,2) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Stock Adjustments
+CREATE TABLE stock_adjustments (
+  id SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  adjustment_type VARCHAR(10) NOT NULL,  -- 'increase' or 'decrease'
+  quantity NUMERIC(12,2) NOT NULL,
+  previous_qty NUMERIC(12,2) NOT NULL,
+  new_qty NUMERIC(12,2) NOT NULL,
+  reason TEXT,
+  adjusted_by INT REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Vendors
+CREATE TABLE vendors (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  contact_person VARCHAR(100),
+  email VARCHAR(150),
+  phone VARCHAR(30),
+  address TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Customers
+CREATE TABLE customers (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  contact_person VARCHAR(100),
+  email VARCHAR(150),
+  phone VARCHAR(30),
+  address TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Purchases
+CREATE TABLE purchases (
+  id SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  quantity NUMERIC(12,2) NOT NULL,
+  total_cost NUMERIC(12,2) NOT NULL,
+  vendor_id INT REFERENCES vendors(id),
+  payment_method VARCHAR(30) DEFAULT 'cash',  -- 'cash', 'bank', 'mobile_money', 'credit'
+  recorded_by INT REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Sales
+CREATE TABLE sales (
+  id SERIAL PRIMARY KEY,
+  customer_id INT REFERENCES customers(id),
+  payment_method VARCHAR(30) DEFAULT 'cash',  -- 'cash', 'bank', 'mobile_money', 'credit'
+  total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  recorded_by INT REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Sale Items (for multi-item sales)
+CREATE TABLE sale_items (
+  id SERIAL PRIMARY KEY,
+  sale_id INT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  item_id INT NOT NULL REFERENCES items(id),
+  quantity NUMERIC(12,2) NOT NULL,
+  unit_price NUMERIC(12,2) NOT NULL,
+  line_total NUMERIC(12,2) NOT NULL
+);
+
+-- Receivables (credit sales tracking)
+CREATE TABLE receivables (
+  id SERIAL PRIMARY KEY,
+  sale_id INT NOT NULL REFERENCES sales(id),
+  customer_id INT NOT NULL REFERENCES customers(id),
+  total_amount NUMERIC(12,2) NOT NULL,
+  paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  due_date DATE,
+  status VARCHAR(20) DEFAULT 'unpaid',   -- 'unpaid', 'partial', 'paid'
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Receivable Payments
+CREATE TABLE receivable_payments (
+  id SERIAL PRIMARY KEY,
+  receivable_id INT NOT NULL REFERENCES receivables(id),
+  amount NUMERIC(12,2) NOT NULL,
+  payment_method VARCHAR(30),
+  paid_at TIMESTAMP DEFAULT NOW(),
+  recorded_by INT REFERENCES users(id)
+);
+
+-- Payables (credit purchases tracking)
+CREATE TABLE payables (
+  id SERIAL PRIMARY KEY,
+  purchase_id INT NOT NULL REFERENCES purchases(id),
+  vendor_id INT REFERENCES vendors(id),
+  total_amount NUMERIC(12,2) NOT NULL,
+  paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  due_date DATE,
+  status VARCHAR(20) DEFAULT 'unpaid',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Expense Accounts
+CREATE TABLE expense_accounts (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  account_type VARCHAR(30) DEFAULT 'expense',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Expenses
+CREATE TABLE expenses (
+  id SERIAL PRIMARY KEY,
+  account_id INT NOT NULL REFERENCES expense_accounts(id),
+  payment_method VARCHAR(30) NOT NULL,  -- 'cash', 'bank', 'mobile_money'
+  amount NUMERIC(12,2) NOT NULL,
+  description TEXT,
+  paid_by INT REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Cash/Bank/Mobile Money Balances (ledger)
+CREATE TABLE balances (
+  id SERIAL PRIMARY KEY,
+  method VARCHAR(30) UNIQUE NOT NULL,  -- 'cash', 'bank', 'mobile_money'
+  amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Audit Log
+CREATE TABLE audit_logs (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES users(id),
+  action VARCHAR(200),
+  details TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+BALANCE LEDGER LOGIC (CRITICAL — HOW MONEY FLOWS)
+The system tracks three payment method balances: Cash, Bank, Mobile Money. These balances update automatically on every transaction:
+
+New Sale (Cash/Bank/Mobile Money): → Add sale total to that balance
+New Sale (Credit): → Create a Receivable. Balance only updates when payment is recorded on the receivable.
+New Purchase (Cash/Bank/Mobile Money): → Subtract purchase total from that balance
+New Purchase (Credit): → Create a Payable. Balance only updates when payment is recorded on the payable.
+Pay Expense: → Subtract expense amount from chosen balance
+Record Receivable Payment: → Add paid amount to chosen balance, update receivable paid_amount and status
+Record Payable Payment: → Subtract paid amount from chosen balance, update payable status
+
+Initialize balances table with:
+sqlINSERT INTO balances (method, amount) VALUES ('cash', 0), ('bank', 0), ('mobile_money', 0);
+
+STOCK LOGIC (CRITICAL — HOW STOCK FLOWS)
+Stock updates automatically on every relevant transaction:
+
+New Purchase recorded: → stock.quantity += quantity_purchased for that item
+New Sale recorded: → stock.quantity -= quantity_sold for that item (block sale if stock = 0)
+Sale Reverted: → stock.quantity += quantity_sold back to stock
+Stock Adjustment (increase): → stock.quantity += adjustment_quantity
+Stock Adjustment (decrease): → stock.quantity -= adjustment_quantity
+Stock status logic:
+
+quantity = 0 → OUT OF STOCK
+0 < quantity <= min_stock → LOW STOCK
+quantity > min_stock → IN STOCK (normal)
+
+
+When adding a new item, automatically create a stock row for it with quantity = 0 and min_stock = 0.
+Out-of-stock items are disabled and cannot be selected in the New Sale form. Show them grayed out with a tooltip "Out of stock".
+
+
+GROSS PROFIT LOGIC (FOR INCOME STATEMENT)
+Gross Profit per sale item = (unit_price - item.purchase_price) × quantity_sold
+Monthly Gross Profit = SUM of all sale item gross profits in that month
+Net Profit = Gross Profit - Stock Adjustment Cost - Total Expenses
+Stock Adjustment Cost = SUM of (decrease adjustments × item.purchase_price) in that month
+
+PAGES & MODULES — FULL SPECIFICATION
+1. AUTH PAGES
+Login Page (/login)
+
+Full-page dark background (#0F172A) with animated particle/circuit board pattern in Dopik blue
+Centered glass card (frosted dark card, backdrop-filter: blur(16px))
+Dopik Electronics logo (DE hexagon) prominently centered at top inside white circle
+Title "DOPIK-IT" in Sora bold gold
+Fields: Email (with person icon), Password (with lock icon + show/hide toggle)
+Checkbox: "Remember me"
+Primary gradient button: "Login"
+Link: "Forgot password?"
+Validation: show inline red error on wrong credentials
+On success: redirect to Dashboard
+
+Forgot Password Page (/forgot-password)
+
+Same dark glass card style
+Email input field
+"Send reset link" button
+"Back to sign in" link
+
+
+2. LAYOUT (Persistent on all authenticated pages)
+Sidebar (Left, 220px wide, dark #0F172A)
+
+Top: Dopik DE hexagon logo + "DOPIK-IT" text in Sora bold white
+Navigation sections with section labels:
+
+INVENTORY
+  📦 Items
+  🕐 Item History
+  📋 Stock
+  ⚖️ Stock Adjustment
+  🕐 Adjustment History
+  ⚠️ Stock Alerts
+
+TRANSACTIONS
+  🛒 New Purchase
+  📋 Purchase History
+  🏷️ New Sale
+  🛒 Multi-Item Sale
+  📋 Sales History
+
+PAYABLES & RECEIVABLES
+  🏢 Vendors
+  👥 Customers
+  💳 Payables
+  💰 Receivables
+
+ACCOUNTING
+  💸 Pay Expense
+  📂 Expense Accounts
+
+REPORTS
+  📊 Sales Report
+  📊 Purchase Report
+  📊 Expense Report
+  📊 Summary Report
+
+Active nav item: glowing blue-gold gradient pill, white text, left gold accent bar
+Hover: subtle blue glow
+Section labels: small caps, muted gold color
+
+Top Navbar (Right side, full width minus sidebar)
+
+Frosted glass bar
+Left: Current page title (bold, Sora)
+Right: User avatar circle (initials, blue), Name, dropdown chevron
+Dropdown: Profile, Logout
+
+
+3. DASHBOARD (/dashboard)
+Show summary cards at top:
+
+Total Items (count from items table) — blue glass card
+Total Stock Value (SUM of stock.quantity × items.purchase_price) — gold glass card
+Today's Sales (SUM of sales today) — green glass card
+Outstanding Receivables (SUM of receivables where status != 'paid') — red glass card
+Cash Balance — blue card
+Mobile Money Balance — gold card
+
+Below cards: show Stock Alerts summary (X out of stock, Y low stock) with a "View Alerts" button.
+Below that: Recent Sales table (last 10 sales) and Recent Purchases table (last 10 purchases) side by side.
+
+4. INVENTORY MODULE
+Items List (/items)
+
+Table columns: NO, NAME, QTY TYPE, PURCHASE PRICE, SALE PRICE, ALTERNATIVE ITEMS, ACTIONS
+Search bar: filter by item name in real time
+Buttons top-right: "Item History" (secondary), "Add Item" (primary gradient)
+Actions per row: "History" button (dark), "Edit" button (gold)
+Add Item form (inline expand or modal):
+
+Fields: Name*, Qty Type* (dropdown: piece/kg/box/M/pack/roll/litre/set — user can also type custom), Purchase Price*, Sale Price*, Alternative Item (searchable dropdown of existing items, optional)
+On save: insert into items, create stock row with quantity=0
+
+
+Edit Item: Same form pre-filled, update on save
+Pagination: 50 items per page
+
+Item History (/item-history)
+
+Searchable dropdown: "Select item"
+On select: show full chronological history of that item across all transaction types:
+
+Purchases (date, qty added, cost, vendor)
+Sales (date, qty sold, sale amount, customer)
+Stock Adjustments (date, type, qty change, reason, by whom)
+
+
+"Back to Items" button
+
+Stock List (/stock)
+
+Stock Alert banner at top if any items are out/low stock: "⚠️ X items require attention — low or out of stock" with "View Alerts" button (amber background)
+Table columns: NO, ITEM NAME, QUANTITY IN STOCK (colored: red if 0, amber if low, teal/green if ok), MIN. STOCK, STATUS badge, PURCHASE PRICE, SALE PRICE
+Search bar
+Buttons: "Adjust Stock" (secondary), "Add Stock" = same as New Purchase shortcut (primary)
+Color coding strictly enforced on quantity column
+
+Stock Adjustment (/stock-adjustment)
+
+Description text: "Adjust inventory quantities for corrections, damage, found items, or physical count discrepancies. Each adjustment updates stock, is logged for audit, and is recorded in accounting (Inventory at item purchase price)."
+Form fields:
+
+Item* (searchable dropdown — show current stock qty in parentheses e.g. "adapter OG (15.00 piece in stock)")
+Adjustment Type*: two toggle buttons — "+ Increase stock" (green tint active) / "- Decrease stock" (red tint active)
+Quantity*
+Reason / Notes (optional textarea, placeholder: "e.g. Physical count correction, damaged, found items")
+
+
+Buttons: "Apply Adjustment" (primary), "Cancel"
+Top-right: "Back to Stock", "View History"
+On submit: update stock table, insert stock_adjustments row, log audit
+
+Adjustment History (/adjustment-history)
+
+Filter: Item dropdown (All items default), Type dropdown (All/Increase/Decrease), Filter button
+Table columns: DATE, ITEM, TYPE (green "Increase" badge / red "Decrease" badge), QUANTITY, PREVIOUS QTY, NEW QTY, REASON, BY
+
+Stock Alerts (/stock-alerts)
+
+Two summary cards: "167 Out of Stock" (red card with ⛔ icon), "15 Low Stock" (amber card with ⚠️ icon)
+Table columns: NO, STATUS badge, ITEM NAME, CURRENT STOCK (red if 0, amber if low), MIN. REQUIRED, PURCHASE PRICE, SALE PRICE, ACTIONS (Restock button → goes to New Purchase with item pre-selected)
+"View All Stock" button top-right
+
+
+5. TRANSACTIONS MODULE
+New Purchase (/purchase)
+
+Page title: "Purchase Item" with 📦 emoji
+Top-right: "← Purchases List" button
+Form — "New purchase":
+
+Select Item* (searchable dropdown)
+Quantity Purchased* (number)
+Total Cost* (number — NOT auto-calculated, user enters actual total paid)
+Select Vendor (searchable dropdown, optional) + "Add New Vendor" inline link
+Payment Method (dropdown): Cash (Payment Now) / Bank (Payment Now) / Mobile Money (Payment Now) / Credit (Pay Later)
+
+
+"Record Purchase" full-width primary button
+On submit:
+
+Insert into purchases
+Update stock (quantity += purchased qty)
+If Cash/Bank/Mobile Money: deduct from balances
+If Credit: insert into payables
+Log audit
+
+
+
+Purchase History (/purchase-history)
+
+Table: NO, ITEM NAME, QUANTITY, TOTAL COST, VENDOR, PURCHASE DATE
+Search by item name
+"Purchase" button top-right (goes to New Purchase)
+
+New Sale (/sale)
+
+Page title: "Sale Item" with 🛒 emoji
+Top-right: "Multi-item sale" button, "← Sales List" button
+Form — "New sale":
+
+Select Item* (searchable dropdown — out-of-stock items disabled with note "Out-of-stock items are disabled and cannot be sold.")
+Quantity Sold* (number)
+Total Sale Amount* (number — user enters actual amount received, can differ from catalogue price)
+Select Customer (searchable dropdown, optional) + "Add New Customer" inline link
+Payment Method: Cash (Payment Now) / Bank (Payment Now) / Mobile Money (Payment Now) / Credit (Pay Later)
+
+
+"Record Sale" full-width primary button
+On submit:
+
+Insert into sales + sale_items
+Update stock (quantity -= sold qty)
+If Cash/Bank/Mobile Money: add to balances
+If Credit: insert into receivables with due_date = today + 2 days default
+Log audit
+
+
+
+Multi-Item Sale (/multi-sale)
+
+Page title: "Multi-Item Sale" with 🛒 emoji
+Top-right: "← Single Item Sale" button
+Add Items to Cart section:
+
+Row: Item (searchable dropdown), Quantity (number, default 1), Unit Price (editable, pre-fills from item sale_price, shown with gold "Editable" label), Line Total (auto = qty × unit price), "+ Add" green button
+
+
+Shopping Cart section:
+
+Shows added items as rows: Item name, Qty, Unit Price, Line Total, Remove (×) button
+If empty: show cart icon with "Cart is empty. Add items to get started!"
+Cart Summary at bottom: subtotal, total
+
+
+Below cart: Customer selector, Payment Method, "Complete Sale" primary button
+On submit: insert one sale record + multiple sale_items, update stock for each item, update balance
+
+Sales History (/sales)
+
+Table: NO, ITEM NAME (or "Multi-item Sale (X items)" with "View Items" expandable), QUANTITY, TOTAL SALE AMOUNT, SALE DATE, ACTION (Revert button — red)
+Revert: reverses the sale, restores stock, reverses balance, marks sale as reverted
+Search by item name
+"Sale" button top-right
+
+
+6. PAYABLES & RECEIVABLES MODULE
+Vendors (/vendors)
+
+Table: NO, VENDOR NAME, CONTACT PERSON, EMAIL, PHONE, ACTIONS (Edit, Delete)
+"Add New Vendor" button top-right
+Add/Edit form: Name*, Contact Person, Email, Phone, Address
+If no vendors: show "No vendors found. Click 'Add New Vendor' to get started."
+
+Customers (/customers)
+
+Table: NO, CUSTOMER NAME, CONTACT PERSON, EMAIL, PHONE, ACTIONS (Edit — gold, Delete — red)
+Inline "Add Customer" form at top (expands on button click): Name*, Contact Person, Email, Phone, Address
+"Save Customer" / "Cancel" buttons
+
+Manage Payables (/payables)
+
+Table: PURCHASE #, DATE, VENDOR, ITEM, TOTAL AMOUNT, PAID AMOUNT, REMAINING (bold), STATUS badge, DUE DATE, ACTION (Record Payment button)
+Record Payment modal: choose payment method (Cash/Bank/Mobile Money), enter amount, confirm
+On payment: update payables paid_amount + status, deduct from balance
+If no outstanding payables: "No outstanding payables found."
+
+Manage Receivables (/receivables)
+
+Table: SALE #, DATE, CUSTOMER, ITEM (or "Multi-item Sale (X items)" + View Items button), TOTAL AMOUNT, PAID AMOUNT, REMAINING (bold), STATUS badge, DUE DATE, ACTION (Record Payment button)
+Record Payment: choose method, enter amount, on confirm → update receivables, add to balance
+Overdue receivables (past due date, still unpaid) highlighted with red row tint
+
+
+7. ACCOUNTING MODULE
+Pay Expense (/pay-expense)
+
+Top-right: "← Dashboard", "Manage Expense Accounts" buttons
+Description: "Pay from Cash, Bank, or Mobile Money. Amount cannot exceed the balance of the method you choose."
+Available Balances display panel (purple/blue gradient glass card):
+
+💵 Cash: X,XXX.XX RWF
+🏦 Bank: X,XXX.XX RWF
+📱 Mobile Money: X,XXX.XX RWF
+
+
+Form:
+
+Expense Account* (dropdown of expense_accounts)
+Payment Method* (Cash / Bank / Mobile Money dropdown)
+Amount to pay* (number — validate: cannot exceed available balance of chosen method)
+Description (text, placeholder "What is this payment for?")
+"Available: X,XXX.XX RWF" helper text below amount (updates dynamically when method changes)
+
+
+"Pay Expense" full-width primary button
+On submit: insert expense, deduct from balance
+
+Expense Accounts (/expense-accounts)
+
+Description: "Use New expense account to add an account. It will appear when you record expense payments. Note: These accounts are for your company only."
+Table: ID, ACCOUNT NAME, ACCOUNT TYPE (red "Expense" badge), ACTIONS (Edit — gold)
+"New expense account" primary button, "← Pay Expense" secondary button
+Default accounts to seed: Electricity, Rent, Water, Internet, Salary, Lunch, Tax, Ticket, Transportation Fee, Transition Fee, Envelope(Packaging), Other Expenses, Umutekano (Security)
+Add/Edit: Name*, Type (always Expense)
+
+
+8. REPORTS MODULE
+All reports have: Date range picker (Start Date, End Date), Filter button, Print button.
+Sales Report (/reports/sales)
+
+Table: NO, ITEM NAME, QUANTITY, TOTAL SALE, SALE DATE
+Footer: Total Sales: X,XXX,XXX.XX (bold)
+All sales in date range, one row per sale item
+
+Purchase Report (/reports/purchases)
+
+Table: NO, ITEM NAME, QUANTITY, TOTAL COST, VENDOR, PURCHASE DATE
+Footer: Total Cost: X,XXX,XXX.XX (bold)
+
+Expense Report (/reports/expenses)
+
+Table: NO, ACCOUNT NAME, DESCRIPTION, AMOUNT, DATE
+Footer: Total Expenses: X,XXX.XX (bold)
+
+Summary Report / Income Statement (/reports/summary)
+
+Year selector dropdown (default current year)
+Monthly table:
+
+Columns: MONTH, GROSS PROFIT (RWF), STOCK ADJUSTMENT (RWF), TOTAL EXPENSES (RWF), NET PROFIT (RWF)
+12 rows (Jan–Dec) + Total row at bottom
+Negative net profit months: red text
+
+
+Visual Representation section below table:
+
+Grouped bar + line chart (Recharts)
+Bars: Gross Profit (green), Stock Adjustment (gold/yellow), Expenses (red/orange)
+Line: Net Profit (blue)
+Dashed reference lines: Avg Net Profit (annual ÷ 12), Avg Expenses (annual ÷ 12)
+Tooltip on hover showing all values for that month
+Legend at bottom
+Explanation text: "Dashed lines are one annual benchmark for the selected year..."
+
+
+
+
+9. USER PROFILE (/profile)
+
+Tabs: "Profile Information" | "Change Password"
+Profile Info tab:
+
+Fields (read-only display, editable on click): Name, Email, Role (read-only), Status (read-only), Member Since (read-only)
+"Update Profile" primary button → saves name/email changes
+
+
+Change Password tab:
+
+Current Password, New Password, Confirm New Password
+"Update Password" button
+Validate: new passwords match, current password correct
+
+
+
+
+API ROUTES — FULL LIST
+AUTH
+POST   /api/auth/login
+POST   /api/auth/logout
+POST   /api/auth/forgot-password
+GET    /api/auth/me
+
+ITEMS
+GET    /api/items                  → list all
+POST   /api/items                  → create
+PUT    /api/items/:id              → update
+GET    /api/items/:id/history      → full item history
+
+STOCK
+GET    /api/stock                  → list all with status
+GET    /api/stock/alerts           → out of stock + low stock items
+POST   /api/stock/adjust           → create adjustment
+GET    /api/stock/adjustments      → adjustment history (filterable)
+
+PURCHASES
+GET    /api/purchases              → list
+POST   /api/purchases              → create (updates stock + balance)
+
+SALES
+GET    /api/sales                  → list
+POST   /api/sales                  → create single or multi-item (updates stock + balance)
+POST   /api/sales/:id/revert       → revert sale (restores stock + balance)
+
+VENDORS
+GET    /api/vendors
+POST   /api/vendors
+PUT    /api/vendors/:id
+DELETE /api/vendors/:id
+
+CUSTOMERS
+GET    /api/customers
+POST   /api/customers
+PUT    /api/customers/:id
+DELETE /api/customers/:id
+
+PAYABLES
+GET    /api/payables
+POST   /api/payables/:id/payment   → record payment (updates balance)
+
+RECEIVABLES
+GET    /api/receivables
+POST   /api/receivables/:id/payment → record payment (updates balance)
+
+EXPENSES
+GET    /api/expense-accounts
+POST   /api/expense-accounts
+PUT    /api/expense-accounts/:id
+POST   /api/expenses               → pay expense (updates balance)
+
+BALANCES
+GET    /api/balances               → get all three balances
+
+REPORTS
+GET    /api/reports/sales?start=&end=
+GET    /api/reports/purchases?start=&end=
+GET    /api/reports/expenses?start=&end=
+GET    /api/reports/summary?year=  → income statement
+
+USERS
+GET    /api/users/profile
+PUT    /api/users/profile
+PUT    /api/users/password
+
+DASHBOARD
+GET    /api/dashboard              → all summary stats in one call
+
+INTER-MODULE CONNECTIONS (HOW EVERYTHING LINKS)
+
+Items → Stock: Every item has exactly one stock row. Creating an item auto-creates stock. Deleting an item cascades to stock.
+Items → Sale/Purchase forms: All sale/purchase forms use a searchable item dropdown populated from the items table. Out-of-stock items are disabled in sale forms.
+Purchases → Stock → Balance: Recording a purchase increases that item's stock quantity AND decreases the chosen payment method balance (or creates a payable if credit).
+Sales → Stock → Balance: Recording a sale decreases stock AND increases the chosen payment method balance (or creates a receivable if credit).
+Sales Revert → Stock → Balance: Reverting a sale restores stock and reverses the balance change.
+Stock Adjustment → Stock → Audit Log: Every adjustment is logged with who did it, when, and why.
+Stock Alerts → Stock Adjustment / Purchase: The Restock button on stock alerts pre-fills the New Purchase form with that item.
+Receivables → Balance: Recording payment on a receivable adds money to the chosen balance.
+Payables → Balance: Recording payment on a payable deducts money from the chosen balance.
+Pay Expense → Balance: Expenses deduct from the chosen balance. Cannot exceed available balance.
+Income Statement: Pulls gross profit from sales + sale_items (unit_price - purchase_price × qty), expenses from expenses table, and stock adjustment cost from decrease adjustments × purchase price. All computed server-side per month.
+Item History: Aggregates data from purchases, sale_items, and stock_adjustments all filtered by item_id, sorted by date descending.
+Customers → Sales → Receivables: Selecting a customer on a credit sale auto-links that receivable to the customer.
+Vendors → Purchases → Payables: Selecting a vendor on a credit purchase auto-links that payable to the vendor.
+Audit Log: Every data-changing operation (sale, purchase, adjustment, expense, payment) writes to audit_logs with user_id, action name, and relevant details.
+
+
+CURRENCY & FORMATTING
+
+All monetary values display as: 1,500,000.00 RWF
+All quantities display with their unit: 25.00 piece, 10.00 kg, 4.00 box
+Dates display as: 2026-05-26 13:30:20
+Use Intl.NumberFormat for all number formatting on the frontend
+
+
+SEED DATA
+On first run, seed:
+
+1 admin user: name="Admin", email="admin@dopikelectronics.com", password="dopik2026"
+3 initial balances: cash=0, bank=0, mobile_money=0
+Default expense accounts listed above
+Example items (10 electronics items like: Adapter, USB Cable, Power Bank, Extension Cable, LED Bulb, HDMI Cable, Phone Charger, Earphones, Memory Card, Surge Protector) with realistic purchase/sale prices in RWF
+
+
+SECURITY & VALIDATION
+
+All routes except /login and /forgot-password require authentication (session middleware)
+Server-side validation on all POST/PUT endpoints
+SQL injection prevention via parameterized queries
+Balance deduction must validate sufficient funds before executing
+Stock deduction must validate sufficient stock before executing
+Sale revert must check sale hasn't already been reverted
+Passwords hashed with bcrypt (saltRounds: 12)
+
+
+PRINT FUNCTIONALITY
+All report pages have a "Print" button that triggers window.print() with a print stylesheet that:
+
+Hides sidebar, navbar, filter controls, Print button
+Shows only the report table and title
+Formats cleanly on A4 paper
