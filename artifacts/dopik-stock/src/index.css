@@ -138,6 +138,68 @@
   @apply bg-gradient-to-r from-[#1A6DB5]/20 to-[#F5A800]/20 text-white border-l-4 border-[#F5A800] backdrop-blur-md relative;
 }
 
+/* ── Modern scrollbars ───────────────────────────────────────── */
+
+/* Sidebar nav — dark, slim, pill-shaped thumb */
+aside nav::-webkit-scrollbar {
+  width: 4px;
+}
+aside nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+aside nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 100px;
+  transition: background 0.2s;
+}
+aside nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+aside nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+/* Main content area — light, slim, clean */
+main::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+main::-webkit-scrollbar-track {
+  background: transparent;
+}
+main::-webkit-scrollbar-thumb {
+  background: rgba(26, 109, 181, 0.18);
+  border-radius: 100px;
+}
+main::-webkit-scrollbar-thumb:hover {
+  background: rgba(26, 109, 181, 0.38);
+}
+main {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(26,109,181,0.18) transparent;
+}
+
+/* Global fallback for any other scrollable containers */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.12) transparent;
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.12);
+  border-radius: 100px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.22);
+}
+
 @media print {
   .no-print {
     display: none !important;
