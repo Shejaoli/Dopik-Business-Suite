@@ -13,4 +13,5 @@ export interface PurchaseInput {
   /** @nullable */
   vendorId?: number | null;
   paymentMethod: string;
+  serialNumbers?: string[];
 }

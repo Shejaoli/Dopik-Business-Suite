@@ -11,6 +11,7 @@ import {
   loansTable, loanPaymentsTable,
   expensesTable, expenseAccountsTable,
   balancesTable, auditLogsTable,
+  serialNumbersTable,
 } from "@workspace/db";
 
 const router = Router();
@@ -27,6 +28,7 @@ router.get("/backup/export", async (_req, res): Promise<void> => {
       loans, loanPayments,
       expenses, expenseAccounts,
       balances, auditLogs,
+      serialNumbers,
     ] = await Promise.all([
       db.select().from(usersTable),
       db.select().from(itemsTable),
@@ -47,10 +49,11 @@ router.get("/backup/export", async (_req, res): Promise<void> => {
       db.select().from(expenseAccountsTable),
       db.select().from(balancesTable),
       db.select().from(auditLogsTable),
+      db.select().from(serialNumbersTable),
     ]);
 
     const backup = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       data: {
         users, items, stock, stockAdjustments,
@@ -61,6 +64,7 @@ router.get("/backup/export", async (_req, res): Promise<void> => {
         loans, loanPayments,
         expenses, expenseAccounts,
         balances, auditLogs,
+        serialNumbers,
       },
     };
 
@@ -84,6 +88,7 @@ router.post("/backup/import", async (req, res): Promise<void> => {
 
     await db.execute(`
       TRUNCATE TABLE
+        serial_numbers,
         audit_logs, loan_payments, loans,
         sale_items, receivable_payments, receivables,
         payable_payments, payables,
@@ -114,6 +119,7 @@ router.post("/backup/import", async (req, res): Promise<void> => {
     if (d.loans?.length)                await db.insert(loansTable).values(d.loans);
     if (d.loanPayments?.length)         await db.insert(loanPaymentsTable).values(d.loanPayments);
     if (d.stockAdjustments?.length)     await db.insert(stockAdjustmentsTable).values(d.stockAdjustments);
+    if (d.serialNumbers?.length)        await db.insert(serialNumbersTable).values(d.serialNumbers);
     if (d.auditLogs?.length)            await db.insert(auditLogsTable).values(d.auditLogs);
 
     res.json({ success: true, message: "Database restored successfully. Please log in again." });

@@ -8,8 +8,8 @@
 
 export interface PurchasesReportRow {
   itemName: string;
+  category?: string;
   quantity: string;
-  qtyType?: string;
   totalCost: string;
   /** @nullable */
   vendorName?: string | null;

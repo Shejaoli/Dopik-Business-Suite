@@ -10,4 +10,5 @@ export interface SaleItemInput {
   itemId: number;
   quantity: string;
   unitPrice: string;
+  serialNumbers?: string[];
 }

@@ -16,7 +16,7 @@ router.get("/reports/sales", async (req, res): Promise<void> => {
   const rows = await db
     .select({
       itemName: itemsTable.name,
-      qtyType: itemsTable.qtyType,
+      category: itemsTable.category,
       quantity: saleItemsTable.quantity,
       totalSale: saleItemsTable.lineTotal,
       saleDate: salesTable.createdAt,
@@ -32,7 +32,7 @@ router.get("/reports/sales", async (req, res): Promise<void> => {
   res.json({
     rows: rows.map(r => ({
       itemName: r.itemName ?? "Unknown",
-      qtyType: r.qtyType ?? "",
+      category: r.category ?? "",
       quantity: r.quantity,
       totalSale: r.totalSale,
       saleDate: r.saleDate?.toISOString() ?? "",
@@ -51,7 +51,7 @@ router.get("/reports/purchases", async (req, res): Promise<void> => {
   const rows = await db
     .select({
       itemName: itemsTable.name,
-      qtyType: itemsTable.qtyType,
+      category: itemsTable.category,
       quantity: purchasesTable.quantity,
       totalCost: purchasesTable.totalCost,
       vendorName: vendorsTable.name,
@@ -68,7 +68,7 @@ router.get("/reports/purchases", async (req, res): Promise<void> => {
   res.json({
     rows: rows.map(r => ({
       itemName: r.itemName ?? "Unknown",
-      qtyType: r.qtyType ?? "",
+      category: r.category ?? "",
       quantity: r.quantity,
       totalCost: r.totalCost,
       vendorName: r.vendorName ?? null,

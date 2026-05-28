@@ -26,7 +26,8 @@ export interface AuthUser {
 export interface Item {
   id: number;
   name: string;
-  qtyType: string;
+  category: string;
+  trackSerial?: boolean;
   purchasePrice: string;
   salePrice: string;
   /** @nullable */
@@ -38,7 +39,8 @@ export interface Item {
 
 export interface ItemInput {
   name: string;
-  qtyType: string;
+  category: string;
+  trackSerial?: boolean;
   purchasePrice: string;
   salePrice: string;
   /** @nullable */
@@ -47,7 +49,8 @@ export interface ItemInput {
 
 export interface ItemUpdate {
   name?: string;
-  qtyType?: string;
+  category?: string;
+  trackSerial?: boolean;
   purchasePrice?: string;
   salePrice?: string;
   /** @nullable */
@@ -85,7 +88,8 @@ export interface StockEntry {
   id: number;
   itemId: number;
   itemName: string;
-  qtyType: string;
+  category: string;
+  trackSerial?: boolean;
   quantity: string;
   minStock: string;
   status: string;
@@ -104,6 +108,7 @@ export interface StockAdjustmentInput {
   quantity: string;
   /** @nullable */
   reason?: string | null;
+  serialNumbers?: string[];
 }
 
 export interface StockAdjustment {
@@ -112,7 +117,7 @@ export interface StockAdjustment {
   /** @nullable */
   itemName?: string | null;
   /** @nullable */
-  qtyType?: string | null;
+  category?: string | null;
   adjustmentType: string;
   quantity: string;
   previousQty: string;
@@ -130,7 +135,8 @@ export interface Purchase {
   /** @nullable */
   itemName?: string | null;
   /** @nullable */
-  qtyType?: string | null;
+  category?: string | null;
+  trackSerial?: boolean;
   quantity: string;
   totalCost: string;
   /** @nullable */
@@ -150,6 +156,7 @@ export interface PurchaseInput {
   /** @nullable */
   vendorId?: number | null;
   paymentMethod: string;
+  serialNumbers?: string[];
 }
 
 export interface SaleItem {
@@ -159,7 +166,7 @@ export interface SaleItem {
   /** @nullable */
   itemName?: string | null;
   /** @nullable */
-  qtyType?: string | null;
+  category?: string | null;
   quantity: string;
   unitPrice: string;
   lineTotal: string;
@@ -184,6 +191,7 @@ export interface SaleItemInput {
   itemId: number;
   quantity: string;
   unitPrice: string;
+  serialNumbers?: string[];
 }
 
 export interface SaleInput {
@@ -357,8 +365,8 @@ export interface Balance {
 
 export interface SalesReportRow {
   itemName: string;
+  category?: string;
   quantity: string;
-  qtyType?: string;
   totalSale: string;
   saleDate: string;
 }
@@ -370,8 +378,8 @@ export interface SalesReport {
 
 export interface PurchasesReportRow {
   itemName: string;
+  category?: string;
   quantity: string;
-  qtyType?: string;
   totalCost: string;
   /** @nullable */
   vendorName?: string | null;

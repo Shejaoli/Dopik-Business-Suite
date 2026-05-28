@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, ilike, sql, desc, inArray } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, itemsTable, stockTable, customersTable, balancesTable, receivablesTable, auditLogsTable } from "@workspace/db";
+import { eq, desc, inArray } from "drizzle-orm";
+import { db, salesTable, saleItemsTable, itemsTable, stockTable, customersTable, balancesTable, receivablesTable, auditLogsTable, serialNumbersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -13,7 +13,7 @@ async function buildSaleResponse(sale: any) {
       saleId: saleItemsTable.saleId,
       itemId: saleItemsTable.itemId,
       itemName: itemsTable.name,
-      qtyType: itemsTable.qtyType,
+      category: itemsTable.category,
       quantity: saleItemsTable.quantity,
       unitPrice: saleItemsTable.unitPrice,
       lineTotal: saleItemsTable.lineTotal,
@@ -25,7 +25,6 @@ async function buildSaleResponse(sale: any) {
 }
 
 router.get("/sales", async (req, res): Promise<void> => {
-  const search = req.query.search as string | undefined;
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 50;
   const offset = (page - 1) * limit;
@@ -58,7 +57,6 @@ router.post("/sales", async (req, res): Promise<void> => {
     return;
   }
 
-  // Check stock for all items
   for (const saleItem of items) {
     const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, saleItem.itemId));
     if (!stockRow || parseFloat(stockRow.quantity) <= 0) {
@@ -71,13 +69,11 @@ router.post("/sales", async (req, res): Promise<void> => {
     }
   }
 
-  // Create sale
   const [sale] = await db.insert(salesTable).values({
     customerId: customerId || null, paymentMethod, totalAmount: String(totalAmount),
     recordedBy: req.session.userId || null, reverted: false,
   }).returning();
 
-  // Create sale items + update stock
   for (const saleItem of items) {
     const lineTotal = parseFloat(String(saleItem.quantity)) * parseFloat(String(saleItem.unitPrice));
     await db.insert(saleItemsTable).values({
@@ -85,28 +81,31 @@ router.post("/sales", async (req, res): Promise<void> => {
       quantity: String(saleItem.quantity), unitPrice: String(saleItem.unitPrice),
       lineTotal: String(lineTotal),
     });
+
     const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, saleItem.itemId));
     if (stockRow) {
       const newQty = parseFloat(stockRow.quantity) - parseFloat(String(saleItem.quantity));
       await db.update(stockTable).set({ quantity: String(Math.max(0, newQty)), updatedAt: new Date() }).where(eq(stockTable.id, stockRow.id));
     }
+
+    if (Array.isArray(saleItem.serialNumbers) && saleItem.serialNumbers.length > 0) {
+      const snList = saleItem.serialNumbers.map((s: string) => s.trim()).filter(Boolean);
+      if (snList.length > 0) {
+        await db.update(serialNumbersTable)
+          .set({ status: "sold", referenceType: "sale", referenceId: sale.id, updatedAt: new Date() })
+          .where(inArray(serialNumbersTable.serialNumber, snList));
+      }
+    }
   }
 
-  // Update balance or create receivable
   const method = paymentMethod.toLowerCase();
   if (method === "credit") {
-    if (!customerId) {
-      // Allow sale without customer for credit (just no receivable customer link)
-    }
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + (Number(paymentTermsDays) || 30));
     await db.insert(receivablesTable).values({
-      saleId: sale.id,
-      customerId: customerId || 1,
-      totalAmount: String(totalAmount),
-      paidAmount: "0",
-      dueDate: dueDate.toISOString().split("T")[0],
-      status: "unpaid",
+      saleId: sale.id, customerId: customerId || 1,
+      totalAmount: String(totalAmount), paidAmount: "0",
+      dueDate: dueDate.toISOString().split("T")[0], status: "unpaid",
     });
   } else {
     const dbMethod = method === "mobile_money" ? "mobile_money" : method;
@@ -134,7 +133,6 @@ router.post("/sales/:id/revert", async (req, res): Promise<void> => {
   if (!sale) { res.status(404).json({ error: "Sale not found" }); return; }
   if (sale.reverted) { res.status(400).json({ error: "Sale already reverted" }); return; }
 
-  // Restore stock
   const items = await db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, id));
   for (const si of items) {
     const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, si.itemId));
@@ -144,7 +142,10 @@ router.post("/sales/:id/revert", async (req, res): Promise<void> => {
     }
   }
 
-  // Reverse balance if not credit
+  await db.update(serialNumbersTable)
+    .set({ status: "in_stock", referenceType: null, referenceId: null, updatedAt: new Date() })
+    .where(eq(serialNumbersTable.referenceId, id));
+
   const method = sale.paymentMethod?.toLowerCase() ?? "cash";
   if (method !== "credit") {
     const dbMethod = method === "mobile_money" ? "mobile_money" : method;

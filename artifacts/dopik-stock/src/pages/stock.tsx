@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, AlertTriangle, TrendingUp, TrendingDown, Loader2, Boxes } from "lucide-react";
 
 type StockEntry = {
-  id: number; itemId: number; itemName: string; qtyType: string;
+  id: number; itemId: number; itemName: string; category: string; trackSerial: boolean;
   quantity: string; minStock: string; purchasePrice: string; salePrice: string;
   status: string;
 };
@@ -93,7 +93,7 @@ export default function StockPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
-                    {["Item", "Qty Type", "In Stock", "Min Stock", "Status", "Purchase Price", "Sale Price", "Actions"].map(h => (
+                    {["Item", "Category", "In Stock", "Min Stock", "Status", "Purchase Price", "Sale Price", "Actions"].map(h => (
                       <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -114,7 +114,7 @@ export default function StockPage() {
                   ) : stock.map(s => (
                     <tr key={s.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-medium max-w-[180px]"><span className="truncate block">{s.itemName}</span></td>
-                      <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{s.qtyType}</Badge></td>
+                      <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{s.category}</Badge></td>
                       <td className="px-4 py-3 font-bold">{parseFloat(s.quantity).toLocaleString()}</td>
                       <td className="px-4 py-3 text-muted-foreground">{parseFloat(s.minStock).toLocaleString()}</td>
                       <td className="px-4 py-3">
@@ -214,7 +214,7 @@ export default function StockPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground mb-3">
-                Current stock: <strong>{parseFloat(adjustItem?.quantity ?? "0").toLocaleString()} {adjustItem?.qtyType}</strong>
+                Current stock: <strong>{parseFloat(adjustItem?.quantity ?? "0").toLocaleString()}</strong> &bull; Category: <strong>{adjustItem?.category}</strong>
               </p>
             </div>
             <div className="space-y-1.5">

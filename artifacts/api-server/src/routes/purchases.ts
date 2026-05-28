@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, ilike, sql, desc } from "drizzle-orm";
-import { db, purchasesTable, itemsTable, stockTable, vendorsTable, balancesTable, payablesTable, auditLogsTable } from "@workspace/db";
+import { eq, ilike, desc } from "drizzle-orm";
+import { db, purchasesTable, itemsTable, stockTable, vendorsTable, balancesTable, payablesTable, auditLogsTable, serialNumbersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -17,7 +17,8 @@ router.get("/purchases", async (req, res): Promise<void> => {
       id: purchasesTable.id,
       itemId: purchasesTable.itemId,
       itemName: itemsTable.name,
-      qtyType: itemsTable.qtyType,
+      category: itemsTable.category,
+      trackSerial: itemsTable.trackSerial,
       quantity: purchasesTable.quantity,
       totalCost: purchasesTable.totalCost,
       vendorId: purchasesTable.vendorId,
@@ -38,10 +39,21 @@ router.get("/purchases", async (req, res): Promise<void> => {
 });
 
 router.post("/purchases", async (req, res): Promise<void> => {
-  const { itemId, quantity, totalCost, vendorId, paymentMethod } = req.body;
+  const { itemId, quantity, totalCost, vendorId, paymentMethod, serialNumbers } = req.body;
   if (!itemId || !quantity || !totalCost || !paymentMethod) {
     res.status(400).json({ error: "itemId, quantity, totalCost, paymentMethod required" });
     return;
+  }
+
+  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+
+  if (item?.trackSerial && serialNumbers?.length) {
+    const snCount = serialNumbers.filter((s: string) => s.trim()).length;
+    const qty = parseFloat(String(quantity));
+    if (snCount !== qty) {
+      res.status(400).json({ error: `Serial number count (${snCount}) must match quantity (${qty})` });
+      return;
+    }
   }
 
   const [purchase] = await db.insert(purchasesTable).values({
@@ -49,23 +61,33 @@ router.post("/purchases", async (req, res): Promise<void> => {
     vendorId: vendorId || null, paymentMethod, recordedBy: req.session.userId || null,
   }).returning();
 
-  // Update stock
   const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, itemId));
   if (stockRow) {
     const newQty = parseFloat(stockRow.quantity) + parseFloat(String(quantity));
     await db.update(stockTable).set({ quantity: String(newQty), updatedAt: new Date() }).where(eq(stockTable.id, stockRow.id));
   }
 
-  // Update balance or create payable
+  if (item?.trackSerial && Array.isArray(serialNumbers) && serialNumbers.length > 0) {
+    const snValues = serialNumbers
+      .map((sn: string) => sn.trim())
+      .filter(Boolean)
+      .map(sn => ({
+        itemId,
+        serialNumber: sn,
+        status: "in_stock",
+        referenceType: "purchase",
+        referenceId: purchase.id,
+      }));
+    if (snValues.length > 0) {
+      await db.insert(serialNumbersTable).values(snValues).onConflictDoNothing();
+    }
+  }
+
   const method = paymentMethod.toLowerCase();
   if (method === "credit") {
     await db.insert(payablesTable).values({
-      purchaseId: purchase.id,
-      vendorId: vendorId || null,
-      totalAmount: String(totalCost),
-      paidAmount: "0",
-      dueDate: null,
-      status: "unpaid",
+      purchaseId: purchase.id, vendorId: vendorId || null,
+      totalAmount: String(totalCost), paidAmount: "0", dueDate: null, status: "unpaid",
     });
   } else {
     const dbMethod = method === "mobile_money" ? "mobile_money" : method;
@@ -76,17 +98,20 @@ router.post("/purchases", async (req, res): Promise<void> => {
     }
   }
 
-  // Audit
   await db.insert(auditLogsTable).values({
-    userId: req.session.userId || null,
-    action: "create_purchase",
+    userId: req.session.userId || null, action: "create_purchase",
     details: `Purchase of item ${itemId} qty ${quantity} cost ${totalCost}`,
   });
 
-  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
   const [vendor] = vendorId ? await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId)) : [null];
 
-  res.status(201).json({ ...purchase, itemName: item?.name ?? null, qtyType: item?.qtyType ?? null, vendorName: vendor?.name ?? null });
+  res.status(201).json({
+    ...purchase,
+    itemName: item?.name ?? null,
+    category: item?.category ?? null,
+    trackSerial: item?.trackSerial ?? false,
+    vendorName: vendor?.name ?? null,
+  });
 });
 
 export default router;

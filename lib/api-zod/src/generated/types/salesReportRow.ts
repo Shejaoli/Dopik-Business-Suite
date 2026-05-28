@@ -8,8 +8,8 @@
 
 export interface SalesReportRow {
   itemName: string;
+  category?: string;
   quantity: string;
-  qtyType?: string;
   totalSale: string;
   saleDate: string;
 }

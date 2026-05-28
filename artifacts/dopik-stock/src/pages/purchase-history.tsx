@@ -41,7 +41,7 @@ export default function PurchaseHistoryPage() {
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.itemName || `Item #${p.itemId}`}</td>
                   <td className="px-4 py-3 text-gray-600">{p.vendorName || "—"}</td>
-                  <td className="px-4 py-3 font-mono">{p.quantity} {p.qtyType}</td>
+                  <td className="px-4 py-3 font-mono">{p.quantity}</td>
                   <td className="px-4 py-3 font-mono font-semibold text-gray-800">{fmtRWF(p.totalCost)}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 capitalize">

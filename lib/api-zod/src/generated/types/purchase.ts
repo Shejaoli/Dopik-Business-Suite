@@ -12,7 +12,8 @@ export interface Purchase {
   /** @nullable */
   itemName?: string | null;
   /** @nullable */
-  qtyType?: string | null;
+  category?: string | null;
+  trackSerial?: boolean;
   quantity: string;
   totalCost: string;
   /** @nullable */

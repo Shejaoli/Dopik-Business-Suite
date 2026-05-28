@@ -12,4 +12,5 @@ export interface StockAdjustmentInput {
   quantity: string;
   /** @nullable */
   reason?: string | null;
+  serialNumbers?: string[];
 }

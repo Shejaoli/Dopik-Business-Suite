@@ -51,7 +51,8 @@ export const ListItemsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "qtyType": zod.string(),
+  "category": zod.string(),
+  "trackSerial": zod.boolean().optional(),
   "purchasePrice": zod.string(),
   "salePrice": zod.string(),
   "alternativeItemId": zod.number().nullish(),
@@ -66,7 +67,8 @@ export const ListItemsResponse = zod.object({
 
 export const CreateItemBody = zod.object({
   "name": zod.string(),
-  "qtyType": zod.string(),
+  "category": zod.string(),
+  "trackSerial": zod.boolean().optional(),
   "purchasePrice": zod.string(),
   "salePrice": zod.string(),
   "alternativeItemId": zod.number().nullish()
@@ -79,7 +81,8 @@ export const UpdateItemParams = zod.object({
 
 export const UpdateItemBody = zod.object({
   "name": zod.string().optional(),
-  "qtyType": zod.string().optional(),
+  "category": zod.string().optional(),
+  "trackSerial": zod.boolean().optional(),
   "purchasePrice": zod.string().optional(),
   "salePrice": zod.string().optional(),
   "alternativeItemId": zod.number().nullish(),
@@ -89,7 +92,8 @@ export const UpdateItemBody = zod.object({
 export const UpdateItemResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "qtyType": zod.string(),
+  "category": zod.string(),
+  "trackSerial": zod.boolean().optional(),
   "purchasePrice": zod.string(),
   "salePrice": zod.string(),
   "alternativeItemId": zod.number().nullish(),
@@ -124,7 +128,8 @@ export const ListStockResponseItem = zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string(),
-  "qtyType": zod.string(),
+  "category": zod.string(),
+  "trackSerial": zod.boolean().optional(),
   "quantity": zod.string(),
   "minStock": zod.string(),
   "status": zod.string(),
@@ -139,7 +144,8 @@ export const GetStockAlertsResponse = zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string(),
-  "qtyType": zod.string(),
+  "category": zod.string(),
+  "trackSerial": zod.boolean().optional(),
   "quantity": zod.string(),
   "minStock": zod.string(),
   "status": zod.string(),
@@ -150,7 +156,8 @@ export const GetStockAlertsResponse = zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string(),
-  "qtyType": zod.string(),
+  "category": zod.string(),
+  "trackSerial": zod.boolean().optional(),
   "quantity": zod.string(),
   "minStock": zod.string(),
   "status": zod.string(),
@@ -164,14 +171,15 @@ export const AdjustStockBody = zod.object({
   "itemId": zod.number(),
   "adjustmentType": zod.string(),
   "quantity": zod.string(),
-  "reason": zod.string().nullish()
+  "reason": zod.string().nullish(),
+  "serialNumbers": zod.array(zod.string()).optional()
 })
 
 export const AdjustStockResponse = zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "adjustmentType": zod.string(),
   "quantity": zod.string(),
   "previousQty": zod.string(),
@@ -191,7 +199,7 @@ export const ListStockAdjustmentsResponseItem = zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "adjustmentType": zod.string(),
   "quantity": zod.string(),
   "previousQty": zod.string(),
@@ -213,7 +221,8 @@ export const ListPurchasesResponseItem = zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "trackSerial": zod.boolean().optional(),
   "quantity": zod.string(),
   "totalCost": zod.string(),
   "vendorId": zod.number().nullish(),
@@ -230,7 +239,8 @@ export const CreatePurchaseBody = zod.object({
   "quantity": zod.string(),
   "totalCost": zod.string(),
   "vendorId": zod.number().nullish(),
-  "paymentMethod": zod.string()
+  "paymentMethod": zod.string(),
+  "serialNumbers": zod.array(zod.string()).optional()
 })
 
 
@@ -254,7 +264,7 @@ export const ListSalesResponseItem = zod.object({
   "saleId": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "quantity": zod.string(),
   "unitPrice": zod.string(),
   "lineTotal": zod.string()
@@ -270,7 +280,8 @@ export const CreateSaleBody = zod.object({
   "items": zod.array(zod.object({
   "itemId": zod.number(),
   "quantity": zod.string(),
-  "unitPrice": zod.string()
+  "unitPrice": zod.string(),
+  "serialNumbers": zod.array(zod.string()).optional()
 }))
 })
 
@@ -293,7 +304,7 @@ export const RevertSaleResponse = zod.object({
   "saleId": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "quantity": zod.string(),
   "unitPrice": zod.string(),
   "lineTotal": zod.string()
@@ -456,7 +467,7 @@ export const ListReceivablesResponseItem = zod.object({
   "saleId": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "quantity": zod.string(),
   "unitPrice": zod.string(),
   "lineTotal": zod.string()
@@ -491,7 +502,7 @@ export const RecordReceivablePaymentResponse = zod.object({
   "saleId": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "quantity": zod.string(),
   "unitPrice": zod.string(),
   "lineTotal": zod.string()
@@ -556,8 +567,8 @@ export const GetSalesReportQueryParams = zod.object({
 export const GetSalesReportResponse = zod.object({
   "rows": zod.array(zod.object({
   "itemName": zod.string(),
+  "category": zod.string().optional(),
   "quantity": zod.string(),
-  "qtyType": zod.string().optional(),
   "totalSale": zod.string(),
   "saleDate": zod.string()
 })),
@@ -573,8 +584,8 @@ export const GetPurchasesReportQueryParams = zod.object({
 export const GetPurchasesReportResponse = zod.object({
   "rows": zod.array(zod.object({
   "itemName": zod.string(),
+  "category": zod.string().optional(),
   "quantity": zod.string(),
-  "qtyType": zod.string().optional(),
   "totalCost": zod.string(),
   "vendorName": zod.string().nullish(),
   "purchaseDate": zod.string()
@@ -679,7 +690,7 @@ export const GetDashboardResponse = zod.object({
   "saleId": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "quantity": zod.string(),
   "unitPrice": zod.string(),
   "lineTotal": zod.string()
@@ -689,7 +700,8 @@ export const GetDashboardResponse = zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
   "itemName": zod.string().nullish(),
-  "qtyType": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "trackSerial": zod.boolean().optional(),
   "quantity": zod.string(),
   "totalCost": zod.string(),
   "vendorId": zod.number().nullish(),

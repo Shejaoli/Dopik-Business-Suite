@@ -132,7 +132,7 @@ export default function ItemHistoryPage() {
           <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/40">
             <h2 className="text-lg font-bold text-gray-800">{selectedItem.name}</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {selectedItem.qtyType} &bull; Purchase: {fmtRWF(selectedItem.purchasePrice)} &bull; Sale: {fmtRWF(selectedItem.salePrice)}
+              {(selectedItem as any).category || "Others"} &bull; Purchase: {fmtRWF(selectedItem.purchasePrice)} &bull; Sale: {fmtRWF(selectedItem.salePrice)}
             </p>
           </div>
 
@@ -178,7 +178,7 @@ export default function ItemHistoryPage() {
                         {typeBadge(entry.type, entry.adjustmentType)}
                       </td>
                       <td className={`px-4 py-3 font-mono font-medium ${qtyColor}`}>
-                        {qtyPrefix}{entry.quantity} {selectedItem.qtyType}
+                        {qtyPrefix}{entry.quantity}
                       </td>
                       <td className="px-4 py-3 font-mono text-gray-700">
                         {entry.amount ? fmtRWF(entry.amount) : "—"}

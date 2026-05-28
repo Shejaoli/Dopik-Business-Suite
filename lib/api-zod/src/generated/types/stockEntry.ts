@@ -10,7 +10,8 @@ export interface StockEntry {
   id: number;
   itemId: number;
   itemName: string;
-  qtyType: string;
+  category: string;
+  trackSerial?: boolean;
   quantity: string;
   minStock: string;
   status: string;

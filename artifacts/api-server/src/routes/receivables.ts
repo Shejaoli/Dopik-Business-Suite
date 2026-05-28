@@ -30,7 +30,7 @@ router.get("/receivables", async (req, res): Promise<void> => {
         saleId: saleItemsTable.saleId,
         itemId: saleItemsTable.itemId,
         itemName: itemsTable.name,
-        qtyType: itemsTable.qtyType,
+        category: itemsTable.category,
         quantity: saleItemsTable.quantity,
         unitPrice: saleItemsTable.unitPrice,
         lineTotal: saleItemsTable.lineTotal,

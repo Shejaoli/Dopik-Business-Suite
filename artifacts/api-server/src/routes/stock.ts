@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, ilike, sql } from "drizzle-orm";
-import { db, stockTable, itemsTable, stockAdjustmentsTable, usersTable } from "@workspace/db";
+import { eq, ilike, sql, inArray } from "drizzle-orm";
+import { db, stockTable, itemsTable, stockAdjustmentsTable, usersTable, serialNumbersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -22,7 +22,8 @@ router.get("/stock", async (req, res): Promise<void> => {
       id: stockTable.id,
       itemId: stockTable.itemId,
       itemName: itemsTable.name,
-      qtyType: itemsTable.qtyType,
+      category: itemsTable.category,
+      trackSerial: itemsTable.trackSerial,
       quantity: stockTable.quantity,
       minStock: stockTable.minStock,
       purchasePrice: itemsTable.purchasePrice,
@@ -33,10 +34,7 @@ router.get("/stock", async (req, res): Promise<void> => {
     .where(search ? ilike(itemsTable.name, `%${search}%`) : undefined as any)
     .orderBy(itemsTable.name);
 
-  res.json(rows.map(r => ({
-    ...r,
-    status: getStockStatus(r.quantity, r.minStock),
-  })));
+  res.json(rows.map(r => ({ ...r, status: getStockStatus(r.quantity, r.minStock) })));
 });
 
 router.get("/stock/alerts", async (req, res): Promise<void> => {
@@ -45,7 +43,8 @@ router.get("/stock/alerts", async (req, res): Promise<void> => {
       id: stockTable.id,
       itemId: stockTable.itemId,
       itemName: itemsTable.name,
-      qtyType: itemsTable.qtyType,
+      category: itemsTable.category,
+      trackSerial: itemsTable.trackSerial,
       quantity: stockTable.quantity,
       minStock: stockTable.minStock,
       purchasePrice: itemsTable.purchasePrice,
@@ -62,42 +61,55 @@ router.get("/stock/alerts", async (req, res): Promise<void> => {
 });
 
 router.post("/stock/adjust", async (req, res): Promise<void> => {
-  const { itemId, adjustmentType, quantity, reason } = req.body;
+  const { itemId, adjustmentType, quantity, reason, serialNumbers } = req.body;
   if (!itemId || !adjustmentType || quantity == null) {
     res.status(400).json({ error: "itemId, adjustmentType, quantity required" });
     return;
   }
 
+  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
   const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, itemId));
-  if (!stockRow) {
-    res.status(404).json({ error: "Stock not found for this item" });
-    return;
-  }
+  if (!stockRow) { res.status(404).json({ error: "Stock not found for this item" }); return; }
 
   const prev = parseFloat(stockRow.quantity);
   const adj = parseFloat(String(quantity));
+
+  if (item?.trackSerial && adjustmentType !== "increase" && serialNumbers?.length) {
+    const snCount = serialNumbers.filter((s: string) => s.trim()).length;
+    if (snCount !== adj) {
+      res.status(400).json({ error: `Serial number count (${snCount}) must match quantity (${adj})` });
+      return;
+    }
+  }
+
   const newQty = adjustmentType === "increase" ? prev + adj : Math.max(0, prev - adj);
 
   await db.update(stockTable).set({ quantity: String(newQty), updatedAt: new Date() }).where(eq(stockTable.id, stockRow.id));
 
   const [adjustment] = await db.insert(stockAdjustmentsTable).values({
-    itemId,
-    adjustmentType,
-    quantity: String(adj),
-    previousQty: String(prev),
-    newQty: String(newQty),
-    reason: reason || null,
-    adjustedBy: req.session.userId || null,
+    itemId, adjustmentType, quantity: String(adj),
+    previousQty: String(prev), newQty: String(newQty),
+    reason: reason || null, adjustedBy: req.session.userId || null,
   }).returning();
 
-  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+  if (item?.trackSerial && Array.isArray(serialNumbers) && serialNumbers.length > 0) {
+    const snList = serialNumbers.map((s: string) => s.trim()).filter(Boolean);
+    if (adjustmentType === "increase") {
+      const snValues = snList.map(sn => ({
+        itemId, serialNumber: sn, status: "in_stock",
+        referenceType: "adjustment", referenceId: adjustment.id,
+      }));
+      if (snValues.length > 0) await db.insert(serialNumbersTable).values(snValues).onConflictDoNothing();
+    } else {
+      if (snList.length > 0) {
+        await db.update(serialNumbersTable)
+          .set({ status: "adjusted_out", referenceType: "adjustment", referenceId: adjustment.id, updatedAt: new Date() })
+          .where(inArray(serialNumbersTable.serialNumber, snList));
+      }
+    }
+  }
 
-  res.json({
-    ...adjustment,
-    itemName: item?.name ?? null,
-    qtyType: item?.qtyType ?? null,
-    adjustedBy: null,
-  });
+  res.json({ ...adjustment, itemName: item?.name ?? null, category: item?.category ?? null, adjustedBy: null });
 });
 
 router.get("/stock/adjustments", async (req, res): Promise<void> => {
@@ -109,7 +121,7 @@ router.get("/stock/adjustments", async (req, res): Promise<void> => {
       id: stockAdjustmentsTable.id,
       itemId: stockAdjustmentsTable.itemId,
       itemName: itemsTable.name,
-      qtyType: itemsTable.qtyType,
+      category: itemsTable.category,
       adjustmentType: stockAdjustmentsTable.adjustmentType,
       quantity: stockAdjustmentsTable.quantity,
       previousQty: stockAdjustmentsTable.previousQty,
@@ -132,10 +144,7 @@ router.get("/stock/adjustments", async (req, res): Promise<void> => {
   }
 
   const rows = await query.orderBy(sql`${stockAdjustmentsTable.createdAt} DESC`);
-  res.json(rows.map(r => ({
-    ...r,
-    adjustedBy: r.adjustedByName ?? null,
-  })));
+  res.json(rows.map(r => ({ ...r, adjustedBy: r.adjustedByName ?? null })));
 });
 
 export default router;

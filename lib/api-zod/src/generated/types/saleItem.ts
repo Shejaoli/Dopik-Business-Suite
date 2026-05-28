@@ -13,7 +13,7 @@ export interface SaleItem {
   /** @nullable */
   itemName?: string | null;
   /** @nullable */
-  qtyType?: string | null;
+  category?: string | null;
   quantity: string;
   unitPrice: string;
   lineTotal: string;

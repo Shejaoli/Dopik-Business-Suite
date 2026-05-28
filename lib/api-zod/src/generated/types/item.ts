@@ -9,7 +9,8 @@
 export interface Item {
   id: number;
   name: string;
-  qtyType: string;
+  category: string;
+  trackSerial?: boolean;
   purchasePrice: string;
   salePrice: string;
   /** @nullable */

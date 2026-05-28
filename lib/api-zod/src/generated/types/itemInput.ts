@@ -8,7 +8,8 @@
 
 export interface ItemInput {
   name: string;
-  qtyType: string;
+  category: string;
+  trackSerial?: boolean;
   purchasePrice: string;
   salePrice: string;
   /** @nullable */

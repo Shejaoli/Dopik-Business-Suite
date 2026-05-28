@@ -12,7 +12,7 @@ export interface StockAdjustment {
   /** @nullable */
   itemName?: string | null;
   /** @nullable */
-  qtyType?: string | null;
+  category?: string | null;
   adjustmentType: string;
   quantity: string;
   previousQty: string;

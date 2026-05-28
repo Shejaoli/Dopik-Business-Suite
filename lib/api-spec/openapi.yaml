@@ -822,14 +822,16 @@ components:
     # ITEMS
     Item:
       type: object
-      required: [id, name, qtyType, purchasePrice, salePrice]
+      required: [id, name, category, purchasePrice, salePrice]
       properties:
         id:
           type: integer
         name:
           type: string
-        qtyType:
+        category:
           type: string
+        trackSerial:
+          type: boolean
         purchasePrice:
           type: string
         salePrice:
@@ -843,12 +845,14 @@ components:
 
     ItemInput:
       type: object
-      required: [name, qtyType, purchasePrice, salePrice]
+      required: [name, category, purchasePrice, salePrice]
       properties:
         name:
           type: string
-        qtyType:
+        category:
           type: string
+        trackSerial:
+          type: boolean
         purchasePrice:
           type: string
         salePrice:
@@ -861,8 +865,10 @@ components:
       properties:
         name:
           type: string
-        qtyType:
+        category:
           type: string
+        trackSerial:
+          type: boolean
         purchasePrice:
           type: string
         salePrice:
@@ -913,7 +919,7 @@ components:
     # STOCK
     StockEntry:
       type: object
-      required: [id, itemId, itemName, qtyType, quantity, minStock, status, purchasePrice, salePrice]
+      required: [id, itemId, itemName, category, quantity, minStock, status, purchasePrice, salePrice]
       properties:
         id:
           type: integer
@@ -921,8 +927,10 @@ components:
           type: integer
         itemName:
           type: string
-        qtyType:
+        category:
           type: string
+        trackSerial:
+          type: boolean
         quantity:
           type: string
         minStock:
@@ -959,6 +967,10 @@ components:
           type: string
         reason:
           type: ["string", "null"]
+        serialNumbers:
+          type: array
+          items:
+            type: string
 
     StockAdjustment:
       type: object
@@ -970,7 +982,7 @@ components:
           type: integer
         itemName:
           type: ["string", "null"]
-        qtyType:
+        category:
           type: ["string", "null"]
         adjustmentType:
           type: string
@@ -998,8 +1010,10 @@ components:
           type: integer
         itemName:
           type: ["string", "null"]
-        qtyType:
+        category:
           type: ["string", "null"]
+        trackSerial:
+          type: boolean
         quantity:
           type: string
         totalCost:
@@ -1029,6 +1043,10 @@ components:
           type: ["integer", "null"]
         paymentMethod:
           type: string
+        serialNumbers:
+          type: array
+          items:
+            type: string
 
     # SALES
     SaleItem:
@@ -1043,7 +1061,7 @@ components:
           type: integer
         itemName:
           type: ["string", "null"]
-        qtyType:
+        category:
           type: ["string", "null"]
         quantity:
           type: string
@@ -1087,6 +1105,10 @@ components:
           type: string
         unitPrice:
           type: string
+        serialNumbers:
+          type: array
+          items:
+            type: string
 
     SaleInput:
       type: object
@@ -1354,9 +1376,9 @@ components:
       properties:
         itemName:
           type: string
-        quantity:
+        category:
           type: string
-        qtyType:
+        quantity:
           type: string
         totalSale:
           type: string
@@ -1380,9 +1402,9 @@ components:
       properties:
         itemName:
           type: string
-        quantity:
+        category:
           type: string
-        qtyType:
+        quantity:
           type: string
         totalCost:
           type: string

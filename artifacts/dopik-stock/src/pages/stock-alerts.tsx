@@ -75,7 +75,9 @@ export default function StockAlertsPage() {
                 return (
                   <tr key={alert.itemId} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-800">{alert.itemName}</td>
-                    <td className="px-4 py-3 font-mono text-gray-500">{alert.qtyType}</td>
+                    <td className="px-4 py-3 text-gray-500">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{(alert as any).category || "—"}</span>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`font-bold text-lg ${isOut ? "text-red-600" : "text-amber-500"}`}>
                         {alert.quantity}

@@ -1,25 +1,39 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListItems, getListItemsQueryKey, useUpdateItem } from "@workspace/api-client-react";
+import { useListItems, getListItemsQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Search, History, Plus, X } from "lucide-react";
+import { Loader2, Package, Search, History, Plus, X, Barcode } from "lucide-react";
+
+const ITEM_CATEGORIES = [
+  "Smartphone",
+  "Phone Accessories",
+  "Laptop",
+  "Laptop Accessories",
+  "Tablet",
+  "Gaming",
+  "Gaming Accessories",
+  "Smartwatches",
+  "Audio",
+  "Cameras",
+  "Camera Accessories",
+  "Others",
+];
 
 type Item = {
-  id: number; name: string; qtyType: string;
+  id: number; name: string; category: string; trackSerial: boolean;
   purchasePrice: string; salePrice: string;
   alternativeItemId?: number | null;
   alternativeItemName?: string | null;
   createdAt?: string | null;
 };
 
-const QTY_TYPES = ["unit", "piece", "box", "kg", "litre", "set", "pair", "roll", "m", "M", "pcs"];
-
 function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; onClose: () => void }) {
   const [form, setForm] = useState({
     name: item.name,
-    qtyType: item.qtyType,
+    category: item.category || "Others",
+    trackSerial: item.trackSerial,
     purchasePrice: item.purchasePrice,
     salePrice: item.salePrice,
     minStock: "",
@@ -29,7 +43,7 @@ function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; on
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
     if (!form.name || !form.purchasePrice || !form.salePrice) return;
@@ -37,7 +51,8 @@ function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; on
     try {
       await api.put(`/items/${item.id}`, {
         name: form.name,
-        qtyType: form.qtyType,
+        category: form.category,
+        trackSerial: form.trackSerial,
         purchasePrice: form.purchasePrice,
         salePrice: form.salePrice,
         alternativeItemId: form.alternativeItemId ? Number(form.alternativeItemId) : null,
@@ -48,14 +63,12 @@ function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; on
       onClose();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-800">Edit Item</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
@@ -72,40 +85,58 @@ function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; on
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Quantity Type:</label>
+            <label className="text-sm font-medium text-gray-700">Category:</label>
             <select
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm bg-white outline-none focus:border-[#1A6DB5]"
-              value={form.qtyType}
-              onChange={e => set("qtyType", e.target.value)}
+              value={form.category}
+              onChange={e => set("category", e.target.value)}
             >
-              {QTY_TYPES.map(t => (
-                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              {ITEM_CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Purchase Price:</label>
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
             <input
-              type="number" min={0} step="0.01"
-              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20"
-              value={form.purchasePrice}
-              onChange={e => set("purchasePrice", e.target.value)}
+              type="checkbox"
+              id="trackSerial-edit"
+              checked={form.trackSerial}
+              onChange={e => set("trackSerial", e.target.checked)}
+              className="w-4 h-4 accent-[#1A6DB5]"
             />
+            <div>
+              <label htmlFor="trackSerial-edit" className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1.5">
+                <Barcode className="h-4 w-4 text-[#1A6DB5]" />
+                Track Serial Numbers
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">Required for items like phones, laptops, cameras</p>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Sale Price:</label>
-            <input
-              type="number" min={0} step="0.01"
-              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20"
-              value={form.salePrice}
-              onChange={e => set("salePrice", e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Purchase Price:</label>
+              <input
+                type="number" min={0} step="0.01"
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5]"
+                value={form.purchasePrice}
+                onChange={e => set("purchasePrice", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Sale Price:</label>
+              <input
+                type="number" min={0} step="0.01"
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5]"
+                value={form.salePrice}
+                onChange={e => set("salePrice", e.target.value)}
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Minimum Stock Level:</label>
             <input
               type="number" min={0} step="1"
-              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20"
+              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5]"
               value={form.minStock}
               onChange={e => set("minStock", e.target.value)}
               placeholder="0.00"
@@ -124,7 +155,7 @@ function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; on
                 <option key={i.id} value={i.id}>{i.name}</option>
               ))}
             </select>
-            <p className="text-xs text-gray-400">These will be suggested when this item is out of stock.</p>
+            <p className="text-xs text-gray-400">Suggested when this item is out of stock.</p>
           </div>
         </div>
         <div className="px-6 pb-6">
@@ -144,13 +175,14 @@ function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; on
 
 function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }) {
   const [form, setForm] = useState({
-    name: "", qtyType: "piece", purchasePrice: "", salePrice: "", minStock: "", alternativeItemId: "",
+    name: "", category: "Smartphone", trackSerial: false,
+    purchasePrice: "", salePrice: "", minStock: "", alternativeItemId: "",
   });
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
     if (!form.name || !form.purchasePrice || !form.salePrice) return;
@@ -158,24 +190,29 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
     try {
       await api.post("/items", {
         name: form.name,
-        qtyType: form.qtyType,
+        category: form.category,
+        trackSerial: form.trackSerial,
         purchasePrice: form.purchasePrice,
         salePrice: form.salePrice,
         alternativeItemId: form.alternativeItemId ? Number(form.alternativeItemId) : null,
       });
+      if (form.minStock) {
+        const newItems = await api.get("/items?limit=1&search=" + encodeURIComponent(form.name)) as any;
+        if (newItems?.items?.[0]?.id) {
+          await api.put(`/items/${newItems.items[0].id}`, { minStock: form.minStock });
+        }
+      }
       toast({ title: "Item added successfully" });
       qc.invalidateQueries({ queryKey: getListItemsQueryKey() });
       onClose();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-800">Add New Item</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
@@ -188,28 +225,44 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
             <input
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20"
               value={form.name}
-              placeholder="e.g. Samsung 65 4K TV"
+              placeholder="e.g. Samsung Galaxy S25"
               onChange={e => set("name", e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-700">Quantity Type:</label>
+            <label className="text-sm font-medium text-gray-700">Category:</label>
             <select
               className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm bg-white outline-none focus:border-[#1A6DB5]"
-              value={form.qtyType}
-              onChange={e => set("qtyType", e.target.value)}
+              value={form.category}
+              onChange={e => set("category", e.target.value)}
             >
-              {QTY_TYPES.map(t => (
-                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              {ITEM_CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
+            <input
+              type="checkbox"
+              id="trackSerial-add"
+              checked={form.trackSerial}
+              onChange={e => set("trackSerial", e.target.checked)}
+              className="w-4 h-4 accent-[#1A6DB5]"
+            />
+            <div>
+              <label htmlFor="trackSerial-add" className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1.5">
+                <Barcode className="h-4 w-4 text-[#1A6DB5]" />
+                Track Serial Numbers
+              </label>
+              <p className="text-xs text-gray-400 mt-0.5">Enable for phones, laptops, cameras, tablets — not needed for accessories</p>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-700">Purchase Price:</label>
               <input
                 type="number" min={0} step="0.01"
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20"
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5]"
                 value={form.purchasePrice}
                 placeholder="0"
                 onChange={e => set("purchasePrice", e.target.value)}
@@ -219,7 +272,7 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
               <label className="text-sm font-medium text-gray-700">Sale Price:</label>
               <input
                 type="number" min={0} step="0.01"
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20"
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5]"
                 value={form.salePrice}
                 placeholder="0"
                 onChange={e => set("salePrice", e.target.value)}
@@ -230,7 +283,7 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
             <label className="text-sm font-medium text-gray-700">Minimum Stock Level:</label>
             <input
               type="number" min={0}
-              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20"
+              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5]"
               value={form.minStock}
               placeholder="0"
               onChange={e => set("minStock", e.target.value)}
@@ -273,7 +326,7 @@ export default function ItemsPage() {
   const [, navigate] = useLocation();
 
   const { data, isLoading } = useListItems({ search: search || undefined, limit: 200 });
-  const items: Item[] = data?.items ?? [];
+  const items: Item[] = (data?.items as any) ?? [];
 
   return (
     <div className="space-y-5">
@@ -314,7 +367,7 @@ export default function ItemsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
-                {["NO", "NAME", "QTY TYPE", "PURCHASE PRICE", "SALE PRICE", "ALTERNATIVE ITEMS", "ACTIONS"].map(h => (
+                {["NO", "NAME", "CATEGORY", "SERIAL TRACKING", "PURCHASE PRICE", "SALE PRICE", "ALTERNATIVE ITEMS", "ACTIONS"].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -323,7 +376,7 @@ export default function ItemsPage() {
               {isLoading && (
                 [...Array(8)].map((_, i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    {[...Array(7)].map((_, j) => (
+                    {[...Array(8)].map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-4 bg-gray-100 animate-pulse rounded w-full" />
                       </td>
@@ -333,7 +386,7 @@ export default function ItemsPage() {
               )}
               {!isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <Package className="h-10 w-10 text-gray-200 mx-auto mb-3" />
                     <p className="text-gray-400 text-sm">
                       {search ? `No items matching "${search}"` : "No items yet"}
@@ -344,15 +397,28 @@ export default function ItemsPage() {
               {items.map((item, idx) => (
                 <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 py-3 text-gray-500 font-mono text-xs">{idx + 1}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800 max-w-[220px]">
+                  <td className="px-4 py-3 font-medium text-gray-800 max-w-[200px]">
                     <span className="truncate block">{item.name}</span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{item.qtyType}</td>
-                  <td className="px-4 py-3 text-gray-700 font-mono">
-                    {parseFloat(item.purchasePrice).toFixed(2)}
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                      {item.category || "Others"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {item.trackSerial ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                        <Barcode className="h-3 w-3" />Serial
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-700 font-mono">
-                    {parseFloat(item.salePrice).toFixed(2)}
+                    {fmtRWF(item.purchasePrice)}
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 font-mono">
+                    {fmtRWF(item.salePrice)}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {item.alternativeItemName ?? "None"}

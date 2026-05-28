@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, TrendingUp, Loader2, Trash2, AlertCircle, Undo2, ShieldAlert, UserPlus } from "lucide-react";
+import { Plus, Search, TrendingUp, Loader2, Trash2, AlertCircle, Undo2, ShieldAlert, UserPlus, Barcode, ChevronDown, ChevronUp } from "lucide-react";
 
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash (Payment Now)" },
@@ -18,8 +18,9 @@ const PAYMENT_METHODS = [
 ];
 
 type SaleLineItem = {
-  itemId: number; itemName: string; qtyType: string;
+  itemId: number; itemName: string; category: string;
   quantity: string; unitPrice: string; availableQty: number;
+  trackSerial: boolean; serialNumbers: string;
 };
 
 type Sale = {
@@ -36,7 +37,6 @@ function revertPhrase(sale: Sale) {
   return `sudo revert sale #${sale.id}`;
 }
 
-/* ── Revert Dialog ────────────────────────────────────────── */
 function RevertDialog({ sale, open, onClose, onReverted }: {
   sale: Sale; open: boolean; onClose: () => void; onReverted: () => void;
 }) {
@@ -100,7 +100,6 @@ function RevertDialog({ sale, open, onClose, onReverted }: {
   );
 }
 
-/* ── Quick Add Customer Dialog ────────────────────────────── */
 function QuickAddCustomerDialog({ open, onClose, onAdded }: {
   open: boolean; onClose: () => void; onAdded: (customer: { id: number; name: string }) => void;
 }) {
@@ -152,7 +151,6 @@ function QuickAddCustomerDialog({ open, onClose, onAdded }: {
   );
 }
 
-/* ── Main Page ─────────────────────────────────────────────── */
 export default function SalesPage() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -162,6 +160,7 @@ export default function SalesPage() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentTermsDays, setPaymentTermsDays] = useState(30);
   const [lineItems, setLineItems] = useState<SaleLineItem[]>([]);
+  const [expandedSerials, setExpandedSerials] = useState<Set<number>>(new Set());
   const [revertSale, setRevertSale] = useState<Sale | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -180,36 +179,66 @@ export default function SalesPage() {
     setCustomerId("");
     setPaymentMethod("cash");
     setPaymentTermsDays(30);
+    setExpandedSerials(new Set());
   };
 
   const addLineItem = (stockEntry: any) => {
     if (lineItems.find(l => l.itemId === stockEntry.itemId)) return;
-    setLineItems(prev => [...prev, {
+    const trackSerial = stockEntry.trackSerial === true;
+    const newItem: SaleLineItem = {
       itemId: stockEntry.itemId,
       itemName: stockEntry.itemName,
-      qtyType: stockEntry.qtyType,
+      category: stockEntry.category || "Others",
       quantity: "1",
       unitPrice: stockEntry.salePrice,
       availableQty: parseFloat(stockEntry.quantity),
-    }]);
+      trackSerial,
+      serialNumbers: "",
+    };
+    setLineItems(prev => [...prev, newItem]);
+    if (trackSerial) {
+      setExpandedSerials(prev => new Set([...prev, stockEntry.itemId]));
+    }
   };
 
   const updateLine = (idx: number, key: string, val: string) => {
     setLineItems(prev => prev.map((l, i) => i === idx ? { ...l, [key]: val } : l));
   };
 
-  const removeLine = (idx: number) => setLineItems(prev => prev.filter((_, i) => i !== idx));
+  const removeLine = (idx: number) => {
+    const item = lineItems[idx];
+    setExpandedSerials(prev => { const n = new Set(prev); n.delete(item.itemId); return n; });
+    setLineItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const toggleSerial = (itemId: number) => {
+    setExpandedSerials(prev => {
+      const n = new Set(prev);
+      if (n.has(itemId)) n.delete(itemId); else n.add(itemId);
+      return n;
+    });
+  };
 
   const totalAmount = lineItems.reduce((sum, l) => {
     return sum + (parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0);
   }, 0);
 
+  const validateSerials = () => {
+    for (const l of lineItems) {
+      if (l.trackSerial && l.serialNumbers.trim()) {
+        const sns = l.serialNumbers.split("\n").map(s => s.trim()).filter(Boolean);
+        const qty = parseFloat(l.quantity) || 0;
+        if (sns.length !== qty) return { ok: false, name: l.itemName, got: sns.length, need: qty };
+      }
+    }
+    return { ok: true };
+  };
+
   const handleCreate = async () => {
     if (lineItems.length === 0 || !paymentMethod) return;
 
-    // Credit requires a customer
     if (isCredit && !customerId) {
-      toast({ title: "Customer required", description: "Credit sales must be linked to a customer. Please select or add one.", variant: "destructive" });
+      toast({ title: "Customer required", description: "Credit sales must be linked to a customer.", variant: "destructive" });
       return;
     }
 
@@ -219,9 +248,19 @@ export default function SalesPage() {
         return;
       }
       if (parseFloat(l.quantity) > l.availableQty) {
-        toast({ title: "Insufficient stock", description: `Only ${l.availableQty} ${l.qtyType} available for ${l.itemName}`, variant: "destructive" });
+        toast({ title: "Insufficient stock", description: `Only ${l.availableQty} available for ${l.itemName}`, variant: "destructive" });
         return;
       }
+    }
+
+    const serialCheck = validateSerials();
+    if (!serialCheck.ok) {
+      toast({
+        title: "Serial number mismatch",
+        description: `${serialCheck.name}: entered ${serialCheck.got} serial number(s) but selling ${serialCheck.need}. Enter one per line.`,
+        variant: "destructive",
+      });
+      return;
     }
 
     setSaving(true);
@@ -235,6 +274,9 @@ export default function SalesPage() {
           itemId: l.itemId,
           quantity: parseFloat(l.quantity),
           unitPrice: parseFloat(l.unitPrice),
+          ...(l.trackSerial && l.serialNumbers.trim() && {
+            serialNumbers: l.serialNumbers.split("\n").map(s => s.trim()).filter(Boolean),
+          }),
         })),
       });
       toast({ title: "Sale recorded", description: `Total: ${fmtRWF(totalAmount)}` });
@@ -324,7 +366,6 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* Revert Dialog */}
       {revertSale && (
         <RevertDialog
           sale={revertSale} open={!!revertSale}
@@ -333,14 +374,12 @@ export default function SalesPage() {
         />
       )}
 
-      {/* Quick Add Customer Dialog */}
       <QuickAddCustomerDialog
         open={showAddCustomer}
         onClose={() => setShowAddCustomer(false)}
         onAdded={customer => setCustomerId(String(customer.id))}
       />
 
-      {/* Create Sale Dialog */}
       <Dialog open={showCreate} onOpenChange={open => { if (!open) { setShowCreate(false); resetForm(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -349,7 +388,6 @@ export default function SalesPage() {
           </DialogHeader>
 
           <div className="space-y-5 py-2">
-            {/* Add Item */}
             <div className="space-y-1.5">
               <Label className="font-semibold">Select Item</Label>
               <p className="text-xs text-muted-foreground -mt-1">Out-of-stock items are disabled and cannot be sold.</p>
@@ -370,14 +408,13 @@ export default function SalesPage() {
                     const disabled = qty <= 0;
                     return (
                       <option key={s.itemId} value={s.itemId} disabled={disabled}>
-                        {disabled ? `[Out of stock] ${s.itemName}` : `${s.itemName} (stock: ${qty.toLocaleString()} ${s.qtyType})`}
+                        {disabled ? `[Out of stock] ${s.itemName}` : `${s.itemName} (stock: ${qty.toLocaleString()}${s.trackSerial ? " · serial tracked" : ""})`}
                       </option>
                     );
                   })}
               </select>
             </div>
 
-            {/* Line Items table */}
             {lineItems.length > 0 && (
               <div className="border rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
@@ -392,36 +429,89 @@ export default function SalesPage() {
                   </thead>
                   <tbody>
                     {lineItems.map((l, idx) => (
-                      <tr key={l.itemId} className="border-t border-border">
-                        <td className="px-3 py-2 font-medium text-xs max-w-[120px]">
-                          <span className="truncate block">{l.itemName}</span>
-                          <span className="text-muted-foreground">max: {l.availableQty}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input
-                            type="number" min={0.01} step={0.01} max={l.availableQty}
-                            value={l.quantity}
-                            onChange={e => updateLine(idx, "quantity", e.target.value)}
-                            className="h-7 w-20 text-sm"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input
-                            type="number" min={0}
-                            value={l.unitPrice}
-                            onChange={e => updateLine(idx, "unitPrice", e.target.value)}
-                            className="h-7 w-28 text-sm"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-right font-semibold text-sm">
-                          {fmtRWF((parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0))}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button onClick={() => removeLine(idx)} className="text-muted-foreground hover:text-red-500">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
+                      <>
+                        <tr key={l.itemId} className="border-t border-border">
+                          <td className="px-3 py-2 font-medium text-xs max-w-[120px]">
+                            <div className="flex items-center gap-1">
+                              <span className="truncate">{l.itemName}</span>
+                              {l.trackSerial && <Barcode className="h-3 w-3 text-purple-500 flex-shrink-0" />}
+                            </div>
+                            <span className="text-muted-foreground text-xs">{l.category}</span>
+                            <br />
+                            <span className="text-muted-foreground">max: {l.availableQty}</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Input
+                              type="number" min={0.01} step={0.01} max={l.availableQty}
+                              value={l.quantity}
+                              onChange={e => updateLine(idx, "quantity", e.target.value)}
+                              className="h-7 w-20 text-sm"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <Input
+                              type="number" min={0}
+                              value={l.unitPrice}
+                              onChange={e => updateLine(idx, "unitPrice", e.target.value)}
+                              className="h-7 w-28 text-sm"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-sm">
+                            {fmtRWF((parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0))}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              {l.trackSerial && (
+                                <button
+                                  onClick={() => toggleSerial(l.itemId)}
+                                  className="text-purple-500 hover:text-purple-700 p-0.5"
+                                  title="Toggle serial numbers"
+                                >
+                                  {expandedSerials.has(l.itemId) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </button>
+                              )}
+                              <button onClick={() => removeLine(idx)} className="text-muted-foreground hover:text-red-500">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {l.trackSerial && expandedSerials.has(l.itemId) && (
+                          <tr key={`${l.itemId}-serial`} className="border-t border-purple-100 bg-purple-50/30">
+                            <td colSpan={5} className="px-3 py-2">
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-purple-700 flex items-center gap-1">
+                                  <Barcode className="h-3 w-3" />
+                                  Serial Numbers for {l.itemName}
+                                  <span className="font-normal text-muted-foreground ml-1">
+                                    (enter {Math.floor(parseFloat(l.quantity) || 1)}, one per line — optional)
+                                  </span>
+                                </label>
+                                <textarea
+                                  className={`w-full rounded-md border px-2 py-1.5 text-xs font-mono resize-none outline-none focus:ring-1 ${
+                                    (() => {
+                                      if (!l.serialNumbers.trim()) return "border-input focus:ring-purple-300/50";
+                                      const sns = l.serialNumbers.split("\n").filter(s => s.trim()).length;
+                                      const qty = parseFloat(l.quantity) || 0;
+                                      return sns === qty ? "border-green-400 focus:ring-green-300/50" : "border-red-300 focus:ring-red-300/50";
+                                    })()
+                                  }`}
+                                  rows={3}
+                                  value={l.serialNumbers}
+                                  onChange={e => updateLine(idx, "serialNumbers", e.target.value)}
+                                  placeholder={`SN001\nSN002\n...`}
+                                />
+                                {l.serialNumbers.trim() && (() => {
+                                  const sns = l.serialNumbers.split("\n").filter(s => s.trim()).length;
+                                  const qty = parseFloat(l.quantity) || 0;
+                                  if (sns !== qty) return <p className="text-xs text-red-500">{sns} entered, need {qty}</p>;
+                                  return <p className="text-xs text-green-600">✓ {sns} serial number{sns !== 1 ? "s" : ""} ready</p>;
+                                })()}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     ))}
                     <tr className="border-t-2 border-border bg-muted/30">
                       <td colSpan={3} className="px-3 py-2 font-semibold text-right">Total Sale Amount</td>
@@ -441,7 +531,6 @@ export default function SalesPage() {
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Customer */}
               <div className="space-y-1.5">
                 <Label className="font-semibold">
                   Select Customer{" "}
@@ -467,7 +556,6 @@ export default function SalesPage() {
                 </p>
               </div>
 
-              {/* Payment Method */}
               <div className="space-y-1.5">
                 <Label className="font-semibold">Payment Method *</Label>
                 <select
@@ -480,7 +568,6 @@ export default function SalesPage() {
               </div>
             </div>
 
-            {/* Payment Terms — only shown for credit */}
             {isCredit && (
               <div className="space-y-1.5">
                 <Label className="font-semibold">Payment Terms (Days)</Label>
@@ -494,7 +581,6 @@ export default function SalesPage() {
               </div>
             )}
 
-            {/* Credit warning */}
             {isCredit && (
               <div className={`p-3 rounded-xl border text-sm ${!customerId ? "bg-red-50 border-red-200 text-red-700" : "bg-yellow-50 border-yellow-200 text-yellow-700"}`}>
                 {!customerId
@@ -512,7 +598,7 @@ export default function SalesPage() {
               className="bg-green-600 hover:bg-green-700"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Record Sale — {fmtRWF(totalAmount)}
+              Record Sale ({fmtRWF(totalAmount)})
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -16,6 +16,7 @@ import reportsRouter from "./reports";
 import dashboardRouter from "./dashboard";
 import loansRouter from "./loans";
 import backupRouter from "./backup";
+import serialNumbersRouter from "./serial-numbers";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(usersRouter);
 router.use(reportsRouter);
 router.use(dashboardRouter);
 router.use(backupRouter);
+router.use(serialNumbersRouter);
 
 export default router;

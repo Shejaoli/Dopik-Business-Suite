@@ -177,7 +177,7 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
                   ) : salesRows.map((r: any, i: number) => (
                     <tr key={i} className="border-b border-border hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium">{r.itemName}</td>
-                      <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{r.qtyType}</Badge></td>
+                      <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{(r as any).category || "—"}</Badge></td>
                       <td className="px-4 py-3">{parseFloat(r.quantity).toLocaleString()}</td>
                       <td className="px-4 py-3 font-semibold text-green-600">{fmtRWF(r.totalSale)}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{fmtDateTime(r.saleDate)}</td>
@@ -201,7 +201,7 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
-                    {["Item", "Qty Type", "Quantity", "Total Cost", "Vendor", "Date"].map(h => (
+                    {["Item", "Category", "Quantity", "Total Cost", "Vendor", "Date"].map(h => (
                       <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>
                     ))}
                   </tr>
@@ -214,7 +214,7 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
                   ) : purchRows.map((r: any, i: number) => (
                     <tr key={i} className="border-b border-border hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium">{r.itemName}</td>
-                      <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{r.qtyType}</Badge></td>
+                      <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{(r as any).category || "—"}</Badge></td>
                       <td className="px-4 py-3">{parseFloat(r.quantity).toLocaleString()}</td>
                       <td className="px-4 py-3 font-semibold text-blue-600">{fmtRWF(r.totalCost)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.vendorName ?? "—"}</td>
