@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth-context";
 import {
   Package, History, Archive, SlidersHorizontal, RotateCcw, AlertTriangle,
   ShoppingCart, ShoppingBag, Tag, PackagePlus, Scale,
-  Building2, Users, CreditCard, Wallet,
+  Building2, Users, CreditCard, Wallet, HandCoins,
   Receipt, BookOpen,
   BarChart2,
   LayoutDashboard, Settings, LogOut, Menu, X, Bell
@@ -40,6 +40,12 @@ const navSections = [
       { href: "/customers", label: "Customers", icon: Users },
       { href: "/payables", label: "Payables", icon: CreditCard },
       { href: "/receivables", label: "Receivables", icon: Wallet },
+    ],
+  },
+  {
+    label: "LOANS",
+    items: [
+      { href: "/loans", label: "Loans", icon: HandCoins },
     ],
   },
   {

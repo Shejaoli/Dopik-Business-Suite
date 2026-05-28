@@ -1,15 +1,24 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListCustomers, getListCustomersQueryKey } from "@workspace/api-client-react";
-import { api, fmtDateTime } from "@/lib/api";
+import { api, fmtDateTime, fmtCurrency } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Users, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Loader2, ShoppingBag, HandCoins } from "lucide-react";
 
 type Customer = { id: number; name: string; contactPerson?: string | null; email?: string | null; phone?: string | null; address?: string | null; createdAt?: string | null };
+type CustomerSummary = { totalSpent: number; totalLoan: number; totalLoanPaid: number; activeLoans: number };
+
+function useCustomerSummary(customerId: number) {
+  return useQuery<CustomerSummary>({
+    queryKey: ["customer-summary", customerId],
+    queryFn: () => api.get(`/customers/${customerId}/summary`),
+  });
+}
 
 function CustomerForm({ initial, onSave, onCancel, loading }: {
   initial?: Partial<Customer>; onSave: (d: any) => void; onCancel: () => void; loading: boolean;
@@ -38,6 +47,57 @@ function CustomerForm({ initial, onSave, onCancel, loading }: {
           {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save
         </Button>
       </DialogFooter>
+    </div>
+  );
+}
+
+function CustomerCard({ c, onEdit, onDelete }: { c: Customer; onEdit: () => void; onDelete: () => void }) {
+  const { data: summary } = useCustomerSummary(c.id);
+  const hasLoan = (summary?.activeLoans ?? 0) > 0;
+  const outstanding = (summary?.totalLoan ?? 0) - (summary?.totalLoanPaid ?? 0);
+
+  return (
+    <div className="glass-panel p-5 hover:shadow-md transition-shadow flex flex-col gap-3">
+      <div className="flex items-start justify-between">
+        <div className="w-10 h-10 rounded-xl bg-[#F5A800]/10 flex items-center justify-center flex-shrink-0">
+          <Users className="h-5 w-5 text-[#F5A800]" />
+        </div>
+        <div className="flex items-center gap-1">
+          {hasLoan && (
+            <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[11px]">
+              <HandCoins className="h-3 w-3 mr-1" />On Loan
+            </Badge>
+          )}
+          <Button size="sm" variant="ghost" onClick={onEdit}><Edit className="h-4 w-4" /></Button>
+          <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="font-semibold font-sora">{c.name}</h3>
+        {c.contactPerson && <p className="text-sm text-muted-foreground">{c.contactPerson}</p>}
+        {c.phone && <p className="text-sm text-muted-foreground">{c.phone}</p>}
+        {c.email && <p className="text-sm text-muted-foreground truncate">{c.email}</p>}
+      </div>
+
+      {summary && (
+        <div className="border-t pt-3 grid grid-cols-2 gap-2">
+          <div className="text-center p-2 bg-blue-50 rounded-lg">
+            <ShoppingBag className="h-3.5 w-3.5 text-blue-500 mx-auto mb-0.5" />
+            <p className="text-xs text-muted-foreground">Total Spent</p>
+            <p className="text-sm font-bold text-blue-700">{fmtCurrency(summary.totalSpent)}</p>
+          </div>
+          <div className={`text-center p-2 rounded-lg ${hasLoan ? "bg-amber-50" : "bg-green-50"}`}>
+            <HandCoins className={`h-3.5 w-3.5 mx-auto mb-0.5 ${hasLoan ? "text-amber-500" : "text-green-500"}`} />
+            <p className="text-xs text-muted-foreground">Loan Balance</p>
+            <p className={`text-sm font-bold ${hasLoan ? "text-amber-700" : "text-green-700"}`}>
+              {hasLoan ? fmtCurrency(outstanding) : "Clear"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">Added {fmtDateTime(c.createdAt)}</p>
     </div>
   );
 }
@@ -100,22 +160,12 @@ export default function CustomersPage() {
             <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />No customers yet
           </div>
         ) : customers.map(c => (
-          <div key={c.id} className="glass-panel p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F5A800]/10 flex items-center justify-center flex-shrink-0">
-                <Users className="h-5 w-5 text-[#F5A800]" />
-              </div>
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" onClick={() => setEditCustomer(c)}><Edit className="h-4 w-4" /></Button>
-                <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" onClick={() => handleDelete(c.id, c.name)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-            </div>
-            <h3 className="font-semibold font-sora mb-1">{c.name}</h3>
-            {c.contactPerson && <p className="text-sm text-muted-foreground">{c.contactPerson}</p>}
-            {c.phone && <p className="text-sm text-muted-foreground">{c.phone}</p>}
-            {c.email && <p className="text-sm text-muted-foreground truncate">{c.email}</p>}
-            <p className="text-xs text-muted-foreground mt-2">Added {fmtDateTime(c.createdAt)}</p>
-          </div>
+          <CustomerCard
+            key={c.id}
+            c={c}
+            onEdit={() => setEditCustomer(c)}
+            onDelete={() => handleDelete(c.id, c.name)}
+          />
         ))}
       </div>
 

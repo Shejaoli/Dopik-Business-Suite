@@ -14,6 +14,7 @@ import balancesRouter from "./balances";
 import usersRouter from "./users";
 import reportsRouter from "./reports";
 import dashboardRouter from "./dashboard";
+import loansRouter from "./loans";
 
 const router: IRouter = Router();
 
@@ -27,6 +28,7 @@ router.use(vendorsRouter);
 router.use(customersRouter);
 router.use(payablesRouter);
 router.use(receivablesRouter);
+router.use(loansRouter);
 router.use(expensesRouter);
 router.use(balancesRouter);
 router.use(usersRouter);

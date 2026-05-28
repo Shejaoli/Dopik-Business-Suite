@@ -21,6 +21,7 @@ import VendorsPage from "@/pages/vendors";
 import CustomersPage from "@/pages/customers";
 import PayablesPage from "@/pages/payables";
 import ReceivablesPage from "@/pages/receivables";
+import LoansPage from "@/pages/loans";
 import ExpensesPage from "@/pages/expenses";
 import ExpenseAccountsPage from "@/pages/expense-accounts";
 import ReportsPage from "@/pages/reports";
@@ -80,6 +81,7 @@ function AppRoutes() {
         <Route path="/customers" component={CustomersPage} />
         <Route path="/payables" component={PayablesPage} />
         <Route path="/receivables" component={ReceivablesPage} />
+        <Route path="/loans" component={LoansPage} />
         <Route path="/expenses" component={ExpensesPage} />
         <Route path="/expense-accounts" component={ExpenseAccountsPage} />
         <Route path="/reports/sales"><ReportsPage defaultTab="sales" /></Route>

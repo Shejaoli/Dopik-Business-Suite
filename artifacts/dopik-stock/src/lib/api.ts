@@ -27,6 +27,8 @@ export const api = {
   del: <T>(path: string) => req<T>(path, { method: "DELETE" }),
 };
 
+export const fmtCurrency = (v: string | number | null | undefined): string => fmtRWF(v);
+
 export function fmtRWF(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "—";
   const n = typeof v === "string" ? parseFloat(v) : v;

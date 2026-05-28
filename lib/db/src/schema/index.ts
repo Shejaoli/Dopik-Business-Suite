@@ -9,4 +9,5 @@ export * from "./receivables";
 export * from "./payables";
 export * from "./expenses";
 export * from "./balances";
+export * from "./loans";
 export * from "./audit";
