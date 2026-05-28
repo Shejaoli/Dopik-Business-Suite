@@ -52,6 +52,8 @@ export interface ItemUpdate {
   salePrice?: string;
   /** @nullable */
   alternativeItemId?: number | null;
+  /** @nullable */
+  minStock?: string | null;
 }
 
 export interface ItemListResponse {

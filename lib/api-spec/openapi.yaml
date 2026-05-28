@@ -869,6 +869,8 @@ components:
           type: string
         alternativeItemId:
           type: ["integer", "null"]
+        minStock:
+          type: ["string", "null"]
 
     ItemListResponse:
       type: object

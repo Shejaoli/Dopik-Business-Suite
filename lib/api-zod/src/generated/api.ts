@@ -82,7 +82,8 @@ export const UpdateItemBody = zod.object({
   "qtyType": zod.string().optional(),
   "purchasePrice": zod.string().optional(),
   "salePrice": zod.string().optional(),
-  "alternativeItemId": zod.number().nullish()
+  "alternativeItemId": zod.number().nullish(),
+  "minStock": zod.string().nullish()
 })
 
 export const UpdateItemResponse = zod.object({

@@ -72,7 +72,7 @@ router.post("/items", async (req, res): Promise<void> => {
 router.put("/items/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const { name, qtyType, purchasePrice, salePrice, alternativeItemId } = req.body;
+  const { name, qtyType, purchasePrice, salePrice, alternativeItemId, minStock } = req.body;
 
   const [item] = await db.update(itemsTable).set({
     ...(name && { name }),
@@ -86,6 +86,11 @@ router.put("/items/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Item not found" });
     return;
   }
+
+  if (minStock != null) {
+    await db.update(stockTable).set({ minStock: String(minStock) }).where(eq(stockTable.itemId, id));
+  }
+
   res.json({ ...item, alternativeItemName: null });
 });
 
