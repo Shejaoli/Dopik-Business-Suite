@@ -11,7 +11,7 @@ import { BarChart3, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function DateRange({ start, end, onStart, onEnd }: {
-  start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void;
+  start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void
 }) {
   return (
     <div className="flex gap-3 flex-wrap">
@@ -33,7 +33,7 @@ function firstOfMonth() {
   return d.toISOString().split("T")[0];
 }
 
-export default function ReportsPage() {
+export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: string }) {
   const [salesStart, setSalesStart] = useState(firstOfMonth());
   const [salesEnd, setSalesEnd] = useState(today());
   const [purchStart, setPurchStart] = useState(firstOfMonth());
@@ -69,7 +69,7 @@ export default function ReportsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="summary">
+      <Tabs defaultValue={defaultTab}>
         <TabsList className="no-print">
           <TabsTrigger value="summary">P&L Summary</TabsTrigger>
           <TabsTrigger value="sales">Sales</TabsTrigger>

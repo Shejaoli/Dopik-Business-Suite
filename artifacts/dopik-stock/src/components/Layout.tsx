@@ -2,26 +2,62 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
 import {
-  LayoutDashboard, Package, Boxes, ShoppingCart, TrendingUp,
-  Users, Building2, CreditCard, Wallet, Receipt, BarChart3,
-  Settings, LogOut, Menu, X, ChevronRight, Bell
+  Package, History, Archive, SlidersHorizontal, RotateCcw, AlertTriangle,
+  ShoppingCart, ShoppingBag, Tag, PackagePlus, Scale,
+  Building2, Users, CreditCard, Wallet,
+  Receipt, BookOpen,
+  BarChart2,
+  LayoutDashboard, Settings, LogOut, Menu, X, Bell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/items", label: "Items", icon: Package },
-  { href: "/stock", label: "Stock", icon: Boxes },
-  { href: "/purchases", label: "Purchases", icon: ShoppingCart },
-  { href: "/sales", label: "Sales", icon: TrendingUp },
-  { href: "/vendors", label: "Vendors", icon: Building2 },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/payables", label: "Payables", icon: CreditCard },
-  { href: "/receivables", label: "Receivables", icon: Wallet },
-  { href: "/expenses", label: "Expenses", icon: Receipt },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
+const navSections = [
+  {
+    label: "INVENTORY",
+    items: [
+      { href: "/items", label: "Items", icon: Package },
+      { href: "/item-history", label: "Item History", icon: History },
+      { href: "/stock", label: "Stock", icon: Archive },
+      { href: "/stock-adjustment", label: "Stock Adjustment", icon: SlidersHorizontal },
+      { href: "/adjustment-history", label: "Adjustment History", icon: RotateCcw },
+      { href: "/stock-alerts", label: "Stock Alerts", icon: AlertTriangle },
+    ],
+  },
+  {
+    label: "TRANSACTIONS",
+    items: [
+      { href: "/purchases", label: "New Purchase", icon: ShoppingCart },
+      { href: "/purchase-history", label: "Purchase History", icon: ShoppingBag },
+      { href: "/sales", label: "New Sale", icon: Tag },
+      { href: "/multi-sale", label: "Multi-Item Sale", icon: PackagePlus },
+      { href: "/sales-history", label: "Sales History", icon: Scale },
+    ],
+  },
+  {
+    label: "PAYABLES & RECEIVABLES",
+    items: [
+      { href: "/vendors", label: "Vendors", icon: Building2 },
+      { href: "/customers", label: "Customers", icon: Users },
+      { href: "/payables", label: "Payables", icon: CreditCard },
+      { href: "/receivables", label: "Receivables", icon: Wallet },
+    ],
+  },
+  {
+    label: "ACCOUNTING",
+    items: [
+      { href: "/expenses", label: "Pay Expense", icon: Receipt },
+      { href: "/expense-accounts", label: "Expense Accounts", icon: BookOpen },
+    ],
+  },
+  {
+    label: "REPORTS",
+    items: [
+      { href: "/reports/sales", label: "Sales Report", icon: BarChart2 },
+      { href: "/reports/purchases", label: "Purchase Report", icon: BarChart2 },
+      { href: "/reports/expenses", label: "Expense Report", icon: BarChart2 },
+      { href: "/reports/summary", label: "Summary Report", icon: BarChart2 },
+    ],
+  },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -29,103 +65,146 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
 
+  const isActive = (href: string) => {
+    if (href === "/") return location === "/";
+    return location === href || location.startsWith(href + "/");
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F9FAFB]">
+    <div className="flex h-screen overflow-hidden bg-[#F4F6FB]">
       {/* Mobile overlay */}
       {open && (
-        <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
-          onClick={() => setOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={() => setOpen(false)} />
       )}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 w-64 glass-dark flex flex-col transition-transform duration-300",
+          "fixed inset-y-0 left-0 z-30 w-60 bg-[#0F1A2E] flex flex-col transition-transform duration-300",
           "lg:relative lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1A6DB5] to-[#F5A800] flex items-center justify-center shadow-lg flex-shrink-0">
-            <span className="text-white font-bold text-xs font-sora">DE</span>
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10 flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-[#1A2540] flex items-center justify-center flex-shrink-0 ring-2 ring-white/10">
+            <img src="/dopik-logo-transparent.png" alt="DE" className="w-7 h-7 object-contain" />
           </div>
           <div className="min-w-0">
-            <p className="text-white font-semibold text-sm font-sora truncate">Dopik Electronics</p>
-            <p className="text-white/50 text-xs truncate">Stock Management</p>
+            <p className="text-white font-bold text-sm leading-tight truncate">Dopik Electronics</p>
+            <p className="text-white/40 text-[10px] truncate">Stock Management</p>
           </div>
-          <button className="ml-auto lg:hidden text-white/50 hover:text-white" onClick={() => setOpen(false)}>
+          <button className="ml-auto lg:hidden text-white/40 hover:text-white" onClick={() => setOpen(false)}>
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? location === "/" : location.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all",
-                  active
-                    ? "dopik-nav-active font-medium"
-                    : "text-white/60 hover:text-white hover:bg-white/10"
-                )}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span className="flex-1">{label}</span>
-                {active && <ChevronRight className="h-3 w-3 text-[#F5A800]" />}
-              </Link>
-            );
-          })}
+        {/* Dashboard shortcut */}
+        <div className="px-3 pt-3 pb-1 flex-shrink-0">
+          <Link
+            href="/"
+            onClick={() => setOpen(false)}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all",
+              isActive("/") && location === "/"
+                ? "bg-[#1A6DB5]/20 text-white border-l-2 border-[#F5A800]"
+                : "text-white/60 hover:text-white hover:bg-white/8"
+            )}
+          >
+            <LayoutDashboard className="h-4 w-4 flex-shrink-0" />
+            <span>Dashboard</span>
+          </Link>
+        </div>
+
+        {/* Nav sections */}
+        <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-0">
+          {navSections.map((section, si) => (
+            <div key={section.label}>
+              {/* Divider + section label */}
+              <div className={cn("pt-4 pb-1", si === 0 ? "pt-3" : "")}>
+                <div className="border-t border-white/10 mb-3" />
+                <p className="text-[10px] font-bold tracking-widest text-white/35 uppercase px-3 mb-1">
+                  {section.label}
+                </p>
+              </div>
+              {/* Items */}
+              <div className="space-y-0.5">
+                {section.items.map(({ href, label, icon: Icon }) => {
+                  const active = isActive(href);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all",
+                        active
+                          ? "bg-[#1A6DB5]/20 text-white border-l-2 border-[#F5A800] font-medium"
+                          : "text-white/55 hover:text-white hover:bg-white/8 border-l-2 border-transparent"
+                      )}
+                    >
+                      <Icon className={cn("h-4 w-4 flex-shrink-0", active ? "text-[#F5A800]" : "text-white/50")} />
+                      <span className="truncate">{label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Settings */}
+          <div className="pt-4">
+            <div className="border-t border-white/10 mb-3" />
+            <Link
+              href="/settings"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all",
+                isActive("/settings")
+                  ? "bg-[#1A6DB5]/20 text-white border-l-2 border-[#F5A800] font-medium"
+                  : "text-white/55 hover:text-white hover:bg-white/8 border-l-2 border-transparent"
+              )}
+            >
+              <Settings className={cn("h-4 w-4 flex-shrink-0", isActive("/settings") ? "text-[#F5A800]" : "text-white/50")} />
+              <span>Settings</span>
+            </Link>
+          </div>
         </nav>
 
-        {/* User */}
-        <div className="px-4 py-4 border-t border-white/10">
+        {/* User footer */}
+        <div className="px-4 py-3 border-t border-white/10 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1A6DB5] to-[#F5A800] flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1A6DB5] to-[#F5A800] flex items-center justify-center flex-shrink-0">
               <span className="text-white text-xs font-bold">{(user?.name || "A")[0].toUpperCase()}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-medium truncate">{user?.name}</p>
-              <p className="text-white/40 text-xs truncate">{user?.role}</p>
+              <p className="text-white/35 text-[10px] truncate capitalize">{user?.role}</p>
             </div>
-            <button
-              onClick={logout}
-              className="text-white/40 hover:text-red-400 transition-colors"
-              title="Logout"
-            >
+            <button onClick={logout} className="text-white/35 hover:text-red-400 transition-colors" title="Logout">
               <LogOut className="h-4 w-4" />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Topbar */}
-        <header className="h-14 flex items-center justify-between px-4 lg:px-6 bg-white/80 backdrop-blur border-b border-border flex-shrink-0">
-          <button
-            className="lg:hidden p-2 rounded-lg text-muted-foreground hover:bg-muted"
-            onClick={() => setOpen(true)}
-          >
+        <header className="h-13 flex items-center justify-between px-4 lg:px-6 bg-white shadow-sm border-b border-gray-100 flex-shrink-0">
+          <button className="lg:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
           </button>
-          <div className="flex-1 lg:flex-none" />
+          <div className="flex-1" />
           <div className="flex items-center gap-3">
-            <button className="p-2 rounded-lg text-muted-foreground hover:bg-muted relative">
+            <button className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 relative">
               <Bell className="h-4 w-4" />
             </button>
             <div className="hidden sm:flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1A6DB5] to-[#F5A800] flex items-center justify-center">
                 <span className="text-white text-xs font-bold">{(user?.name || "A")[0].toUpperCase()}</span>
               </div>
-              <span className="text-sm font-medium">{user?.name}</span>
+              <span className="text-sm font-medium text-gray-700">{user?.name}</span>
             </div>
           </div>
         </header>
