@@ -1,0 +1,23 @@
+Accounts Receivable (AR) represents the money your customers owe for goods or services delivered on credit. In accounting system management, tracking these funds is vital for maintaining healthy cash flow, reducing bad debt, and optimizing overall working capital. 
+
+J.P. Morgan
+ +2
+The Core AR Management Process
+A highly functional accounting system automates and controls every stage of the receivable cycle:
+Credit Approval: Evaluating customer creditworthiness using the "5 Cs" (Character, Capacity, Capital, Collateral, and Conditions) before extending credit.
+Invoicing: Drafting and sending accurate invoices immediately upon delivering goods or services, detailing the exact payment terms (e.g., Net 30).
+Payment Processing: Accepting multiple flexible payment methods (like mobile wallets, bank transfers, or credit cards) to speed up the collection process.
+Collections & Dunning: Sending automated payment reminders and escalating communication if an invoice becomes past due.
+Reconciliation: Matching incoming payments against outstanding invoices to ensure the subsidiary ledger balances perfectly align with the general ledger. 
+
+Payoneer
+ +5
+Key Performance Indicators (KPIs)
+To monitor financial health, accounting systems analyze specific AR metrics:
+Days Sales Outstanding (DSO): The average number of days it takes to collect payment after a sale is made.
+Aging of Accounts Receivable: A report categorizing outstanding invoices by date ranges (e.g., current, 1-30 days past due, 60+ days past due) to identify collection risks. 
+Why System Integration Matters
+Managing receivables in isolation can lead to bottlenecks. Modern accounting systems integrate AR with your Customer Relationship Management (CRM) and Enterprise Resource Planning (ERP) tools to eliminate manual data entry, reduce human error, and accelerate the cash conversion cycle. 
+
+Airwallex
+For further guidelines on optimizing your workflow, you can review best practices outlined by accounting resources like ACCA Global or SAP.

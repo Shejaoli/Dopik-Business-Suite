@@ -15,6 +15,7 @@ import usersRouter from "./users";
 import reportsRouter from "./reports";
 import dashboardRouter from "./dashboard";
 import loansRouter from "./loans";
+import backupRouter from "./backup";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(balancesRouter);
 router.use(usersRouter);
 router.use(reportsRouter);
 router.use(dashboardRouter);
+router.use(backupRouter);
 
 export default router;

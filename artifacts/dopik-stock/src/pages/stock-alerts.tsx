@@ -1,5 +1,7 @@
+import { Link } from "wouter";
 import { useGetStockAlerts } from "@workspace/api-client-react";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, CheckCircle2, Archive } from "lucide-react";
 
 export default function StockAlertsPage() {
   const { data: alerts, isLoading } = useGetStockAlerts();
@@ -10,9 +12,16 @@ export default function StockAlertsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Stock Alerts</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Items that need restocking attention</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Stock Alerts</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Items that need restocking attention</p>
+        </div>
+        <Link href="/stock">
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Archive className="h-3.5 w-3.5" />View All Stocks
+          </Button>
+        </Link>
       </div>
 
       {/* Summary cards */}
