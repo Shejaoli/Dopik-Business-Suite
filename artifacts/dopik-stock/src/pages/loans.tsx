@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListCustomers } from "@workspace/api-client-react";
-import { api, fmtDate, fmtCurrency } from "@/lib/api";
+import { useListCustomers, useListReceivables, getListReceivablesQueryKey } from "@workspace/api-client-react";
+import { api, fmtDate, fmtCurrency, fmtRWF } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Loader2, HandCoins, ChevronDown, ChevronUp, Banknote, Trash2 } from "lucide-react";
+import { Plus, Loader2, HandCoins, ChevronDown, ChevronUp, Banknote, Trash2, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Loan = {
@@ -38,14 +38,6 @@ function useLoans() {
   return useQuery<Loan[]>({
     queryKey: ["loans"],
     queryFn: () => api.get("/loans"),
-  });
-}
-
-function useCustomerSummary(customerId: number | null) {
-  return useQuery({
-    queryKey: ["customer-summary", customerId],
-    queryFn: () => api.get(`/customers/${customerId}/summary`),
-    enabled: !!customerId,
   });
 }
 
@@ -190,11 +182,70 @@ function PaymentDialog({ loan, open, onClose, onPaid }: { loan: Loan; open: bool
   );
 }
 
+function ReceivableCollectDialog({ rec, open, onClose, onPaid }: { rec: any; open: boolean; onClose: () => void; onPaid: () => void }) {
+  const [form, setForm] = useState({ amount: String(rec?.remaining ?? ""), paymentMethod: "cash" });
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const handleCollect = async () => {
+    if (!form.amount) return;
+    setSaving(true);
+    try {
+      await api.post(`/receivables/${rec.id}/payment`, {
+        amount: parseFloat(form.amount),
+        paymentMethod: form.paymentMethod,
+      });
+      toast({ title: "Payment collected" });
+      qc.invalidateQueries({ queryKey: getListReceivablesQueryKey() });
+      onPaid();
+      onClose();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Collect Payment — {rec?.customerName ?? "Customer"}</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="p-3 bg-amber-50 rounded-lg text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Total:</span><span className="font-medium">{fmtRWF(rec?.totalAmount)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Collected:</span><span className="font-medium text-green-600">{fmtRWF(rec?.paidAmount)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Remaining:</span><span className="font-bold text-amber-700">{fmtRWF(rec?.remaining)}</span></div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Amount *</Label>
+            <Input type="number" min={0.01} max={parseFloat(rec?.remaining ?? "0")} value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Payment Method</Label>
+            <Select value={form.paymentMethod} onValueChange={v => setForm(f => ({ ...f, paymentMethod: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="bank">Bank Transfer</SelectItem>
+                <SelectItem value="mobile_money">Mobile Money</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleCollect} disabled={saving || !form.amount} className="bg-green-600 hover:bg-green-700 text-white">
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Confirm Collection
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LoanCard({ loan, onRefresh }: { loan: Loan; onRefresh: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [paying, setPaying] = useState(false);
   const { toast } = useToast();
-  const qc = useQueryClient();
 
   const total = parseFloat(loan.amount);
   const paid = parseFloat(loan.paidAmount);
@@ -230,10 +281,11 @@ function LoanCard({ loan, onRefresh }: { loan: Loan; onRefresh: () => void }) {
             <div>
               <p className="font-semibold font-sora">{loan.customerName}</p>
               {loan.description && <p className="text-sm text-muted-foreground">{loan.description}</p>}
+              <p className="text-xs text-muted-foreground">Direct Loan · {fmtDate(loan.createdAt)}</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Badge variant={isPaid ? "default" : "outline"} className={isPaid ? "bg-green-100 text-green-700 border-green-200 hover:bg-green-100" : "text-amber-700 border-amber-300 bg-amber-50"}>
+            <Badge variant="outline" className={isPaid ? "text-green-700 border-green-200 bg-green-50" : "text-amber-700 border-amber-300 bg-amber-50"}>
               {isPaid ? "Paid" : "Active"}
             </Badge>
             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600" onClick={handleDelete}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -253,13 +305,10 @@ function LoanCard({ loan, onRefresh }: { loan: Loan; onRefresh: () => void }) {
             <span>Remaining</span>
             <span className={isPaid ? "text-green-600" : "text-amber-600"}>{fmtCurrency(remaining)}</span>
           </div>
-
-          <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
+          <div className="w-full bg-gray-100 rounded-full h-1.5">
             <div className="bg-green-500 h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
-          {loan.dueDate && (
-            <p className="text-xs text-muted-foreground">Due: {fmtDate(loan.dueDate)}</p>
-          )}
+          {loan.dueDate && <p className="text-xs text-muted-foreground">Due: {fmtDate(loan.dueDate)}</p>}
         </div>
 
         <div className="flex gap-2 mt-4">
@@ -309,40 +358,145 @@ function LoanCard({ loan, onRefresh }: { loan: Loan; onRefresh: () => void }) {
   );
 }
 
+function ReceivableCard({ rec, onRefresh }: { rec: any; onRefresh: () => void }) {
+  const [paying, setPaying] = useState(false);
+  const total = parseFloat(rec.totalAmount ?? "0");
+  const paid = parseFloat(rec.paidAmount ?? "0");
+  const remaining = parseFloat(rec.remaining ?? String(total - paid));
+  const pct = total > 0 ? Math.min((paid / total) * 100, 100) : 0;
+  const isPaid = rec.status === "paid";
+
+  return (
+    <div className="glass-panel overflow-hidden">
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0", isPaid ? "bg-green-100" : "bg-blue-100")}>
+              <Wallet className={cn("h-5 w-5", isPaid ? "text-green-600" : "text-blue-600")} />
+            </div>
+            <div>
+              <p className="font-semibold font-sora">{rec.customerName ?? "Walk-in"}</p>
+              <p className="text-sm text-muted-foreground truncate max-w-[160px]">
+                {(rec.saleItems ?? []).map((i: any) => i.itemName).join(", ") || rec.itemName || "Credit Sale"}
+              </p>
+              <p className="text-xs text-muted-foreground">Credit Sale · {fmtDate(rec.createdAt)}</p>
+            </div>
+          </div>
+          <Badge variant="outline" className={isPaid ? "text-green-700 border-green-200 bg-green-50" : "text-blue-700 border-blue-300 bg-blue-50"}>
+            {isPaid ? "Paid" : "Unpaid"}
+          </Badge>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Sale Amount</span>
+            <span className="font-medium">{fmtCurrency(total)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Collected</span>
+            <span className="font-medium text-green-600">{fmtCurrency(paid)}</span>
+          </div>
+          <div className="flex justify-between text-sm font-semibold">
+            <span>Remaining</span>
+            <span className={isPaid ? "text-green-600" : "text-blue-600"}>{fmtCurrency(remaining)}</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-1.5">
+            <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          </div>
+          {rec.dueDate && <p className="text-xs text-muted-foreground">Due: {fmtDate(rec.dueDate)}</p>}
+        </div>
+
+        {!isPaid && (
+          <div className="mt-4">
+            <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setPaying(true)}>
+              <Banknote className="h-3.5 w-3.5 mr-1.5" />Collect Payment
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {paying && (
+        <ReceivableCollectDialog
+          rec={rec}
+          open={paying}
+          onClose={() => setPaying(false)}
+          onPaid={onRefresh}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function LoansPage() {
   const [showNew, setShowNew] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "paid">("all");
   const qc = useQueryClient();
-  const { data, isLoading } = useLoans();
-  const loans: Loan[] = (data as any) ?? [];
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["loans"] });
+  const { data: loansData, isLoading: loansLoading } = useLoans();
+  const { data: receivablesData, isLoading: recLoading } = useListReceivables();
+  const loans: Loan[] = (loansData as any) ?? [];
+  const receivables: any[] = (receivablesData as any) ?? [];
 
-  const filtered = loans.filter(l => filter === "all" ? true : l.status === filter);
-  const totalActive = loans.filter(l => l.status === "active").reduce((s, l) => s + (parseFloat(l.amount) - parseFloat(l.paidAmount)), 0);
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["loans"] });
+    qc.invalidateQueries({ queryKey: getListReceivablesQueryKey() });
+  };
+
+  const filteredLoans = loans.filter(l =>
+    filter === "all" ? true : l.status === filter
+  );
+
+  const filteredRec = receivables.filter(r =>
+    filter === "all" ? true :
+    filter === "active" ? r.status !== "paid" :
+    r.status === "paid"
+  );
+
+  const totalDirectOutstanding = loans
+    .filter(l => l.status === "active")
+    .reduce((s, l) => s + (parseFloat(l.amount) - parseFloat(l.paidAmount)), 0);
+
+  const totalCreditOutstanding = receivables
+    .filter(r => r.status !== "paid")
+    .reduce((s, r) => s + parseFloat(r.remaining ?? "0"), 0);
+
+  const isLoading = loansLoading || recLoading;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-sora">Loans</h1>
-          <p className="text-sm text-muted-foreground">Track loans given to customers</p>
+          <h1 className="text-2xl font-bold font-sora">Loans & Credit</h1>
+          <p className="text-sm text-muted-foreground">Direct loans and credit sales owed by customers</p>
         </div>
         <Button onClick={() => setShowNew(true)} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
           <Plus className="h-4 w-4 mr-2" />New Loan
         </Button>
       </div>
 
-      {totalActive > 0 && (
-        <div className="glass-panel p-4 flex items-center gap-3 border-l-4 border-amber-400">
-          <HandCoins className="h-5 w-5 text-amber-500 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium">Total Outstanding Loans</p>
-            <p className="text-lg font-bold text-amber-600">{fmtCurrency(totalActive)}</p>
+      {/* Summary banners */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {totalDirectOutstanding > 0 && (
+          <div className="glass-panel p-4 flex items-center gap-3 border-l-4 border-amber-400">
+            <HandCoins className="h-5 w-5 text-amber-500 flex-shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">Outstanding Direct Loans</p>
+              <p className="text-lg font-bold text-amber-600">{fmtCurrency(totalDirectOutstanding)}</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {totalCreditOutstanding > 0 && (
+          <div className="glass-panel p-4 flex items-center gap-3 border-l-4 border-blue-400">
+            <Wallet className="h-5 w-5 text-blue-500 flex-shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">Outstanding Credit Sales</p>
+              <p className="text-lg font-bold text-blue-600">{fmtCurrency(totalCreditOutstanding)}</p>
+            </div>
+          </div>
+        )}
+      </div>
 
+      {/* Filter */}
       <div className="flex gap-2">
         {(["all", "active", "paid"] as const).map(f => (
           <Button key={f} size="sm" variant={filter === f ? "default" : "outline"}
@@ -353,19 +507,62 @@ export default function LoansPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {isLoading ? [...Array(4)].map((_, i) => (
-          <div key={i} className="glass-panel p-5 space-y-3">
-            {[...Array(5)].map((_, j) => <div key={j} className="h-4 bg-muted animate-pulse rounded" />)}
+      {/* Direct Loans */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <HandCoins className="h-4 w-4 text-amber-500" />
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Direct Loans</h2>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="glass-panel p-5 space-y-3">
+                {[...Array(4)].map((_, j) => <div key={j} className="h-4 bg-muted animate-pulse rounded" />)}
+              </div>
+            ))}
           </div>
-        )) : filtered.length === 0 ? (
-          <div className="col-span-full glass-panel p-12 text-center text-muted-foreground">
-            <HandCoins className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            {filter === "all" ? "No loans recorded yet" : `No ${filter} loans`}
+        ) : filteredLoans.length === 0 ? (
+          <div className="glass-panel p-8 text-center text-muted-foreground">
+            <HandCoins className="h-7 w-7 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">{filter === "all" ? "No direct loans recorded" : `No ${filter} loans`}</p>
           </div>
-        ) : filtered.map(loan => (
-          <LoanCard key={loan.id} loan={loan} onRefresh={refresh} />
-        ))}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredLoans.map(loan => (
+              <LoanCard key={loan.id} loan={loan} onRefresh={refresh} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Credit Sales (Receivables) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-blue-500" />
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Credit Sales (Receivables)</h2>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="glass-panel p-5 space-y-3">
+                {[...Array(4)].map((_, j) => <div key={j} className="h-4 bg-muted animate-pulse rounded" />)}
+              </div>
+            ))}
+          </div>
+        ) : filteredRec.length === 0 ? (
+          <div className="glass-panel p-8 text-center text-muted-foreground">
+            <Wallet className="h-7 w-7 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">{filter === "all" ? "No credit sales yet" : `No ${filter} credit sales`}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredRec.map(rec => (
+              <ReceivableCard key={rec.id} rec={rec} onRefresh={refresh} />
+            ))}
+          </div>
+        )}
       </div>
 
       <NewLoanDialog open={showNew} onClose={() => setShowNew(false)} onCreated={refresh} />

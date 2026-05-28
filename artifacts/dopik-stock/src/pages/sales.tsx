@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, TrendingUp, Loader2, Trash2, AlertCircle, Undo2 } from "lucide-react";
+import { Plus, Search, TrendingUp, Loader2, Trash2, AlertCircle, Undo2, ShieldAlert } from "lucide-react";
 
 const PAYMENT_METHODS = ["cash", "bank", "mobile_money", "credit"];
 
@@ -17,6 +17,98 @@ type SaleLineItem = {
   quantity: string; unitPrice: string; availableQty: number;
 };
 
+type Sale = {
+  id: number;
+  customerName?: string | null;
+  paymentMethod?: string | null;
+  totalAmount?: string | null;
+  reverted?: boolean | null;
+  createdAt?: string | null;
+  items?: { itemName: string; itemId: number; quantity: string }[];
+};
+
+function revertPhrase(sale: Sale) {
+  return `sudo revert sale #${sale.id}`;
+}
+
+function RevertDialog({ sale, open, onClose, onReverted }: {
+  sale: Sale; open: boolean; onClose: () => void; onReverted: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const [reverting, setReverting] = useState(false);
+  const { toast } = useToast();
+  const phrase = revertPhrase(sale);
+  const matches = typed === phrase;
+
+  const handleRevert = async () => {
+    if (!matches) return;
+    setReverting(true);
+    try {
+      await api.post(`/sales/${sale.id}/revert`);
+      toast({ title: "Sale reverted", description: "Stock has been restored." });
+      onReverted();
+      onClose();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setReverting(false);
+      setTyped("");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setTyped(""); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-red-600">
+            <ShieldAlert className="h-5 w-5" />
+            Confirm Revert Sale
+          </DialogTitle>
+          <DialogDescription>
+            This will reverse the sale and restore all stock. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm space-y-1">
+            <p className="text-red-700 font-medium">Sale #{sale.id} — {sale.customerName ?? "Walk-in"}</p>
+            <p className="text-red-600">{fmtRWF(sale.totalAmount)} · {(sale.items ?? []).map(i => i.itemName).join(", ") || "—"}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm">
+              Type <span className="font-mono font-bold bg-gray-100 px-1.5 py-0.5 rounded text-gray-800">{phrase}</span> to confirm:
+            </Label>
+            <Input
+              value={typed}
+              onChange={e => setTyped(e.target.value)}
+              placeholder={phrase}
+              className={`font-mono text-sm ${typed && !matches ? "border-red-300 focus-visible:ring-red-300" : typed && matches ? "border-green-400 focus-visible:ring-green-300" : ""}`}
+              autoFocus
+              onKeyDown={e => e.key === "Enter" && matches && handleRevert()}
+            />
+            {typed && !matches && (
+              <p className="text-xs text-red-500">Phrase does not match</p>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { onClose(); setTyped(""); }}>Cancel</Button>
+          <Button
+            onClick={handleRevert}
+            disabled={!matches || reverting}
+            className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
+          >
+            {reverting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Confirm Revert
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SalesPage() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -24,13 +116,14 @@ export default function SalesPage() {
   const [customerId, setCustomerId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [lineItems, setLineItems] = useState<SaleLineItem[]>([]);
+  const [revertSale, setRevertSale] = useState<Sale | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const { data, isLoading } = useListSales({});
   const { data: customers } = useListCustomers();
   const { data: stock } = useListStock({});
-  const sales: any[] = (data as any) ?? [];
+  const sales: Sale[] = (data as any) ?? [];
   const customerList: any[] = (customers as any) ?? [];
   const stockItems: any[] = (stock as any) ?? [];
 
@@ -60,7 +153,6 @@ export default function SalesPage() {
 
   const handleCreate = async () => {
     if (lineItems.length === 0 || !paymentMethod) return;
-    // Validate quantities
     for (const l of lineItems) {
       if (parseFloat(l.quantity) <= 0) {
         toast({ title: "Invalid quantity", description: `Quantity for ${l.itemName} must be > 0`, variant: "destructive" });
@@ -92,17 +184,6 @@ export default function SalesPage() {
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally { setSaving(false); }
-  };
-
-  const handleRevert = async (saleId: number) => {
-    if (!confirm("Are you sure you want to revert this sale? Stock will be restored.")) return;
-    try {
-      await api.post(`/sales/${saleId}/revert`);
-      toast({ title: "Sale reverted" });
-      qc.invalidateQueries({ queryKey: getListSalesQueryKey() });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    }
   };
 
   const filtered = sales.filter(s =>
@@ -174,7 +255,7 @@ export default function SalesPage() {
                       <Button
                         size="sm" variant="ghost"
                         className="text-orange-500 hover:text-orange-600 hover:bg-orange-50"
-                        onClick={() => handleRevert(s.id)}
+                        onClick={() => setRevertSale(s)}
                         title="Revert sale"
                       >
                         <Undo2 className="h-4 w-4" />
@@ -187,6 +268,16 @@ export default function SalesPage() {
           </table>
         </div>
       </div>
+
+      {/* Revert Dialog */}
+      {revertSale && (
+        <RevertDialog
+          sale={revertSale}
+          open={!!revertSale}
+          onClose={() => setRevertSale(null)}
+          onReverted={() => qc.invalidateQueries({ queryKey: getListSalesQueryKey() })}
+        />
+      )}
 
       {/* Create Sale Dialog */}
       <Dialog open={showCreate} onOpenChange={open => { if (!open) { setShowCreate(false); setLineItems([]); } }}>
@@ -217,7 +308,6 @@ export default function SalesPage() {
               </div>
             </div>
 
-            {/* Add Item */}
             <div className="space-y-1.5">
               <Label>Add Item</Label>
               <select
@@ -238,7 +328,6 @@ export default function SalesPage() {
               </select>
             </div>
 
-            {/* Line Items */}
             {lineItems.length > 0 && (
               <div className="border rounded-xl overflow-hidden">
                 <table className="w-full text-sm">

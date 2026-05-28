@@ -1,15 +1,24 @@
+import { Link } from "wouter";
 import { useListSales } from "@workspace/api-client-react";
-import { Scale } from "lucide-react";
 import { fmtRWF } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Scale, Plus } from "lucide-react";
 
 export default function SalesHistoryPage() {
   const { data: sales, isLoading } = useListSales();
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Sales History</h1>
-        <p className="text-sm text-gray-400 mt-0.5">All recorded sales transactions</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Sales History</h1>
+          <p className="text-sm text-gray-400 mt-0.5">All recorded sales transactions</p>
+        </div>
+        <Link href="/sales">
+          <Button className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
+            <Plus className="h-4 w-4 mr-2" />New Sale
+          </Button>
+        </Link>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -24,11 +33,11 @@ export default function SalesHistoryPage() {
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td colSpan={6} className="text-center py-10 text-gray-400">Loading...</td></tr>
+                <tr><td colSpan={5} className="text-center py-10 text-gray-400">Loading...</td></tr>
               )}
               {!isLoading && (!sales || sales.length === 0) && (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={5} className="py-16 text-center">
                     <Scale className="h-10 w-10 text-gray-200 mx-auto mb-3" />
                     <p className="text-gray-400 text-sm">No sales recorded yet</p>
                   </td>
