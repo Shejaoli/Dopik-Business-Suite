@@ -52,7 +52,7 @@ router.get("/sales", async (req, res): Promise<void> => {
 });
 
 router.post("/sales", async (req, res): Promise<void> => {
-  const { customerId, paymentMethod, totalAmount, items } = req.body;
+  const { customerId, paymentMethod, totalAmount, items, paymentTermsDays } = req.body;
   if (!paymentMethod || !totalAmount || !items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "paymentMethod, totalAmount, items[] required" });
     return;
@@ -99,7 +99,7 @@ router.post("/sales", async (req, res): Promise<void> => {
       // Allow sale without customer for credit (just no receivable customer link)
     }
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 2);
+    dueDate.setDate(dueDate.getDate() + (Number(paymentTermsDays) || 30));
     await db.insert(receivablesTable).values({
       saleId: sale.id,
       customerId: customerId || 1,
