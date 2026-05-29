@@ -2,12 +2,9 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
-import { pool } from "@workspace/db";
+import { PgSessionStore } from "./lib/session-store";
 import router from "./routes";
 import { logger } from "./lib/logger";
-
-const PgSession = connectPgSimple(session);
 
 const app: Express = express();
 
@@ -39,9 +36,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
-  store: new PgSession({
-    pool: pool as any,
-  }),
+  store: new PgSessionStore(),
   secret: process.env.SESSION_SECRET || "dopik-secret-2026",
   resave: false,
   saveUninitialized: false,
