@@ -77,6 +77,21 @@ router.get("/backup/export", async (_req, res): Promise<void> => {
   }
 });
 
+function fixDates<T extends Record<string, any>>(records: T[]): T[] {
+  if (!records?.length) return records;
+  return records.map(record => {
+    const fixed: Record<string, any> = {};
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+        fixed[key] = new Date(value);
+      } else {
+        fixed[key] = value;
+      }
+    }
+    return fixed as T;
+  });
+}
+
 router.post("/backup/import", async (req, res): Promise<void> => {
   try {
     const backup = req.body;
@@ -101,26 +116,26 @@ router.post("/backup/import", async (req, res): Promise<void> => {
       RESTART IDENTITY CASCADE
     `);
 
-    if (d.users?.length)                await db.insert(usersTable).values(d.users);
-    if (d.items?.length)                await db.insert(itemsTable).values(d.items);
-    if (d.stock?.length)                await db.insert(stockTable).values(d.stock);
-    if (d.customers?.length)            await db.insert(customersTable).values(d.customers);
-    if (d.vendors?.length)              await db.insert(vendorsTable).values(d.vendors);
-    if (d.expenseAccounts?.length)      await db.insert(expenseAccountsTable).values(d.expenseAccounts);
-    if (d.balances?.length)             await db.insert(balancesTable).values(d.balances);
-    if (d.sales?.length)                await db.insert(salesTable).values(d.sales);
-    if (d.saleItems?.length)            await db.insert(saleItemsTable).values(d.saleItems);
-    if (d.purchases?.length)            await db.insert(purchasesTable).values(d.purchases);
-    if (d.receivables?.length)          await db.insert(receivablesTable).values(d.receivables);
-    if (d.receivablePayments?.length)   await db.insert(receivablePaymentsTable).values(d.receivablePayments);
-    if (d.payables?.length)             await db.insert(payablesTable).values(d.payables);
-    if (d.payablePayments?.length)      await db.insert(payablePaymentsTable).values(d.payablePayments);
-    if (d.expenses?.length)             await db.insert(expensesTable).values(d.expenses);
-    if (d.loans?.length)                await db.insert(loansTable).values(d.loans);
-    if (d.loanPayments?.length)         await db.insert(loanPaymentsTable).values(d.loanPayments);
-    if (d.stockAdjustments?.length)     await db.insert(stockAdjustmentsTable).values(d.stockAdjustments);
-    if (d.serialNumbers?.length)        await db.insert(serialNumbersTable).values(d.serialNumbers);
-    if (d.auditLogs?.length)            await db.insert(auditLogsTable).values(d.auditLogs);
+    if (d.users?.length)                await db.insert(usersTable).values(fixDates(d.users));
+    if (d.items?.length)                await db.insert(itemsTable).values(fixDates(d.items));
+    if (d.stock?.length)                await db.insert(stockTable).values(fixDates(d.stock));
+    if (d.customers?.length)            await db.insert(customersTable).values(fixDates(d.customers));
+    if (d.vendors?.length)              await db.insert(vendorsTable).values(fixDates(d.vendors));
+    if (d.expenseAccounts?.length)      await db.insert(expenseAccountsTable).values(fixDates(d.expenseAccounts));
+    if (d.balances?.length)             await db.insert(balancesTable).values(fixDates(d.balances));
+    if (d.sales?.length)                await db.insert(salesTable).values(fixDates(d.sales));
+    if (d.saleItems?.length)            await db.insert(saleItemsTable).values(fixDates(d.saleItems));
+    if (d.purchases?.length)            await db.insert(purchasesTable).values(fixDates(d.purchases));
+    if (d.receivables?.length)          await db.insert(receivablesTable).values(fixDates(d.receivables));
+    if (d.receivablePayments?.length)   await db.insert(receivablePaymentsTable).values(fixDates(d.receivablePayments));
+    if (d.payables?.length)             await db.insert(payablesTable).values(fixDates(d.payables));
+    if (d.payablePayments?.length)      await db.insert(payablePaymentsTable).values(fixDates(d.payablePayments));
+    if (d.expenses?.length)             await db.insert(expensesTable).values(fixDates(d.expenses));
+    if (d.loans?.length)                await db.insert(loansTable).values(fixDates(d.loans));
+    if (d.loanPayments?.length)         await db.insert(loanPaymentsTable).values(fixDates(d.loanPayments));
+    if (d.stockAdjustments?.length)     await db.insert(stockAdjustmentsTable).values(fixDates(d.stockAdjustments));
+    if (d.serialNumbers?.length)        await db.insert(serialNumbersTable).values(fixDates(d.serialNumbers));
+    if (d.auditLogs?.length)            await db.insert(auditLogsTable).values(fixDates(d.auditLogs));
 
     res.json({ success: true, message: "Database restored successfully. Please log in again." });
   } catch (e: any) {

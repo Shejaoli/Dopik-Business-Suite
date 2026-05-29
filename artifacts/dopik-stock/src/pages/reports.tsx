@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGetSalesReport, useGetPurchasesReport, useGetExpensesReport, useGetSummaryReport } from "@workspace/api-client-react";
 import { fmtRWF, fmtDateTime } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,6 +34,12 @@ function firstOfMonth() {
 }
 
 export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: string }) {
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
   const [salesStart, setSalesStart] = useState(firstOfMonth());
   const [salesEnd, setSalesEnd] = useState(today());
   const [purchStart, setPurchStart] = useState(firstOfMonth());
@@ -69,7 +75,7 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
         </Button>
       </div>
 
-      <Tabs defaultValue={defaultTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="no-print">
           <TabsTrigger value="summary">P&L Summary</TabsTrigger>
           <TabsTrigger value="sales">Sales</TabsTrigger>

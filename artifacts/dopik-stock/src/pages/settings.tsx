@@ -6,8 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine } from "lucide-react";
 import { useGetBalances } from "@workspace/api-client-react";
+
+const BALANCE_METHODS = [
+  { key: "cash", label: "Cash" },
+  { key: "bank", label: "Bank" },
+  { key: "mobile_money", label: "Mobile Money" },
+];
 
 export default function SettingsPage() {
   const { user, setUser } = useAuth();
@@ -17,14 +23,16 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
 
-  /* ── Backup state ────────────────────── */
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const { data: balances } = useGetBalances();
+  const { data: balances, refetch: refetchBalances } = useGetBalances();
   const balList: any[] = (balances as any) ?? [];
+
+  const [adjustForms, setAdjustForms] = useState<Record<string, string>>({});
+  const [savingBalance, setSavingBalance] = useState<string | null>(null);
 
   const handleProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +66,6 @@ export default function SettingsPage() {
     } finally { setSavingPw(false); }
   };
 
-  /* ── Backup: export ────────────────── */
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -78,7 +85,6 @@ export default function SettingsPage() {
     } finally { setExporting(false); }
   };
 
-  /* ── Backup: import ────────────────── */
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -87,7 +93,7 @@ export default function SettingsPage() {
     try {
       const text = await file.text();
       const json = JSON.parse(text);
-      const result = await api.post("/backup/import", json);
+      const result = await api.post<any>("/backup/import", json);
       setImportResult({ ok: true, msg: result.message ?? "Restored successfully" });
       toast({ title: "Database restored", description: "All data has been restored from the backup." });
     } catch (e: any) {
@@ -98,6 +104,29 @@ export default function SettingsPage() {
       if (fileRef.current) fileRef.current.value = "";
     }
   };
+
+  const handleBalanceAdjust = async (method: string) => {
+    const rawVal = adjustForms[method];
+    if (rawVal === undefined || rawVal === "") return;
+    const amount = parseFloat(rawVal);
+    if (isNaN(amount)) {
+      toast({ title: "Invalid amount", variant: "destructive" });
+      return;
+    }
+    setSavingBalance(method);
+    try {
+      await api.put(`/balances/${method}`, { amount });
+      await refetchBalances();
+      setAdjustForms(f => ({ ...f, [method]: "" }));
+      toast({ title: "Balance updated", description: `${method.replace(/_/g, " ")} balance set to ${fmtRWF(amount)}` });
+    } catch (e: any) {
+      toast({ title: "Failed to update balance", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingBalance(null);
+    }
+  };
+
+  const isAdmin = user?.role === "admin";
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -110,6 +139,7 @@ export default function SettingsPage() {
         <TabsList className="mb-2">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          {isAdmin && <TabsTrigger value="balances">Balances</TabsTrigger>}
           <TabsTrigger value="backup">Backup</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
@@ -173,6 +203,62 @@ export default function SettingsPage() {
             </form>
           </div>
         </TabsContent>
+
+        {/* ── Balances (Admin only) ────────── */}
+        {isAdmin && (
+          <TabsContent value="balances" className="mt-4 space-y-4">
+            <div className="glass-panel p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-8 h-8 rounded-lg bg-[#1A6DB5]/10 flex items-center justify-center">
+                  <Wallet className="h-4 w-4 text-[#1A6DB5]" />
+                </div>
+                <div>
+                  <h2 className="font-semibold font-sora">Adjust Balances</h2>
+                  <p className="text-xs text-muted-foreground">Manually set the opening or corrected balance for each payment method</p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 mb-5">
+                <strong>Admin only:</strong> This directly overwrites the stored balance. Use this to correct discrepancies or set an opening balance.
+              </div>
+
+              <div className="space-y-5">
+                {BALANCE_METHODS.map(({ key, label }) => {
+                  const current = balList.find(b => b.method === key);
+                  return (
+                    <div key={key} className="border border-border rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <PencilLine className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">{label}</span>
+                        </div>
+                        <span className={`text-sm font-bold ${current && parseFloat(current.amount) < 0 ? "text-red-600" : "text-foreground"}`}>
+                          Current: {current ? fmtRWF(current.amount) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder={`New ${label} balance (RWF)`}
+                          value={adjustForms[key] ?? ""}
+                          onChange={e => setAdjustForms(f => ({ ...f, [key]: e.target.value }))}
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={() => handleBalanceAdjust(key)}
+                          disabled={savingBalance === key || !adjustForms[key]}
+                          className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90 text-white"
+                        >
+                          {savingBalance === key ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </TabsContent>
+        )}
 
         {/* ── Backup ──────────────────────── */}
         <TabsContent value="backup" className="mt-4 space-y-4">
