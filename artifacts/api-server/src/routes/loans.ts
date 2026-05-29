@@ -53,9 +53,48 @@ router.get("/loans/:id", async (req, res): Promise<void> => {
   res.json({ ...loan, payments });
 });
 
+router.get("/customers/:id/loan-limit", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
+  if (!customer) { res.status(404).json({ error: "Customer not found" }); return; }
+  const [outstanding] = await db.execute<{ total: string }>(
+    sql`SELECT COALESCE(SUM(amount - paid_amount), 0) AS total FROM loans WHERE customer_id = ${id} AND status = 'active'`
+  );
+  res.json({
+    loanLimit: customer.loanLimit ? parseFloat(customer.loanLimit) : null,
+    outstanding: parseFloat((outstanding as any)?.total ?? "0"),
+  });
+});
+
+router.put("/customers/:id/loan-limit", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  const { loanLimit } = req.body;
+  const val = loanLimit === null || loanLimit === "" ? null : Number(loanLimit);
+  const [updated] = await db.update(customersTable)
+    .set({ loanLimit: val === null ? null : String(val) })
+    .where(eq(customersTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Customer not found" }); return; }
+  res.json(updated);
+});
+
 router.post("/loans", async (req, res): Promise<void> => {
   const { customerId, amount, description, dueDate } = req.body;
   if (!customerId || !amount) { res.status(400).json({ error: "customerId and amount required" }); return; }
+
+  // Check loan limit
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, Number(customerId)));
+  if (customer?.loanLimit) {
+    const [row] = await db.execute<{ total: string }>(
+      sql`SELECT COALESCE(SUM(amount - paid_amount), 0) AS total FROM loans WHERE customer_id = ${Number(customerId)} AND status = 'active'`
+    );
+    const outstanding = parseFloat((row as any)?.total ?? "0");
+    const limit = parseFloat(customer.loanLimit);
+    if (outstanding + parseFloat(String(amount)) > limit) {
+      res.status(400).json({ error: `This loan would exceed ${customer.name}'s limit of ${limit.toLocaleString()} RWF. Current outstanding: ${outstanding.toLocaleString()} RWF` });
+      return;
+    }
+  }
+
   const [loan] = await db.insert(loansTable).values({
     customerId: Number(customerId),
     amount: String(amount),

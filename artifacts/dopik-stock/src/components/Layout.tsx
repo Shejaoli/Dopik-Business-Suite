@@ -51,6 +51,7 @@ const navSections = [
   {
     label: "ACCOUNTING",
     items: [
+      { href: "/balances", label: "Balances", icon: Wallet },
       { href: "/expenses", label: "Pay Expense", icon: Receipt },
       { href: "/expense-accounts", label: "Expense Accounts", icon: BookOpen },
     ],

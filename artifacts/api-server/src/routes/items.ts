@@ -12,6 +12,8 @@ router.get("/items", async (req, res): Promise<void> => {
   const limit = parseInt(req.query.limit as string) || 50;
   const offset = (page - 1) * limit;
 
+  const inStockOnly = req.query.inStock === "true";
+
   let query = db
     .select({
       id: itemsTable.id,
@@ -22,18 +24,25 @@ router.get("/items", async (req, res): Promise<void> => {
       salePrice: itemsTable.salePrice,
       alternativeItemId: itemsTable.alternativeItemId,
       createdAt: itemsTable.createdAt,
+      stockQuantity: stockTable.quantity,
     })
     .from(itemsTable)
+    .leftJoin(stockTable, eq(itemsTable.id, stockTable.itemId))
     .$dynamic();
 
-  if (search) {
-    query = query.where(ilike(itemsTable.name, `%${search}%`)) as any;
-  }
+  const conditions = [];
+  if (search) conditions.push(ilike(itemsTable.name, `%${search}%`));
+  if (inStockOnly) conditions.push(sql`CAST(${stockTable.quantity} AS NUMERIC) > 0`);
+  if (conditions.length > 0) query = query.where(sql`${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`) as any;
 
-  const [countResult] = await db
+  const countBase = db
     .select({ count: sql<number>`count(*)` })
     .from(itemsTable)
-    .where(search ? ilike(itemsTable.name, `%${search}%`) : undefined as any);
+    .leftJoin(stockTable, eq(itemsTable.id, stockTable.itemId))
+    .$dynamic();
+  const [countResult] = await (conditions.length > 0
+    ? countBase.where(sql`${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`)
+    : countBase);
 
   const items = await query.orderBy(desc(itemsTable.createdAt)).limit(limit).offset(offset);
 

@@ -12,3 +12,4 @@ export * from "./expenses";
 export * from "./balances";
 export * from "./loans";
 export * from "./audit";
+export * from "./balance-history";
