@@ -137,6 +137,30 @@ router.post("/backup/import", async (req, res): Promise<void> => {
     if (d.serialNumbers?.length)        await db.insert(serialNumbersTable).values(fixDates(d.serialNumbers));
     if (d.auditLogs?.length)            await db.insert(auditLogsTable).values(fixDates(d.auditLogs));
 
+    // Reset all sequences so new inserts don't collide with restored IDs
+    await db.execute(`
+      SELECT setval(pg_get_serial_sequence('users', 'id'),           COALESCE((SELECT MAX(id) FROM users), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('items', 'id'),           COALESCE((SELECT MAX(id) FROM items), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('stock', 'id'),           COALESCE((SELECT MAX(id) FROM stock), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('stock_adjustments', 'id'), COALESCE((SELECT MAX(id) FROM stock_adjustments), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('customers', 'id'),       COALESCE((SELECT MAX(id) FROM customers), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('vendors', 'id'),         COALESCE((SELECT MAX(id) FROM vendors), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('sales', 'id'),           COALESCE((SELECT MAX(id) FROM sales), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('sale_items', 'id'),      COALESCE((SELECT MAX(id) FROM sale_items), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('purchases', 'id'),       COALESCE((SELECT MAX(id) FROM purchases), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('receivables', 'id'),     COALESCE((SELECT MAX(id) FROM receivables), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('receivable_payments', 'id'), COALESCE((SELECT MAX(id) FROM receivable_payments), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('payables', 'id'),        COALESCE((SELECT MAX(id) FROM payables), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('payable_payments', 'id'), COALESCE((SELECT MAX(id) FROM payable_payments), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('loans', 'id'),           COALESCE((SELECT MAX(id) FROM loans), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('loan_payments', 'id'),   COALESCE((SELECT MAX(id) FROM loan_payments), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('expenses', 'id'),        COALESCE((SELECT MAX(id) FROM expenses), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('expense_accounts', 'id'), COALESCE((SELECT MAX(id) FROM expense_accounts), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('balances', 'id'),        COALESCE((SELECT MAX(id) FROM balances), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('audit_logs', 'id'),      COALESCE((SELECT MAX(id) FROM audit_logs), 0) + 1, false);
+      SELECT setval(pg_get_serial_sequence('serial_numbers', 'id'),  COALESCE((SELECT MAX(id) FROM serial_numbers), 0) + 1, false);
+    `);
+
     res.json({ success: true, message: "Database restored successfully. Please log in again." });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
