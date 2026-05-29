@@ -77,16 +77,24 @@ router.put("/items/:id", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const { name, category, trackSerial, purchasePrice, salePrice, alternativeItemId, minStock } = req.body;
 
-  const [item] = await db.update(itemsTable).set({
-    ...(name && { name }),
-    ...(category && { category }),
-    ...(trackSerial !== undefined && { trackSerial: trackSerial === true || trackSerial === "true" }),
-    ...(purchasePrice != null && { purchasePrice: String(purchasePrice) }),
-    ...(salePrice != null && { salePrice: String(salePrice) }),
-    alternativeItemId: alternativeItemId !== undefined ? (alternativeItemId || null) : undefined,
-  }).where(eq(itemsTable.id, id)).returning();
+  const itemFields: Record<string, any> = {};
+  if (name) itemFields.name = name;
+  if (category) itemFields.category = category;
+  if (trackSerial !== undefined) itemFields.trackSerial = trackSerial === true || trackSerial === "true";
+  if (purchasePrice != null) itemFields.purchasePrice = String(purchasePrice);
+  if (salePrice != null) itemFields.salePrice = String(salePrice);
+  if (alternativeItemId !== undefined) itemFields.alternativeItemId = alternativeItemId || null;
 
-  if (!item) { res.status(404).json({ error: "Item not found" }); return; }
+  let item: typeof itemsTable.$inferSelect | undefined;
+  if (Object.keys(itemFields).length > 0) {
+    const [updated] = await db.update(itemsTable).set(itemFields).where(eq(itemsTable.id, id)).returning();
+    if (!updated) { res.status(404).json({ error: "Item not found" }); return; }
+    item = updated;
+  } else {
+    const [existing] = await db.select().from(itemsTable).where(eq(itemsTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Item not found" }); return; }
+    item = existing;
+  }
 
   if (minStock != null) {
     await db.update(stockTable).set({ minStock: String(minStock) }).where(eq(stockTable.itemId, id));
