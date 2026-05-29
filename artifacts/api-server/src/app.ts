@@ -41,7 +41,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(session({
   store: new PgSession({
     pool: pool as any,
-    createTableIfMissing: true,
   }),
   secret: process.env.SESSION_SECRET || "dopik-secret-2026",
   resave: false,
