@@ -23,6 +23,8 @@ import colorsRouter from "./colors";
 import staffRouter from "./staff";
 import creditRouter from "./credit";
 import receiptsRouter from "./receipts";
+import repairsRouter from "./repairs";
+import publicRouter from "./public";
 
 const router: IRouter = Router();
 
@@ -50,5 +52,7 @@ router.use(colorsRouter);
 router.use(staffRouter);
 router.use(creditRouter);
 router.use(receiptsRouter);
+router.use(repairsRouter);
+router.use(publicRouter);
 
 export default router;

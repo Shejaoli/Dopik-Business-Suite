@@ -1,9 +1,10 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import Layout from "@/components/Layout";
+import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import ItemsPage from "@/pages/items";
@@ -32,6 +33,9 @@ import SettingsPage from "@/pages/settings";
 import StaffPage from "@/pages/staff";
 import CreditPage from "@/pages/credit";
 import ReceiptsPage from "@/pages/receipts";
+import RepairsPage from "@/pages/repairs";
+import WarrantyPage from "@/pages/warranty";
+import CustomerProfilePage from "@/pages/customer-profile";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -50,6 +54,12 @@ const queryClient = new QueryClient({
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  // Public routes — no auth required
+  if (location === "/warranty") {
+    return <WarrantyPage />;
+  }
 
   if (isLoading) {
     return (
@@ -85,6 +95,7 @@ function AppRoutes() {
         <Route path="/sales-history" component={SalesHistoryPage} />
         <Route path="/vendors" component={VendorsPage} />
         <Route path="/customers" component={CustomersPage} />
+        <Route path="/customers/:id" component={CustomerProfilePage} />
         <Route path="/payables" component={PayablesPage} />
         <Route path="/receivables" component={ReceivablesPage} />
         <Route path="/loans" component={LoansPage} />
@@ -99,6 +110,7 @@ function AppRoutes() {
         <Route path="/charts" component={ChartsPage} />
         <Route path="/credit" component={CreditPage} />
         <Route path="/receipts" component={ReceiptsPage} />
+        <Route path="/repairs" component={RepairsPage} />
         <Route path="/staff" component={StaffPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
@@ -114,6 +126,7 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthProvider>
+            <PwaInstallPrompt />
             <AppRoutes />
           </AuthProvider>
         </WouterRouter>

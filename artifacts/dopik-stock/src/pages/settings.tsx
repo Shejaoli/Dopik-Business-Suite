@@ -1,13 +1,21 @@
 import { useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api, fmtRWF } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive } from "lucide-react";
+import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive, Activity, Search } from "lucide-react";
 import { useGetBalances } from "@workspace/api-client-react";
+
+type ActivityLog = {
+  id: number; userId?: number; userName?: string; userRole?: string;
+  action: string; description: string; ipAddress?: string; createdAt: string;
+};
 
 const BALANCE_METHODS = [
   { key: "cash", label: "Cash" },
@@ -129,6 +137,17 @@ export default function SettingsPage() {
   const [backupStatus, setBackupStatus] = useState<any>(null);
   const [runningBackup, setRunningBackup] = useState(false);
 
+  // Activity Log state
+  const [activitySearch, setActivitySearch] = useState("");
+  const [activityAction, setActivityAction] = useState("all");
+  const [activityPage, setActivityPage] = useState(1);
+  const ACTIVITY_LIMIT = 50;
+
+  const { data: activityLogs, isLoading: logsLoading } = useQuery<ActivityLog[]>({
+    queryKey: ["activity-log", activityAction, activityPage],
+    queryFn: () => api.get(`/activity-log?limit=${ACTIVITY_LIMIT}&page=${activityPage}${activityAction !== "all" ? `&action=${activityAction}` : ""}`),
+  });
+
   const fetchBackupStatus = async () => {
     try {
       const s = await api.get<any>("/admin/backup/status");
@@ -147,7 +166,7 @@ export default function SettingsPage() {
     } finally { setRunningBackup(false); }
   };
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "manager";
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -163,6 +182,7 @@ export default function SettingsPage() {
           {isAdmin && <TabsTrigger value="balances">Balances</TabsTrigger>}
           <TabsTrigger value="backup">Backup</TabsTrigger>
           {isAdmin && <TabsTrigger value="backup-cloud">Cloud Backup</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="activity-log">Activity Log</TabsTrigger>}
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
 
@@ -444,6 +464,87 @@ export default function SettingsPage() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground pt-1">Set these in your Replit environment secrets. Backups are stored in <code className="bg-gray-100 px-1 rounded">/tmp/dopik-backups/</code> locally before cloud upload.</p>
+            </div>
+          </TabsContent>
+        )}
+
+        {/* ── Activity Log (Admin/Owner/Manager) ── */}
+        {isAdmin && (
+          <TabsContent value="activity-log" className="mt-4 space-y-4">
+            <div className="glass-panel p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <Activity className="h-4 w-4 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="font-semibold font-sora">Activity Log</h2>
+                  <p className="text-xs text-muted-foreground">All staff actions tracked with timestamp and IP address</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mb-4 flex-wrap">
+                <div className="relative flex-1 min-w-[180px]">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search description..."
+                    className="pl-8"
+                    value={activitySearch}
+                    onChange={e => setActivitySearch(e.target.value)}
+                  />
+                </div>
+                <Select value={activityAction} onValueChange={v => { setActivityAction(v); setActivityPage(1); }}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="All actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Actions</SelectItem>
+                    <SelectItem value="login">Login</SelectItem>
+                    <SelectItem value="sale">Sales</SelectItem>
+                    <SelectItem value="purchase">Purchases</SelectItem>
+                    <SelectItem value="create_staff">Create Staff</SelectItem>
+                    <SelectItem value="update_staff">Update Staff</SelectItem>
+                    <SelectItem value="delete_staff">Delete Staff</SelectItem>
+                    <SelectItem value="repair">Repairs</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {logsLoading ? (
+                <div className="flex items-center justify-center py-10 text-muted-foreground gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" /> Loading activity log...
+                </div>
+              ) : !activityLogs?.length ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">No activity found</div>
+              ) : (
+                <div className="space-y-2">
+                  {activityLogs
+                    .filter(log => !activitySearch || log.description.toLowerCase().includes(activitySearch.toLowerCase()) || log.userName?.toLowerCase().includes(activitySearch.toLowerCase()))
+                    .map(log => (
+                      <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <span className="text-xs font-semibold text-gray-700">{log.userName ?? "—"}</span>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize">{log.userRole}</Badge>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">{log.action}</Badge>
+                          </div>
+                          <p className="text-xs text-gray-600 truncate">{log.description}</p>
+                          {log.ipAddress && <p className="text-[10px] text-gray-400 mt-0.5">IP: {log.ipAddress}</p>}
+                        </div>
+                        <div className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0 mt-0.5">
+                          {new Date(log.createdAt).toLocaleString("en-RW", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {(activityLogs?.length ?? 0) >= ACTIVITY_LIMIT && (
+                <div className="flex justify-center gap-2 mt-4">
+                  <Button variant="outline" size="sm" disabled={activityPage <= 1} onClick={() => setActivityPage(p => p - 1)}>Previous</Button>
+                  <span className="text-sm text-muted-foreground flex items-center px-2">Page {activityPage}</span>
+                  <Button variant="outline" size="sm" onClick={() => setActivityPage(p => p + 1)}>Next</Button>
+                </div>
+              )}
             </div>
           </TabsContent>
         )}

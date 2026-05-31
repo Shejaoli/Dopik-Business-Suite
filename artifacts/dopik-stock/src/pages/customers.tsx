@@ -1,23 +1,24 @@
 import { useState } from "react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useListCustomers, getListCustomersQueryKey } from "@workspace/api-client-react";
-import { api, fmtDateTime, fmtCurrency } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { api, fmtRWF, fmtDate, fmtDateTime } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Users, Loader2, ShoppingBag, HandCoins } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Loader2, Eye, Search, Phone, Mail } from "lucide-react";
 
-type Customer = { id: number; name: string; contactPerson?: string | null; email?: string | null; phone?: string | null; address?: string | null; createdAt?: string | null };
-type CustomerSummary = { totalSpent: number; totalLoan: number; totalLoanPaid: number; activeLoans: number };
+type Customer = {
+  id: number; name: string; contactPerson?: string | null; email?: string | null;
+  phone?: string | null; address?: string | null; createdAt?: string | null;
+  totalOrders?: number; totalSpent?: string; creditBalance?: string; lastPurchaseDate?: string | null;
+};
 
-function useCustomerSummary(customerId: number) {
-  return useQuery<CustomerSummary>({
-    queryKey: ["customer-summary", customerId],
-    queryFn: () => api.get(`/customers/${customerId}/summary`),
-  });
+function getInitials(name: string) {
+  return name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 }
 
 function CustomerForm({ initial, onSave, onCancel, loading }: {
@@ -51,67 +52,29 @@ function CustomerForm({ initial, onSave, onCancel, loading }: {
   );
 }
 
-function CustomerCard({ c, onEdit, onDelete }: { c: Customer; onEdit: () => void; onDelete: () => void }) {
-  const { data: summary } = useCustomerSummary(c.id);
-  const hasLoan = (summary?.activeLoans ?? 0) > 0;
-  const outstanding = (summary?.totalLoan ?? 0) - (summary?.totalLoanPaid ?? 0);
-
-  return (
-    <div className="glass-panel p-5 hover:shadow-md transition-shadow flex flex-col gap-3">
-      <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-xl bg-[#F5A800]/10 flex items-center justify-center flex-shrink-0">
-          <Users className="h-5 w-5 text-[#F5A800]" />
-        </div>
-        <div className="flex items-center gap-1">
-          {hasLoan && (
-            <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[11px]">
-              <HandCoins className="h-3 w-3 mr-1" />On Loan
-            </Badge>
-          )}
-          <Button size="sm" variant="ghost" onClick={onEdit}><Edit className="h-4 w-4" /></Button>
-          <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="font-semibold font-sora">{c.name}</h3>
-        {c.contactPerson && <p className="text-sm text-muted-foreground">{c.contactPerson}</p>}
-        {c.phone && <p className="text-sm text-muted-foreground">{c.phone}</p>}
-        {c.email && <p className="text-sm text-muted-foreground truncate">{c.email}</p>}
-      </div>
-
-      {summary && (
-        <div className="border-t pt-3 grid grid-cols-2 gap-2">
-          <div className="text-center p-2 bg-blue-50 rounded-lg">
-            <ShoppingBag className="h-3.5 w-3.5 text-blue-500 mx-auto mb-0.5" />
-            <p className="text-xs text-muted-foreground">Total Spent</p>
-            <p className="text-sm font-bold text-blue-700">{fmtCurrency(summary.totalSpent)}</p>
-          </div>
-          <div className={`text-center p-2 rounded-lg ${hasLoan ? "bg-amber-50" : "bg-green-50"}`}>
-            <HandCoins className={`h-3.5 w-3.5 mx-auto mb-0.5 ${hasLoan ? "text-amber-500" : "text-green-500"}`} />
-            <p className="text-xs text-muted-foreground">Loan Balance</p>
-            <p className={`text-sm font-bold ${hasLoan ? "text-amber-700" : "text-green-700"}`}>
-              {hasLoan ? fmtCurrency(outstanding) : "Clear"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <p className="text-xs text-muted-foreground">Added {fmtDateTime(c.createdAt)}</p>
-    </div>
-  );
-}
-
 export default function CustomersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
 
-  const { data, isLoading } = useListCustomers();
-  const customers: Customer[] = (data as any) ?? [];
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+  const { data: customers = [], isLoading } = useQuery<Customer[]>({
+    queryKey: ["customers"],
+    queryFn: () => api.get("/customers"),
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["customers"] });
+
+  const filtered = customers.filter(c => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return c.name.toLowerCase().includes(q) ||
+      (c.phone || "").includes(q) ||
+      (c.email || "").toLowerCase().includes(q);
+  });
 
   const handleCreate = async (form: any) => {
     setSaving(true);
@@ -147,26 +110,111 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold font-sora">Customers</h1><p className="text-sm text-muted-foreground">Manage your customer accounts</p></div>
-        <Button onClick={() => setShowCreate(true)} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90"><Plus className="h-4 w-4 mr-2" />Add Customer</Button>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold font-sora flex items-center gap-2">
+            <Users className="w-6 h-6" /> Customers
+          </h1>
+          <p className="text-sm text-muted-foreground">Manage your customer database</p>
+        </div>
+        <Button onClick={() => setShowCreate(true)} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
+          <Plus className="h-4 w-4 mr-2" />Add Customer
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {isLoading ? [...Array(6)].map((_, i) => (
-          <div key={i} className="glass-panel p-5"><div className="space-y-2">{[...Array(4)].map((_, j) => <div key={j} className="h-4 bg-muted animate-pulse rounded" />)}</div></div>
-        )) : customers.length === 0 ? (
-          <div className="col-span-full glass-panel p-12 text-center text-muted-foreground">
-            <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />No customers yet
-          </div>
-        ) : customers.map(c => (
-          <CustomerCard
-            key={c.id}
-            c={c}
-            onEdit={() => setEditCustomer(c)}
-            onDelete={() => handleDelete(c.id, c.name)}
+      {/* Search */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, phone, or email..."
+            className="pl-9"
           />
-        ))}
+        </div>
+        <p className="text-sm text-gray-400">{filtered.length} customers</p>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Contact</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Orders</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Total Spent</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Credit Balance</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Last Purchase</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {isLoading ? (
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400">Loading customers...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-16 text-gray-400">
+                    <Users className="w-10 h-10 mx-auto mb-2 text-gray-200" />
+                    {search ? "No customers match your search" : "No customers yet"}
+                  </td>
+                </tr>
+              ) : filtered.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1A6DB5] to-[#F5A800] flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">{getInitials(c.name)}</span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#0F1A2E]">{c.name}</p>
+                        {c.contactPerson && <p className="text-xs text-gray-400">{c.contactPerson}</p>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <div className="space-y-0.5">
+                      {c.phone && <p className="text-xs flex items-center gap-1 text-gray-600"><Phone className="w-3 h-3" />{c.phone}</p>}
+                      {c.email && <p className="text-xs flex items-center gap-1 text-gray-500"><Mail className="w-3 h-3" />{c.email}</p>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right hidden md:table-cell">
+                    <span className="font-medium text-gray-700">{c.totalOrders || 0}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right hidden md:table-cell">
+                    <span className="font-semibold text-green-700">{fmtRWF(c.totalSpent || "0")}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right hidden lg:table-cell">
+                    {parseFloat(c.creditBalance || "0") > 0 ? (
+                      <span className="font-semibold text-red-600">{fmtRWF(c.creditBalance || "0")}</span>
+                    ) : (
+                      <Badge className="bg-green-100 text-green-700 text-xs">Clear</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell text-gray-500 text-xs">
+                    {c.lastPurchaseDate ? fmtDate(c.lastPurchaseDate) : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                        onClick={() => navigate(`/customers/${c.id}`)}>
+                        <Eye className="w-3.5 h-3.5" /> Profile
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditCustomer(c)}>
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600" onClick={() => handleDelete(c.id, c.name)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>

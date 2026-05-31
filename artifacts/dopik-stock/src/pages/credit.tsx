@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CreditCard, TrendingDown, AlertCircle, CheckCircle2,
-  ChevronDown, ChevronUp, Phone, Calendar, MessageSquare, TrendingUp
+  CreditCard, AlertCircle, CheckCircle2,
+  ChevronDown, ChevronUp, Phone, Calendar, MessageSquare, TrendingUp, ListOrdered
 } from "lucide-react";
 
 const STORE_PHONE = "+250 788 000 000";
@@ -220,8 +221,47 @@ function PaymentModal({ account, open, onClose }: {
   );
 }
 
+type InstallmentPlan = {
+  id: number; installmentNumber: number; amount: string;
+  dueDate: string; status: "pending" | "paid"; paidAt?: string;
+};
+
+function InstallmentSchedule({ accountId }: { accountId: number }) {
+  const { data, isLoading } = useQuery<{ installments: InstallmentPlan[] }>({
+    queryKey: ["credit-detail", accountId],
+    queryFn: () => api.get(`/credit/${accountId}`),
+  });
+  const installments = data?.installments ?? [];
+  if (isLoading) return <p className="text-xs text-gray-400">Loading schedule...</p>;
+  if (!installments.length) return <p className="text-xs text-gray-400">No installment schedule set up</p>;
+  return (
+    <div className="space-y-1.5">
+      {installments.map((inst) => (
+        <div key={inst.id} className={`flex items-center justify-between text-xs px-2 py-1.5 rounded ${inst.status === "paid" ? "bg-green-50" : new Date(inst.dueDate) < new Date() ? "bg-red-50" : "bg-gray-50"}`}>
+          <div className="flex items-center gap-2">
+            {inst.status === "paid"
+              ? <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />
+              : new Date(inst.dueDate) < new Date()
+              ? <AlertCircle className="w-3 h-3 text-red-400 flex-shrink-0" />
+              : <Calendar className="w-3 h-3 text-gray-400 flex-shrink-0" />}
+            <span className="font-medium text-gray-700">#{inst.installmentNumber}</span>
+            <span className="text-gray-500">Due: {fmtDate(inst.dueDate)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`font-semibold ${inst.status === "paid" ? "text-green-600" : "text-gray-700"}`}>{fmtRWF(inst.amount)}</span>
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${inst.status === "paid" ? "border-green-300 text-green-700" : "border-gray-200 text-gray-500"}`}>
+              {inst.status === "paid" ? "Paid" : "Pending"}
+            </Badge>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CreditCard_({ account }: { account: CreditAccount }) {
   const [expanded, setExpanded] = useState(false);
+  const [expandTab, setExpandTab] = useState<"history" | "schedule">("history");
   const [payModal, setPayModal] = useState(false);
 
   const total = parseFloat(account.totalAmount);
@@ -302,32 +342,48 @@ function CreditCard_({ account }: { account: CreditAccount }) {
             <Button size="sm" variant="ghost" onClick={() => setExpanded(!expanded)}
               className="text-xs h-7 px-2 ml-auto text-gray-500">
               {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              History
+              Details
             </Button>
           </div>
         )}
 
-        {account.status === "paid" && account.payments.length > 0 && (
+        {account.status === "paid" && (
           <Button size="sm" variant="ghost" onClick={() => setExpanded(!expanded)}
             className="text-xs h-7 px-2 mt-2 text-gray-500 w-full">
             {expanded ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
-            View Payment History
+            View Details
           </Button>
         )}
       </div>
 
-      {expanded && account.payments.length > 0 && (
+      {expanded && (
         <div className="border-t border-gray-100 bg-gray-50 p-3">
-          <p className="text-xs font-medium text-gray-600 mb-2">Payment History</p>
-          <div className="space-y-1">
-            {account.payments.map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-xs">
-                <span className="text-green-700 font-medium">{fmtRWF(p.amount)}</span>
-                <span className="text-gray-500 capitalize">{p.paymentMethod.replace("_", " ")}</span>
-                <span className="text-gray-400">{fmtDateTime(p.paidAt)}</span>
-              </div>
-            ))}
-          </div>
+          <Tabs value={expandTab} onValueChange={(v) => setExpandTab(v as any)}>
+            <TabsList className="h-7 mb-2">
+              <TabsTrigger value="history" className="text-[11px] h-6 px-2">Payment History</TabsTrigger>
+              <TabsTrigger value="schedule" className="text-[11px] h-6 px-2 gap-1">
+                <ListOrdered className="w-3 h-3" />Installments
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="history" className="mt-0">
+              {account.payments.length === 0 ? (
+                <p className="text-xs text-gray-400">No payments recorded yet</p>
+              ) : (
+                <div className="space-y-1">
+                  {account.payments.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between text-xs">
+                      <span className="text-green-700 font-medium">{fmtRWF(p.amount)}</span>
+                      <span className="text-gray-500 capitalize">{p.paymentMethod.replace("_", " ")}</span>
+                      <span className="text-gray-400">{fmtDateTime(p.paidAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="schedule" className="mt-0">
+              <InstallmentSchedule accountId={account.id} />
+            </TabsContent>
+          </Tabs>
         </div>
       )}
 

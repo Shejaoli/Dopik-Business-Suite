@@ -8,7 +8,7 @@ import {
   Receipt, BookOpen,
   BarChart2,
   LayoutDashboard, Settings, LogOut, Menu, X, Bell,
-  UserCog, FileText, Landmark
+  UserCog, FileText, Landmark, Wrench, Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +55,12 @@ const navSections = [
       { href: "/balances", label: "Balances", icon: Wallet },
       { href: "/expenses", label: "Pay Expense", icon: Receipt },
       { href: "/expense-accounts", label: "Expense Accounts", icon: BookOpen },
+    ],
+  },
+  {
+    label: "REPAIRS",
+    items: [
+      { href: "/repairs", label: "Repairs", icon: Wrench },
     ],
   },
   {
