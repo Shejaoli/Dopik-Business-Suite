@@ -32,7 +32,7 @@ async function seed() {
       name: "Admin",
       email: ADMIN_EMAIL,
       passwordHash,
-      role: "admin",
+      role: "owner",
     });
     console.log(`✅ Admin user created: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
   } else {

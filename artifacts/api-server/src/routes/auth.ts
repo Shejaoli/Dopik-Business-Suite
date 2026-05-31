@@ -34,6 +34,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   } else {
     req.session.cookie.expires = undefined;
   }
+  await db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id));
   res.json({ id: user.id, name: user.name, email: user.email, role: user.role, status: user.status, createdAt: user.createdAt });
 });
 

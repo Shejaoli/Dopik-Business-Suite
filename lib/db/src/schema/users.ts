@@ -6,9 +6,11 @@ export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
   email: varchar("email", { length: 150 }).notNull().unique(),
+  phone: varchar("phone", { length: 30 }),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
-  role: varchar("role", { length: 20 }).default("user"),
+  role: varchar("role", { length: 30 }).default("cashier"),
   status: varchar("status", { length: 20 }).default("active"),
+  lastLogin: timestamp("last_login", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

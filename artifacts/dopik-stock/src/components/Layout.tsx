@@ -7,7 +7,8 @@ import {
   Building2, Users, CreditCard, Wallet, HandCoins,
   Receipt, BookOpen,
   BarChart2,
-  LayoutDashboard, Settings, LogOut, Menu, X, Bell
+  LayoutDashboard, Settings, LogOut, Menu, X, Bell,
+  UserCog, FileText, Landmark
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,13 @@ const navSections = [
     ],
   },
   {
+    label: "CREDIT",
+    items: [
+      { href: "/credit", label: "Credit Accounts", icon: Landmark },
+      { href: "/receipts", label: "Receipts", icon: FileText },
+    ],
+  },
+  {
     label: "ANALYTICS",
     items: [
       { href: "/charts", label: "Charts & Analytics", icon: BarChart2 },
@@ -69,6 +77,12 @@ const navSections = [
       { href: "/reports/purchases", label: "Purchase Report", icon: BarChart2 },
       { href: "/reports/expenses", label: "Expense Report", icon: BarChart2 },
       { href: "/reports/summary", label: "Summary Report", icon: BarChart2 },
+    ],
+  },
+  {
+    label: "ADMIN",
+    items: [
+      { href: "/staff", label: "Staff & Permissions", icon: UserCog },
     ],
   },
 ];

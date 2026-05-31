@@ -29,6 +29,9 @@ import ExpenseAccountsPage from "@/pages/expense-accounts";
 import ReportsPage from "@/pages/reports";
 import ChartsPage from "@/pages/charts";
 import SettingsPage from "@/pages/settings";
+import StaffPage from "@/pages/staff";
+import CreditPage from "@/pages/credit";
+import ReceiptsPage from "@/pages/receipts";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -94,6 +97,9 @@ function AppRoutes() {
         <Route path="/reports/summary"><ReportsPage defaultTab="summary" /></Route>
         <Route path="/reports"><ReportsPage /></Route>
         <Route path="/charts" component={ChartsPage} />
+        <Route path="/credit" component={CreditPage} />
+        <Route path="/receipts" component={ReceiptsPage} />
+        <Route path="/staff" component={StaffPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />

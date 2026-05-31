@@ -20,6 +20,9 @@ import adminRouter from "./admin";
 import serialNumbersRouter from "./serial-numbers";
 import analyticsRouter from "./analytics";
 import colorsRouter from "./colors";
+import staffRouter from "./staff";
+import creditRouter from "./credit";
+import receiptsRouter from "./receipts";
 
 const router: IRouter = Router();
 
@@ -44,5 +47,8 @@ router.use(adminRouter);
 router.use(serialNumbersRouter);
 router.use(analyticsRouter);
 router.use(colorsRouter);
+router.use(staffRouter);
+router.use(creditRouter);
+router.use(receiptsRouter);
 
 export default router;

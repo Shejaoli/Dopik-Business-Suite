@@ -1,3 +1,5 @@
 - [DB schema additions](db-schema-additions.md) — colors, storage_options, serialized_units tables added manually via raw SQL; purchases table got status/po_number/notes columns
 - [Purchase form architecture](purchase-form-arch.md) — dual-mode form: trackSerial=true→per-unit row table; false→simple form; draft stored as JSON in purchases.notes; PATCH /purchases/:id confirms draft
 - [Analytics routes](analytics-routes.md) — all analytics endpoints at /api/analytics/* registered in routes/index.ts; colors/storage routes in routes/colors.ts
+- [Staff & permissions model](staff-permissions.md) — 4 roles: owner/manager/cashier/stock_manager; logActivity() helper in staff.ts; activity_log table; lastLogin tracked on auth login
+- [Credit module](credit-module.md) — credit_accounts + credit_payments + installment_plans tables; /credit routes; urgency computed server-side (overdue/due_soon/ok/paid)
