@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import bcryptjs from "bcryptjs";
 import * as schema from "./schema";
-import { usersTable, balancesTable } from "./schema";
+import { usersTable, balancesTable, colorsTable, storageOptionsTable } from "./schema";
 import { eq } from "drizzle-orm";
 
 const { Pool } = pg;
@@ -17,7 +17,7 @@ const db = drizzle(pool, { schema });
 async function seed() {
   console.log("🌱 Seeding database...");
 
-  // ── Admin user ──────────────────────────────────────────────
+  // ── Admin user ──────────────────────────────────────────────────────────────
   const ADMIN_EMAIL = "admin@dopikelectronics.com";
   const ADMIN_PASSWORD = "dopik2026";
 
@@ -39,7 +39,7 @@ async function seed() {
     console.log(`ℹ️  Admin user already exists: ${ADMIN_EMAIL}`);
   }
 
-  // ── Cash balances (create if none exist) ───────────────────
+  // ── Cash balance accounts ───────────────────────────────────────────────────
   const existingBalances = await db.select().from(balancesTable);
   if (existingBalances.length === 0) {
     await db.insert(balancesTable).values([
@@ -47,10 +47,38 @@ async function seed() {
       { method: "bank", amount: "0" },
       { method: "mobile_money", amount: "0" },
     ]);
-    console.log("✅ Cash balance accounts created (cash, bank, mobile_money)");
+    console.log("✅ Balance accounts created (cash, bank, mobile_money)");
   } else {
     console.log(`ℹ️  Balance accounts already exist (${existingBalances.length} records)`);
   }
+
+  // ── Storage options ─────────────────────────────────────────────────────────
+  const DEFAULT_STORAGE = [
+    "16GB", "32GB", "64GB", "128GB", "256GB", "512GB", "1TB",
+    "256GB SSD", "512GB SSD", "1TB SSD", "1TB HDD", "500GB HDD",
+  ];
+
+  for (const name of DEFAULT_STORAGE) {
+    await db
+      .insert(storageOptionsTable)
+      .values({ name })
+      .onConflictDoNothing();
+  }
+  console.log(`✅ Storage options seeded (${DEFAULT_STORAGE.length} entries)`);
+
+  // ── Default colors ──────────────────────────────────────────────────────────
+  const DEFAULT_COLORS = [
+    "Black", "White", "Silver", "Gold", "Blue", "Red", "Green",
+    "Purple", "Pink", "Yellow", "Gray", "Rose Gold", "Space Gray",
+  ];
+
+  for (const name of DEFAULT_COLORS) {
+    await db
+      .insert(colorsTable)
+      .values({ name })
+      .onConflictDoNothing();
+  }
+  console.log(`✅ Colors seeded (${DEFAULT_COLORS.length} entries)`);
 
   console.log("🎉 Seeding complete.");
   await pool.end();
