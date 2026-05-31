@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListSales, useListCustomers, useListStock, getListSalesQueryKey, getListCustomersQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF, fmtDateTime, paymentBadgeColor } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, TrendingUp, Loader2, Trash2, AlertCircle, Undo2, ShieldAlert, UserPlus, Barcode, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, TrendingUp, Loader2, Trash2, AlertCircle, Undo2, ShieldAlert, UserPlus, Barcode, ChevronDown, ChevronUp, Receipt } from "lucide-react";
+import { ReceiptModal } from "@/components/ReceiptModal";
 
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash (Payment Now)" },
@@ -112,7 +114,7 @@ function QuickAddCustomerDialog({ open, onClose, onAdded }: {
     if (!form.name.trim()) { toast({ title: "Name is required", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const customer = await api.post("/customers", { name: form.name.trim(), phone: form.phone || null });
+      const customer = await api.post<any>("/customers", { name: form.name.trim(), phone: form.phone || null });
       toast({ title: `Customer "${customer.name}" added` });
       qc.invalidateQueries({ queryKey: getListCustomersQueryKey() });
       setForm({ name: "", phone: "" });
@@ -152,6 +154,9 @@ function QuickAddCustomerDialog({ open, onClose, onAdded }: {
 }
 
 export default function SalesPage() {
+  const { user } = useAuth();
+  const isCashier = user?.role === "cashier";
+
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
@@ -162,6 +167,7 @@ export default function SalesPage() {
   const [lineItems, setLineItems] = useState<SaleLineItem[]>([]);
   const [expandedSerials, setExpandedSerials] = useState<Set<number>>(new Set());
   const [revertSale, setRevertSale] = useState<Sale | null>(null);
+  const [receiptSaleId, setReceiptSaleId] = useState<number | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -265,7 +271,7 @@ export default function SalesPage() {
 
     setSaving(true);
     try {
-      await api.post("/sales", {
+      const sale = await api.post<any>("/sales", {
         customerId: customerId ? Number(customerId) : null,
         paymentMethod,
         totalAmount: totalAmount.toFixed(2),
@@ -279,10 +285,10 @@ export default function SalesPage() {
           }),
         })),
       });
-      toast({ title: "Sale recorded", description: `Total: ${fmtRWF(totalAmount)}` });
       setShowCreate(false);
       resetForm();
       qc.invalidateQueries({ queryKey: getListSalesQueryKey() });
+      setReceiptSaleId(sale.id);
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally { setSaving(false); }
@@ -352,12 +358,21 @@ export default function SalesPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{fmtDateTime(s.createdAt)}</td>
                   <td className="px-4 py-3">
-                    {!s.reverted && (
-                      <Button size="sm" variant="ghost" className="text-orange-500 hover:text-orange-600 hover:bg-orange-50"
-                        onClick={() => setRevertSale(s)} title="Revert sale">
-                        <Undo2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {!s.reverted && (
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-[#1A6DB5] hover:text-[#1A6DB5] hover:bg-blue-50 gap-1"
+                          onClick={() => setReceiptSaleId(s.id)} title="View receipt">
+                          <Receipt className="h-3.5 w-3.5" />
+                          <span className="text-xs hidden sm:inline">Receipt</span>
+                        </Button>
+                      )}
+                      {!s.reverted && (
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-orange-500 hover:text-orange-600 hover:bg-orange-50"
+                          onClick={() => setRevertSale(s)} title="Revert sale">
+                          <Undo2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -379,6 +394,14 @@ export default function SalesPage() {
         onClose={() => setShowAddCustomer(false)}
         onAdded={customer => setCustomerId(String(customer.id))}
       />
+
+      {receiptSaleId !== null && (
+        <ReceiptModal
+          saleId={receiptSaleId}
+          open={receiptSaleId !== null}
+          onClose={() => setReceiptSaleId(null)}
+        />
+      )}
 
       <Dialog open={showCreate} onOpenChange={open => { if (!open) { setShowCreate(false); resetForm(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -422,7 +445,7 @@ export default function SalesPage() {
                     <tr>
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground">Item</th>
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground">Qty Sold</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Unit Price</th>
+                      {!isCashier && <th className="text-left px-3 py-2 font-medium text-muted-foreground">Unit Price</th>}
                       <th className="text-right px-3 py-2 font-medium text-muted-foreground">Sale Amount</th>
                       <th />
                     </tr>
@@ -448,14 +471,16 @@ export default function SalesPage() {
                               className="h-7 w-20 text-sm"
                             />
                           </td>
-                          <td className="px-3 py-2">
-                            <Input
-                              type="number" min={0}
-                              value={l.unitPrice}
-                              onChange={e => updateLine(idx, "unitPrice", e.target.value)}
-                              className="h-7 w-28 text-sm"
-                            />
-                          </td>
+                          {!isCashier && (
+                            <td className="px-3 py-2">
+                              <Input
+                                type="number" min={0}
+                                value={l.unitPrice}
+                                onChange={e => updateLine(idx, "unitPrice", e.target.value)}
+                                className="h-7 w-28 text-sm"
+                              />
+                            </td>
+                          )}
                           <td className="px-3 py-2 text-right font-semibold text-sm">
                             {fmtRWF((parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0))}
                           </td>
@@ -478,7 +503,7 @@ export default function SalesPage() {
                         </tr>
                         {l.trackSerial && expandedSerials.has(l.itemId) && (
                           <tr key={`${l.itemId}-serial`} className="border-t border-purple-100 bg-purple-50/30">
-                            <td colSpan={5} className="px-3 py-2">
+                            <td colSpan={isCashier ? 4 : 5} className="px-3 py-2">
                               <div className="space-y-1">
                                 <label className="text-xs font-medium text-purple-700 flex items-center gap-1">
                                   <Barcode className="h-3 w-3" />
@@ -504,8 +529,9 @@ export default function SalesPage() {
                                 {l.serialNumbers.trim() && (() => {
                                   const sns = l.serialNumbers.split("\n").filter(s => s.trim()).length;
                                   const qty = parseFloat(l.quantity) || 0;
-                                  if (sns !== qty) return <p className="text-xs text-red-500">{sns} entered, need {qty}</p>;
-                                  return <p className="text-xs text-green-600">✓ {sns} serial number{sns !== 1 ? "s" : ""} ready</p>;
+                                  return sns !== qty
+                                    ? <p className="text-xs text-red-500">{sns} entered, need {qty}</p>
+                                    : <p className="text-xs text-green-600">✓ {sns} serial number{sns > 1 ? "s" : ""} entered</p>;
                                 })()}
                               </div>
                             </td>
@@ -513,51 +539,36 @@ export default function SalesPage() {
                         )}
                       </>
                     ))}
-                    <tr className="border-t-2 border-border bg-muted/30">
-                      <td colSpan={3} className="px-3 py-2 font-semibold text-right">Total Sale Amount</td>
-                      <td className="px-3 py-2 text-right font-bold text-lg text-green-600">{fmtRWF(totalAmount)}</td>
-                      <td />
-                    </tr>
                   </tbody>
                 </table>
+                <div className="px-3 py-2 border-t border-border bg-muted/30 flex justify-end">
+                  <p className="text-sm font-semibold">Total: <span className="text-green-600 text-base">{fmtRWF(totalAmount)}</span></p>
+                </div>
               </div>
             )}
 
-            {lineItems.length === 0 && (
-              <div className="py-6 text-center text-muted-foreground text-sm border-2 border-dashed rounded-xl">
-                <AlertCircle className="h-6 w-6 mx-auto mb-2 opacity-40" />
-                Add items from the dropdown above
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="font-semibold">
-                  Select Customer{" "}
-                  {isCredit && <span className="text-red-500 font-medium">(required for credit)</span>}
-                </Label>
-                <select
-                  className={`w-full h-9 rounded-md border bg-background px-3 text-sm ${isCredit && !customerId ? "border-red-300" : "border-input"}`}
-                  value={customerId}
-                  onChange={e => setCustomerId(e.target.value)}
-                >
-                  <option value="">{isCredit ? "— Select a customer —" : "Walk-in customer"}</option>
-                  {customerList.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Select customer if this is a credit sale
-                  <button
-                    type="button"
-                    className="ml-1.5 text-[#1A6DB5] hover:underline font-medium inline-flex items-center gap-0.5"
-                    onClick={() => setShowAddCustomer(true)}
+                <Label>Customer</Label>
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={customerId}
+                    onChange={e => setCustomerId(e.target.value)}
                   >
-                    <UserPlus className="h-3 w-3" />Add New Customer
-                  </button>
-                </p>
+                    <option value="">Walk-in customer</option>
+                    {customerList.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ""}</option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="outline" size="sm" className="h-9 px-2" onClick={() => setShowAddCustomer(true)}>
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="font-semibold">Payment Method *</Label>
+                <Label>Payment Method</Label>
                 <select
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                   value={paymentMethod}
@@ -570,22 +581,17 @@ export default function SalesPage() {
 
             {isCredit && (
               <div className="space-y-1.5">
-                <Label className="font-semibold">Payment Terms (Days)</Label>
+                <Label>Payment Terms (days)</Label>
                 <Input
-                  type="number" min={1} max={365} step={1}
-                  value={paymentTermsDays}
+                  type="number" min={1} value={paymentTermsDays}
                   onChange={e => setPaymentTermsDays(Number(e.target.value))}
                   className="w-40"
                 />
-                <p className="text-xs text-muted-foreground">Number of days until payment is due</p>
-              </div>
-            )}
-
-            {isCredit && (
-              <div className={`p-3 rounded-xl border text-sm ${!customerId ? "bg-red-50 border-red-200 text-red-700" : "bg-yellow-50 border-yellow-200 text-yellow-700"}`}>
-                {!customerId
-                  ? "⚠ A customer must be selected for credit sales — walk-in customers cannot buy on credit."
-                  : `⚠ Credit sale — payment due in ${paymentTermsDays} day${paymentTermsDays !== 1 ? "s" : ""}. This will be recorded as a receivable.`}
+                {!customerId && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" /> Credit sales require a customer
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -595,10 +601,10 @@ export default function SalesPage() {
             <Button
               onClick={handleCreate}
               disabled={saving || lineItems.length === 0 || (isCredit && !customerId)}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Record Sale ({fmtRWF(totalAmount)})
+              Record Sale — {fmtRWF(totalAmount)}
             </Button>
           </DialogFooter>
         </DialogContent>

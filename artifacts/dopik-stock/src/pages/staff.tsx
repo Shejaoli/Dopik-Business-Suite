@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Pencil, Trash2, Shield, ShieldCheck, ShieldAlert, UserCog } from "lucide-react";
+import { UserPlus, Pencil, Trash2, Shield, ShieldCheck, ShieldAlert, UserCog, KeyRound, Download, Copy, Check } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 const ROLES = [
@@ -93,10 +93,62 @@ function RoleIcon({ role }: { role: string }) {
   return <ShieldAlert className="w-4 h-4 text-amber-600" />;
 }
 
+function generatePassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+function PasswordRevealDialog({ open, onClose, staffName, password }: {
+  open: boolean; onClose: () => void; staffName: string; password: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(password);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-amber-500" />
+            Temporary Password — {staffName}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-1">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <p className="text-sm text-amber-800 font-medium">⚠️ Save this password now — it will not be shown again.</p>
+          </div>
+          <div>
+            <Label className="text-xs text-gray-500 mb-1.5 block">Password</Label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 font-mono text-lg font-bold tracking-widest text-[#0F1A2E] select-all">
+                {password}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5 h-10 px-3">
+                {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                {copied ? "Copied!" : "Copy"}
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">
+            Share this password with <strong>{staffName}</strong> securely. They can change it after logging in from their profile.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button onClick={onClose} className="bg-[#1A6DB5] hover:bg-[#155a96] w-full">Done — I've saved the password</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StaffFormDialog({
-  open, onClose, editing,
+  open, onClose, editing, onCreated,
 }: {
   open: boolean; onClose: () => void; editing?: StaffMember | null;
+  onCreated?: (name: string, password: string) => void;
 }) {
   const [name, setName] = useState(editing?.name || "");
   const [email, setEmail] = useState(editing?.email || "");
@@ -119,12 +171,14 @@ function StaffFormDialog({
       if (editing) {
         await api.put(`/staff/${editing.id}`, body);
         toast({ title: "Staff updated" });
+        qc.invalidateQueries({ queryKey: ["staff"] });
+        onClose();
       } else {
         await api.post("/staff", body);
-        toast({ title: "Staff account created" });
+        qc.invalidateQueries({ queryKey: ["staff"] });
+        onClose();
+        onCreated?.(name, password);
       }
-      qc.invalidateQueries({ queryKey: ["staff"] });
-      onClose();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }
@@ -173,7 +227,15 @@ function StaffFormDialog({
             )}
             <div className={editing ? "" : "col-span-2"}>
               <Label>{editing ? "New Password (leave blank to keep)" : "Temporary Password *"}</Label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+              <div className="flex gap-2">
+                <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={editing ? "leave blank to keep" : "set a password"} className="flex-1" />
+                {!editing && (
+                  <Button type="button" variant="outline" size="sm" className="h-9 px-3 text-xs whitespace-nowrap"
+                    onClick={() => setPassword(generatePassword())}>
+                    Generate
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           {role && (
@@ -182,9 +244,7 @@ function StaffFormDialog({
               <div className="grid grid-cols-2 gap-1">
                 {(ROLE_PERMISSIONS[role] || []).map((p) => (
                   <div key={p.label} className="flex items-center gap-1.5 text-xs">
-                    <span className={p.allowed ? "text-green-600" : "text-gray-300"}>
-                      {p.allowed ? "✓" : "✗"}
-                    </span>
+                    <span className={p.allowed ? "text-green-600" : "text-gray-300"}>{p.allowed ? "✓" : "✗"}</span>
                     <span className={p.allowed ? "text-gray-700" : "text-gray-400"}>{p.label}</span>
                   </div>
                 ))}
@@ -203,6 +263,27 @@ function StaffFormDialog({
   );
 }
 
+function exportCSV(logs: any[]) {
+  const headers = ["ID", "Staff Name", "Role", "Action", "Description", "IP Address", "When"];
+  const rows = logs.map((l) => [
+    l.id,
+    `"${(l.userName || "").replace(/"/g, '""')}"`,
+    l.userRole || "",
+    l.action || "",
+    `"${(l.description || "").replace(/"/g, '""')}"`,
+    l.ipAddress || "",
+    l.createdAt ? new Date(l.createdAt).toISOString() : "",
+  ]);
+  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `activity-log-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function StaffPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -212,6 +293,8 @@ export default function StaffPage() {
   const [deleting, setDeleting] = useState<StaffMember | null>(null);
   const [activeTab, setActiveTab] = useState<"staff" | "log">("staff");
   const [logSearch, setLogSearch] = useState("");
+  const [revealPwd, setRevealPwd] = useState<{ name: string; password: string } | null>(null);
+  const [resetting, setResetting] = useState<StaffMember | null>(null);
 
   const { data: staff = [], isLoading } = useQuery<StaffMember[]>({
     queryKey: ["staff"],
@@ -220,7 +303,7 @@ export default function StaffPage() {
 
   const { data: activityLog = [], isLoading: logLoading } = useQuery<any[]>({
     queryKey: ["activity-log", logSearch],
-    queryFn: () => api.get(`/activity-log?limit=200${logSearch ? `&action=${encodeURIComponent(logSearch)}` : ""}`),
+    queryFn: () => api.get(`/activity-log?limit=500${logSearch ? `&action=${encodeURIComponent(logSearch)}` : ""}`),
     enabled: activeTab === "log",
   });
 
@@ -235,6 +318,18 @@ export default function StaffPage() {
   });
 
   const canManageStaff = user?.role === "owner";
+
+  const handleResetPassword = async (member: StaffMember) => {
+    const newPwd = generatePassword();
+    try {
+      await api.put(`/staff/${member.id}`, { password: newPwd });
+      setResetting(null);
+      setRevealPwd({ name: member.name, password: newPwd });
+      qc.invalidateQueries({ queryKey: ["staff"] });
+    } catch (e: any) {
+      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -292,8 +387,8 @@ export default function StaffPage() {
                         <Badge className={`text-xs ${ri.color}`}>{ri.label}</Badge>
                       </div>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="flex items-center justify-between mb-2">
                         <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
                           s.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
                         }`}>
@@ -305,12 +400,16 @@ export default function StaffPage() {
                         )}
                       </div>
                       {canManageStaff && user?.id !== s.id && (
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                        <div className="flex gap-1 flex-wrap">
+                          <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-xs"
                             onClick={() => { setEditing(s); setShowForm(true); }}>
-                            <Pencil className="w-3.5 h-3.5" />
+                            <Pencil className="w-3 h-3" /> Edit
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                          <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-xs text-amber-600 border-amber-200 hover:bg-amber-50"
+                            onClick={() => setResetting(s)}>
+                            <KeyRound className="w-3 h-3" /> Reset Pwd
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:border-red-300 ml-auto"
                             onClick={() => setDeleting(s)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -360,13 +459,22 @@ export default function StaffPage() {
 
       {activeTab === "log" && (
         <div className="space-y-4">
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap items-center">
             <Input
               value={logSearch}
               onChange={(e) => setLogSearch(e.target.value)}
               placeholder="Filter by action..."
               className="max-w-xs"
             />
+            {activityLog.length > 0 && canManageStaff && (
+              <Button variant="outline" size="sm" className="gap-2 h-9"
+                onClick={() => exportCSV(activityLog)}>
+                <Download className="w-4 h-4" /> Export CSV
+              </Button>
+            )}
+            {activityLog.length > 0 && (
+              <span className="text-xs text-gray-400">{activityLog.length} entries</span>
+            )}
           </div>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -412,7 +520,39 @@ export default function StaffPage() {
         </div>
       )}
 
-      <StaffFormDialog open={showForm} onClose={() => setShowForm(false)} editing={editing} />
+      <StaffFormDialog
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        editing={editing}
+        onCreated={(name, password) => setRevealPwd({ name, password })}
+      />
+
+      {revealPwd && (
+        <PasswordRevealDialog
+          open={!!revealPwd}
+          onClose={() => setRevealPwd(null)}
+          staffName={revealPwd.name}
+          password={revealPwd.password}
+        />
+      )}
+
+      <Dialog open={!!resetting} onOpenChange={() => setResetting(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-amber-500" /> Reset Password
+          </DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600">
+            Generate a new random password for <strong>{resetting?.name}</strong>? Their current password will be replaced immediately.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetting(null)}>Cancel</Button>
+            <Button className="bg-amber-500 hover:bg-amber-600"
+              onClick={() => resetting && handleResetPassword(resetting)}>
+              Generate & Show New Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <DialogContent className="max-w-sm">

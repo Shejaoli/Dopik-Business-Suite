@@ -44,7 +44,18 @@ router.get("/credit/summary", async (req, res): Promise<void> => {
     overdueCount: sql<number>`SUM(CASE WHEN due_date < NOW() AND balance > 0 THEN 1 ELSE 0 END)`,
   }).from(creditAccountsTable).where(eq(creditAccountsTable.status, "active"));
 
-  res.json(active[0] || { totalBalance: "0", count: 0, overdueBalance: "0", overdueCount: 0 });
+  const monthly = await db.select({
+    collectedThisMonth: sql<string>`COALESCE(SUM(amount),0)`,
+    paymentsThisMonth: sql<number>`COUNT(*)`,
+  }).from(creditPaymentsTable).where(
+    sql`DATE_TRUNC('month', paid_at) = DATE_TRUNC('month', NOW())`
+  );
+
+  res.json({
+    ...(active[0] || { totalBalance: "0", count: 0, overdueBalance: "0", overdueCount: 0 }),
+    collectedThisMonth: monthly[0]?.collectedThisMonth || "0",
+    paymentsThisMonth: monthly[0]?.paymentsThisMonth || 0,
+  });
 });
 
 router.get("/credit/:id", async (req, res): Promise<void> => {

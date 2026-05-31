@@ -1,0 +1,101 @@
+MODULE 2 — CUSTOMER MANAGEMENT (CRM)
+Customer Database Page
+Add a "Customers" page to the admin navigation with a customer icon. It shows a searchable, filterable table of all customers with columns: Name, Phone, Email, Total Purchases, Total Spent (RWF), Credit Balance, Last Purchase Date, Actions.
+Customer Profile Page
+Clicking a customer opens their full profile page containing:
+
+Header: Avatar with initials, full name, phone, email, location, date added
+Stats row: Total orders, Total spent, Average order value, Credit balance
+Purchase History tab: Full list of every sale made to this customer — date, items, amount, payment method, receipt link
+Credit & Payments tab: All credit transactions, payment records, outstanding balance
+Warranty tab: All active warranties for serialized items this customer purchased — item, IMEI, purchase date, warranty expiry, status (Active / Expired / Claimed)
+Notes tab: Admin can add private notes about the customer
+
+Add / Edit Customer
+
+When creating a sale, if the customer doesn't exist, allow creating them inline without leaving the sale form
+Full customer edit form: name, phone, email, location, date of birth (optional)
+Auto-generate customer initials avatar from name
+
+Customer Search
+Global search across name, phone number, and email. Typing a phone number in the sale form should auto-suggest matching customers.
+Loyalty Points (Optional toggle)
+Admin can enable loyalty points in Settings. Every 1,000 RWF spent = 1 point. Points can be redeemed as discount on future purchases. Show point balance on customer profile.
+
+MODULE 3 — WARRANTY CHECK PUBLIC PAGE
+Public Page
+Create a public-facing page at the route /warranty that does not require admin login. It has:
+
+Dopik Electronics logo and name at the top
+Title: "Check Your Warranty"
+A single input field: "Enter your IMEI or Serial Number"
+A "Check Warranty" button
+Below: result card showing:
+
+✅ Active (green) or ❌ Expired (red) or ⚠️ Not Found (amber)
+Product name and description (color, storage)
+Date of purchase
+Warranty period
+Warranty expiry date
+Days remaining (if active) or days since expiry (if expired)
+Store contact info at the bottom
+
+
+
+Backend
+
+GET /api/public/warranty/:imei — looks up the serialized unit by IMEI or serial number, returns warranty info if found
+No authentication required on this endpoint
+Rate limit this endpoint to 20 requests per IP per hour to prevent abuse
+
+Link from Receipt
+On every printed/PDF receipt, add a line: "Check your warranty anytime at: [store-url]/warranty"
+
+MODULE 4 — REPAIR / SERVICE TRACKING MODULE
+Repair Jobs Page
+Add a "Repairs" page to admin navigation with a wrench icon. Shows a Kanban-style board with columns:
+| Received | Diagnosing | Repairing | Ready | Collected |
+Each repair job is a card showing: customer name, device, problem summary, days in shop, and urgency color (green = fresh, amber = 3+ days, red = 7+ days).
+Log New Repair
+A "New Repair" button opens a form:
+
+Customer (select existing or create new)
+Device type (Phone / Laptop / Tablet / Other)
+Brand and Model
+IMEI or Serial Number (optional)
+Problem description (textarea)
+Estimated cost (RWF)
+Deposit paid (RWF)
+Technician assigned (select from staff)
+Priority: Normal / Urgent
+Received date (auto-filled with today)
+
+Repair Detail Page
+Clicking a repair card opens the full repair record:
+
+All intake info
+Status Timeline: shows progress through each stage with timestamps
+Parts Used: admin can log parts used with cost — automatically added to repair cost
+Labor Cost: editable field
+Total Repair Cost: auto-calculated (parts + labor)
+Status Update buttons: move to next stage
+WhatsApp Notify button: sends customer a WhatsApp message like: "Hello [Name], your [Device] is ready for collection at Dopik Electronics! Total cost: [AMOUNT] RWF. Please bring your deposit receipt. Contact us: [phone]"
+
+Repair Invoice
+When status moves to "Ready", generate a repair invoice PDF showing:
+
+Customer info
+Device info and IMEI
+Problem reported
+Work done (description field)
+Parts used with costs
+Labor cost
+Deposit paid
+Balance due
+Warranty on repair (e.g. 30 days on parts replaced)
+
+Database tables needed:
+
+repair_jobs: id, customer_id, device_type, brand, model, imei, problem, status, technician_id, priority, received_date, estimated_cost, deposit_paid, notes
+repair_parts: id, repair_id, part_name, part_cost, quantity
+repair_status_history: id, repair_id, status, changed_at, changed_by

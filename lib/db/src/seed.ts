@@ -17,6 +17,19 @@ const db = drizzle(pool, { schema });
 async function seed() {
   console.log("🌱 Seeding database...");
 
+  // ── Session table (used by express-session PgSessionStore) ──────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS session (
+      sid  VARCHAR NOT NULL PRIMARY KEY,
+      sess JSON    NOT NULL,
+      expire TIMESTAMP(6) NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS session_expire_idx ON session (expire)
+  `);
+
+
   // ── Admin user ──────────────────────────────────────────────────────────────
   const ADMIN_EMAIL = "admin@dopikelectronics.com";
   const ADMIN_PASSWORD = "dopik2026";
