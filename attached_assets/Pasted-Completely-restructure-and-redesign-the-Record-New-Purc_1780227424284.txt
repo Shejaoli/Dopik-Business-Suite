@@ -1,0 +1,98 @@
+Completely restructure and redesign the "Record New Purchase" page layout. Keep the existing color theme and branding. The goal is a clean, professional, responsive layout that works perfectly on both desktop and mobile.
+
+PAGE LAYOUT
+Header (top of page)
+
+Back arrow (←) on the far left
+Title: "Record New Purchase" in bold large text
+If editing a draft, show the draft number in small amber text below the title: "Editing draft #4"
+On the far right of the header: a "Serialized Item" badge (purple, barcode icon) that appears when the selected item requires IMEI/serial tracking
+
+
+ITEM CARDS SECTION
+Replace the horizontal table with a vertical stack of item cards. Each card represents one unit being purchased.
+Each card looks like this:
+┌─────────────────────────────────────────────┐
+│  Unit #1                          🗑 Remove  │
+├─────────────────────────────────────────────┤
+│  Item                                        │
+│  [Apple iPhone 16 (in stock: 44)        ▼]  │
+│  ⚡ Requires IMEI/serial tracking            │
+│                                              │
+│  Color              Storage                  │
+│  [Black         ▼]  [64GB            ▼]     │
+│                                              │
+│  IMEI / Serial Number                        │
+│  [jftyjwth2454twg5                      ]   │
+│                                              │
+│  Condition                                   │
+│  [Brand New                           ▼]    │
+│                                              │
+│  Vendor                  Payment Method      │
+│  [SHEMA              ▼]  [Bank          ▼]  │
+│  + Add new vendor                            │
+│                                              │
+│  Unit Cost (RWF)                             │
+│  [1,000,000                             ]   │
+└─────────────────────────────────────────────┘
+
+Card has a white background, subtle border, rounded corners, and a light shadow
+"Unit #1", "Unit #2" etc. label at the top left of each card in bold
+🗑 Remove button at the top right (red icon, only shows if there is more than 1 card)
+Fields inside the card use full width on mobile, two columns on desktop where shown above
+The IMEI/Serial field is full width always
+Color and Storage dropdowns are searchable with a create-new option if the value doesn't exist
+Vendor dropdown is searchable with a "+ Add new vendor" link below it that expands an inline mini-form (name + phone) without leaving the page
+Condition dropdown has exactly: Brand New, Screen Issue, Battery below 70%, Battery 70–80%, Battery 80–90%, Battery above 90%
+Payment Method dropdown: Cash, MoMo, Bank Transfer, Other
+
+For non-serialized items (accessories): the card shows only: Item, Quantity, Condition, Vendor, Payment Method, Unit Cost. No Color, Storage, or IMEI fields.
+"+ Add Item" button — below all cards, full width, dashed border, centered text with a + icon. Clicking adds a new empty card below.
+
+SUMMARY SECTION
+Below the cards, a clean summary card:
+┌─────────────────────────────────────────────┐
+│  Summary                                     │
+│                                              │
+│  Total Units                              1  │
+│                                              │
+│  Total Cost                  1,000,000 RWF ▼│
+│  ├─ Bank                     1,000,000 RWF  │
+│  ├─ Cash                             0 RWF  │
+│  └─ MoMo                             0 RWF  │
+└─────────────────────────────────────────────┘
+
+Total Units auto-updates as cards are added or removed
+Total Cost shows grand total with a chevron (▼) that expands/collapses the breakdown by payment method
+Payment methods with 0 RWF are hidden in the breakdown unless expanded
+
+
+ACTION BUTTONS (bottom of page)
+Three buttons in a row, full width on mobile:
+| Cancel Purchase | Save | Verify | Confirm Purchase |
+
+Cancel Purchase — red outlined button, left side. Triggers the two-step confirmation flow with random code (already built)
+Save — white outlined button. Saves as draft with toast: "Draft saved successfully". Fix the api.patch is not a function error — use fetch with method PUT or POST to /api/purchases/drafts/:id instead
+Verify — blue filled button. Opens the Purchase Order preview modal
+Confirm Purchase — green filled button. Disabled and grayed out until Verify has been completed. Shows tooltip on hover: "Please verify first". Resets to disabled if any card field is edited after verification
+
+On mobile, stack the buttons vertically: Confirm Purchase on top (most important action), then Verify, Save, Cancel Purchase at the bottom.
+
+PURCHASE ORDER PREVIEW (after Verify)
+Keep the existing PO preview content but improve the print layout:
+
+Add proper print CSS so that when printed, the page shows only the PO document — no browser UI, no sidebar, no buttons except a watermark at the very bottom saying "Printed from Dopik Electronics Management System"
+The summary at the bottom of the PO must have proper spacing between "Total Quantity", payment method breakdown, and "Grand Total"
+Grand Total must be in large bold text
+The warning banner must print in full color (not washed out)
+
+
+OTHER FIXES IN THE SAME PROMPT
+
+Fix api.patch is not a function error on Save button
+Clean the storage_options table: remove RAM values (32GB RAM, 4GB RAM etc.) and replace with: 16GB, 32GB, 64GB, 128GB, 256GB, 512GB, 1TB, 256GB SSD, 512GB SSD, 1TB SSD, 1TB HDD, 500GB HDD
+Make sure Color and Storage dropdowns pull from separate tables and never mix data
+The Item dropdown must show product name + current stock level in parentheses e.g. "Apple iPhone 16 (in stock: 44)"
+Products with zero stock should still appear in the dropdown but show "(out of stock)" in gray italic text
+
+Apply all changes without breaking existing draft data or purchase history.

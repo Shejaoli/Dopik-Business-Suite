@@ -1,24 +1,31 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListPurchases, useListVendors, useListStock, getListPurchasesQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF, fmtDateTime, paymentBadgeColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Search, ShoppingCart, Loader2, Barcode, Trash2,
   ChevronDown, ChevronUp, AlertTriangle, X, Printer,
-  FileCheck, Save, ArrowLeft, CheckCircle2, Building2
+  FileCheck, Save, ArrowLeft, CheckCircle2, Building2, Zap
 } from "lucide-react";
 
-const PAYMENT_METHODS = ["cash", "bank", "mobile_money", "credit"];
-const CONDITIONS = [
-  "Brand New", "Screen Issue", "Battery below 70%",
-  "Battery 70% – 80%", "Battery 80% – 90%", "Battery above 90%",
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: "cash", label: "Cash" },
+  { value: "mobile_money", label: "MoMo" },
+  { value: "bank", label: "Bank Transfer" },
+  { value: "credit", label: "Other" },
 ];
-const SIMPLE_CONDITIONS = ["Brand New", "Good Condition", "Refurbished"];
+const CONDITIONS = [
+  "Brand New",
+  "Screen Issue",
+  "Battery below 70%",
+  "Battery 70–80%",
+  "Battery 80–90%",
+  "Battery above 90%",
+];
 
 function generatePO() {
   const d = new Date();
@@ -33,76 +40,83 @@ function generateCode() {
   return `${part(4)}-${part(4)}`;
 }
 
+function pmLabel(val: string) {
+  return PAYMENT_METHODS.find(m => m.value === val)?.label ?? val.replace(/_/g, " ");
+}
+
 // ── Searchable Dropdown with Create ──────────────────────────────────────────
 function SearchableSelect({
-  options, value, onChange, placeholder, onCreate, label,
+  options, value, onChange, placeholder, onCreate,
 }: {
-  options: { id: string | number; name: string }[];
-  value: string; onChange: (v: string) => void;
-  placeholder?: string; onCreate?: (name: string) => Promise<void>;
-  label?: string;
+  options: { id: string | number; name: string; outOfStock?: boolean }[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  onCreate?: (name: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
   const filtered = options.filter(o => o.name.toLowerCase().includes(q.toLowerCase()));
   const selected = options.find(o => String(o.id) === value);
-  const showCreate = onCreate && q.trim() && !filtered.find(o => o.name.toLowerCase() === q.toLowerCase());
+  const showCreate = onCreate && q.trim() && !filtered.find(o => o.name.toLowerCase() === q.trim().toLowerCase());
 
   return (
     <div ref={ref} className="relative">
-      {label && <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>}
       <button
         type="button"
         onClick={() => { setOpen(!open); setQ(""); }}
-        className="w-full h-8 text-left flex items-center justify-between rounded border border-input bg-background px-2 text-xs"
+        className="w-full h-9 text-left flex items-center justify-between rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       >
-        <span className={selected ? "text-foreground" : "text-muted-foreground truncate"}>
+        <span className={selected ? (selected.outOfStock ? "text-muted-foreground italic" : "text-foreground") : "text-muted-foreground"}>
           {selected?.name ?? placeholder ?? "Select…"}
         </span>
-        <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
       </button>
       {open && (
-        <div className="absolute z-50 left-0 top-full mt-1 w-full min-w-[180px] bg-white border border-border rounded-lg shadow-lg">
-          <div className="p-1.5">
+        <div className="absolute z-50 left-0 top-full mt-1 w-full min-w-[200px] bg-white border border-border rounded-lg shadow-lg">
+          <div className="p-2">
             <Input
               autoFocus
-              className="h-7 text-xs"
+              className="h-8 text-sm"
               placeholder="Search…"
               value={q}
               onChange={e => setQ(e.target.value)}
             />
           </div>
-          <div className="max-h-40 overflow-y-auto">
+          <div className="max-h-48 overflow-y-auto">
             {value && (
-              <button type="button" className="w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+              <button type="button"
+                className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
                 onClick={() => { onChange(""); setOpen(false); }}>
                 — None —
               </button>
             )}
             {filtered.map(o => (
               <button key={o.id} type="button"
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted"
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${o.outOfStock ? "text-muted-foreground italic" : ""}`}
                 onClick={() => { onChange(String(o.id)); setOpen(false); setQ(""); }}>
                 {o.name}
               </button>
             ))}
             {showCreate && (
               <button type="button"
-                className="w-full text-left px-3 py-1.5 text-xs text-purple-600 hover:bg-purple-50 font-medium"
+                className="w-full text-left px-3 py-2 text-sm text-purple-600 hover:bg-purple-50 font-medium"
                 onClick={async () => { await onCreate!(q.trim()); setOpen(false); setQ(""); }}>
                 + Create "{q.trim()}"
               </button>
             )}
             {filtered.length === 0 && !showCreate && (
-              <p className="px-3 py-2 text-xs text-muted-foreground">No results</p>
+              <p className="px-3 py-2 text-sm text-muted-foreground">No results</p>
             )}
           </div>
         </div>
@@ -136,7 +150,7 @@ function emptyRow(): PurchaseRow {
   return {
     id: Math.random().toString(36).slice(2),
     itemId: "", color: "", storage: "",
-    imeiOrSerial: "", condition: "",
+    imeiOrSerial: "", condition: "Brand New",
     vendorId: "", paymentMethod: "cash", unitCost: "",
   };
 }
@@ -154,20 +168,35 @@ function POPreview({
 
   const handlePrint = () => {
     const content = printRef.current?.innerHTML ?? "";
-    const w = window.open("", "_blank", "width=800,height=900");
+    const w = window.open("", "_blank", "width=820,height=950");
     if (!w) return;
-    w.document.write(`<html><head><title>Purchase Order</title>
+    w.document.write(`<!DOCTYPE html><html><head><title>Purchase Order ${poNumber}</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 24px; color: #000; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ccc; padding: 8px; font-size: 12px; text-align: left; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; padding: 28px; color: #000; background: #fff; }
+        table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+        th, td { border: 1px solid #ccc; padding: 8px 10px; font-size: 11px; text-align: left; }
         th { background: #f5f5f5; font-weight: 600; }
-        .banner { background: #fffbeb; border: 2px solid #f59e0b; padding: 10px; border-radius: 6px; margin: 12px 0; }
-        .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-        .po-number { font-size: 20px; font-weight: bold; }
-        .total-row { font-weight: bold; background: #f5f5f5; }
+        .banner { background: #fffbeb !important; border: 2px solid #f59e0b !important; padding: 12px; border-radius: 6px; margin: 14px 0; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+        .banner-text { color: #92400e; font-weight: bold; font-size: 12px; }
+        .header-flex { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .company-name { font-size: 18px; font-weight: bold; }
+        .po-label { font-size: 18px; font-weight: bold; text-align: right; }
+        .po-number { font-family: monospace; color: #444; }
+        .summary-box { margin-left: auto; width: 300px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-top: 16px; }
+        .summary-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; }
+        .summary-divider { border-top: 1px solid #e5e7eb; margin: 8px 0; }
+        .grand-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; padding-top: 8px; }
+        .grand-total-amount { color: #1A6DB5; font-size: 18px; }
+        .watermark { text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #9ca3af; }
+        @media print {
+          body { padding: 20px; }
+          .banner { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+        }
       </style>
-    </head><body>${content}</body></html>`);
+    </head><body>${content}
+    <div class="watermark">Printed from Dopik Electronics Management System</div>
+    </body></html>`);
     w.document.close();
     w.print();
   };
@@ -207,7 +236,7 @@ function POPreview({
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center overflow-y-auto p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-4">
         <div className="flex items-center justify-between p-5 border-b">
           <h2 className="font-bold text-lg">Purchase Order Preview</h2>
           <div className="flex gap-2">
@@ -230,7 +259,6 @@ function POPreview({
         </div>
 
         <div ref={printRef} className="p-6 space-y-5">
-          {/* Header */}
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <img src="/dopik-logo-transparent.png" alt="Dopik" className="w-12 h-12 object-contain" />
@@ -246,15 +274,13 @@ function POPreview({
             </div>
           </div>
 
-          {/* Warning banner */}
-          <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 flex gap-3 items-start">
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 flex gap-3 items-start" style={{ printColorAdjust: "exact" }}>
             <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm font-bold text-amber-800">
               ⚠️ This is an internal document for record-keeping purposes only. It must not be shared, posted, or distributed externally.
             </p>
           </div>
 
-          {/* Items table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -278,7 +304,7 @@ function POPreview({
                       <td className="border border-gray-200 px-3 py-2 text-xs">{desc || "—"}</td>
                       <td className="border border-gray-200 px-3 py-2 text-xs">{row.condition || "—"}</td>
                       <td className="border border-gray-200 px-3 py-2 text-xs">{vendor?.name ?? "—"}</td>
-                      <td className="border border-gray-200 px-3 py-2 text-xs capitalize">{(row.paymentMethod || "").replace(/_/g, " ")}</td>
+                      <td className="border border-gray-200 px-3 py-2 text-xs capitalize">{pmLabel(row.paymentMethod || "")}</td>
                       <td className="border border-gray-200 px-3 py-2 text-xs font-semibold">{fmtRWF(row.unitCost || "0")}</td>
                     </tr>
                   );
@@ -287,24 +313,23 @@ function POPreview({
             </table>
           </div>
 
-          {/* Footer */}
           <div className="flex justify-end">
-            <div className="w-72 space-y-2 bg-gray-50 rounded-xl p-4 border">
+            <div className="w-80 space-y-3 bg-gray-50 rounded-xl p-5 border">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Total Quantity</span>
-                <span className="font-semibold">{totalQty} units</span>
+                <span className="font-semibold">{totalQty} {totalQty === 1 ? "unit" : "units"}</span>
               </div>
-              <div className="border-t pt-2 space-y-1">
+              <div className="border-t pt-3 space-y-2">
                 {Object.entries(byPayment).map(([m, amt]) => (
-                  <div key={m} className="flex justify-between text-xs">
-                    <span className="text-gray-500 capitalize">{m.replace(/_/g, " ")}</span>
-                    <span>{fmtRWF(String(amt))}</span>
+                  <div key={m} className="flex justify-between text-sm">
+                    <span className="text-gray-500">{pmLabel(m)}</span>
+                    <span className="font-medium">{fmtRWF(String(amt))}</span>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between border-t pt-2 font-bold">
-                <span>Grand Total</span>
-                <span className="text-[#1A6DB5]">{fmtRWF(String(grandTotal))}</span>
+              <div className="flex justify-between border-t pt-3">
+                <span className="font-bold text-base">Grand Total</span>
+                <span className="font-black text-xl text-[#1A6DB5]">{fmtRWF(String(grandTotal))}</span>
               </div>
             </div>
           </div>
@@ -359,12 +384,7 @@ function CancelModal2({ code, onBack, onConfirm }: { code: string; onBack: () =>
         />
         <div className="flex gap-3">
           <Button variant="outline" className="flex-1" onClick={onBack}>Go Back</Button>
-          <Button
-            variant="destructive"
-            className="flex-1"
-            disabled={!matches}
-            onClick={onConfirm}
-          >
+          <Button variant="destructive" className="flex-1" disabled={!matches} onClick={onConfirm}>
             Confirm Cancellation
           </Button>
         </div>
@@ -377,28 +397,285 @@ function CancelModal2({ code, onBack, onConfirm }: { code: string; onBack: () =>
 function AddVendorInline({ onSave, onClose }: { onSave: (v: any) => void; onClose: () => void }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    const v = await api.post<any>("/vendors", { name: name.trim(), phone: phone.trim(), address: notes.trim() });
+    const v = await api.post<any>("/vendors", { name: name.trim(), phone: phone.trim() });
     onSave(v);
     setSaving(false);
   };
 
   return (
-    <div className="border border-dashed border-purple-300 rounded-xl p-3 bg-purple-50 space-y-2 mt-1">
+    <div className="border border-dashed border-purple-300 rounded-xl p-3 bg-purple-50 space-y-2 mt-2">
       <p className="text-xs font-semibold text-purple-700">New Vendor</p>
-      <Input className="h-7 text-xs" placeholder="Name *" value={name} onChange={e => setName(e.target.value)} />
-      <Input className="h-7 text-xs" placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-      <Input className="h-7 text-xs" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} />
+      <Input className="h-8 text-sm" placeholder="Name *" value={name} onChange={e => setName(e.target.value)} />
+      <Input className="h-8 text-sm" placeholder="Phone (optional)" value={phone} onChange={e => setPhone(e.target.value)} />
       <div className="flex gap-2">
-        <Button size="sm" className="h-7 text-xs flex-1" onClick={save} disabled={!name.trim() || saving}>
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+        <Button size="sm" className="h-8 text-xs flex-1" onClick={save} disabled={!name.trim() || saving}>
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save Vendor"}
         </Button>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onClose}>Cancel</Button>
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onClose}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Unit Card (Serialized) ─────────────────────────────────────────────────────
+function UnitCard({
+  row, index, total, stockItems, itemOptions, colors, storageOptions, vendorList,
+  onUpdate, onRemove, onCreateColor, onCreateStorage, onAddVendorSave,
+}: {
+  row: PurchaseRow; index: number; total: number;
+  stockItems: any[]; itemOptions: any[];
+  colors: any[]; storageOptions: any[]; vendorList: any[];
+  onUpdate: (id: string, field: keyof PurchaseRow, val: string) => void;
+  onRemove: (id: string) => void;
+  onCreateColor: (name: string) => Promise<void>;
+  onCreateStorage: (name: string) => Promise<void>;
+  onAddVendorSave: (rowId: string, vendor: any) => void;
+}) {
+  const [showAddVendor, setShowAddVendor] = useState(false);
+
+  const selectedItem = row.itemId ? stockItems.find((s: any) => String(s.itemId ?? s.id) === row.itemId) : null;
+  const requiresSerial = selectedItem?.trackSerial === true;
+
+  return (
+    <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-border">
+        <span className="font-semibold text-sm">Unit #{index + 1}</span>
+        {total > 1 && (
+          <button
+            type="button"
+            onClick={() => onRemove(row.id)}
+            className="flex items-center gap-1.5 text-red-500 hover:text-red-700 text-sm font-medium transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Remove</span>
+          </button>
+        )}
+      </div>
+
+      <div className="p-4 space-y-4">
+        <div>
+          <p className="text-sm font-medium mb-1.5">Item</p>
+          <SearchableSelect
+            options={itemOptions}
+            value={row.itemId}
+            onChange={v => onUpdate(row.id, "itemId", v)}
+            placeholder="Select item…"
+          />
+          {requiresSerial && (
+            <p className="mt-1.5 text-xs text-purple-600 flex items-center gap-1">
+              <Zap className="h-3 w-3" />Requires IMEI/serial tracking
+            </p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <p className="text-sm font-medium mb-1.5">Color</p>
+            <SearchableSelect
+              options={colors}
+              value={row.color ? String(colors.find(c => c.name === row.color)?.id ?? "") : ""}
+              onChange={v => { const c = colors.find(c => String(c.id) === v); onUpdate(row.id, "color", c?.name ?? ""); }}
+              placeholder="Select color…"
+              onCreate={async name => {
+                await onCreateColor(name);
+                const fresh = await api.get<any[]>("/colors");
+                const found = (fresh as any[]).find((c: any) => c.name === name);
+                if (found) onUpdate(row.id, "color", found.name);
+              }}
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-1.5">Storage</p>
+            <SearchableSelect
+              options={storageOptions}
+              value={row.storage ? String(storageOptions.find(s => s.name === row.storage)?.id ?? "") : ""}
+              onChange={v => { const s = storageOptions.find(s => String(s.id) === v); onUpdate(row.id, "storage", s?.name ?? ""); }}
+              placeholder="Select storage…"
+              onCreate={async name => {
+                await onCreateStorage(name);
+                const fresh = await api.get<any[]>("/storage-options");
+                const found = (fresh as any[]).find((s: any) => s.name === name);
+                if (found) onUpdate(row.id, "storage", found.name);
+              }}
+            />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-1.5">IMEI / Serial Number</p>
+          <Input
+            className="font-mono"
+            value={row.imeiOrSerial}
+            onChange={e => onUpdate(row.id, "imeiOrSerial", e.target.value)}
+            placeholder="Enter IMEI or serial number…"
+          />
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-1.5">Condition</p>
+          <select
+            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            value={row.condition}
+            onChange={e => onUpdate(row.id, "condition", e.target.value)}
+          >
+            <option value="">Select condition…</option>
+            {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <p className="text-sm font-medium mb-1.5">Vendor</p>
+            <SearchableSelect
+              options={vendorList}
+              value={row.vendorId}
+              onChange={v => onUpdate(row.id, "vendorId", v)}
+              placeholder="Select vendor…"
+            />
+            {!showAddVendor ? (
+              <button
+                type="button"
+                className="mt-1.5 text-xs text-purple-600 hover:underline flex items-center gap-1"
+                onClick={() => setShowAddVendor(true)}
+              >
+                <Building2 className="h-3 w-3" />+ Add new vendor
+              </button>
+            ) : (
+              <AddVendorInline
+                onSave={v => { onAddVendorSave(row.id, v); setShowAddVendor(false); }}
+                onClose={() => setShowAddVendor(false)}
+              />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-1.5">Payment Method</p>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={row.paymentMethod}
+              onChange={e => onUpdate(row.id, "paymentMethod", e.target.value)}
+            >
+              {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-1.5">Unit Cost (RWF)</p>
+          <Input
+            type="number"
+            min={0}
+            value={row.unitCost}
+            onChange={e => onUpdate(row.id, "unitCost", e.target.value)}
+            placeholder="0"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Simple Card (Non-Serialized) ──────────────────────────────────────────────
+function SimpleCard({
+  form, itemOptions, vendorList, stockItems,
+  onChange, onAddVendorSave,
+}: {
+  form: SimpleForm;
+  itemOptions: any[];
+  vendorList: any[];
+  stockItems: any[];
+  onChange: (field: keyof SimpleForm, val: string) => void;
+  onAddVendorSave: (vendor: any) => void;
+}) {
+  const [showAddVendor, setShowAddVendor] = useState(false);
+
+  return (
+    <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="px-4 py-3 bg-gray-50 border-b border-border">
+        <span className="font-semibold text-sm">Item Details</span>
+      </div>
+      <div className="p-4 space-y-4">
+        <div>
+          <p className="text-sm font-medium mb-1.5">Item</p>
+          <SearchableSelect
+            options={itemOptions}
+            value={form.itemId}
+            onChange={v => onChange("itemId", v)}
+            placeholder="Select item…"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <p className="text-sm font-medium mb-1.5">Quantity</p>
+            <Input
+              type="number" min={1}
+              value={form.quantity}
+              onChange={e => onChange("quantity", e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-1.5">Condition</p>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={form.condition}
+              onChange={e => onChange("condition", e.target.value)}
+            >
+              {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <p className="text-sm font-medium mb-1.5">Vendor</p>
+            <SearchableSelect
+              options={vendorList}
+              value={form.vendorId}
+              onChange={v => onChange("vendorId", v)}
+              placeholder="Select vendor…"
+            />
+            {!showAddVendor ? (
+              <button
+                type="button"
+                className="mt-1.5 text-xs text-purple-600 hover:underline flex items-center gap-1"
+                onClick={() => setShowAddVendor(true)}
+              >
+                <Building2 className="h-3 w-3" />+ Add new vendor
+              </button>
+            ) : (
+              <AddVendorInline
+                onSave={v => { onAddVendorSave(v); setShowAddVendor(false); }}
+                onClose={() => setShowAddVendor(false)}
+              />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-1.5">Payment Method</p>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={form.paymentMethod}
+              onChange={e => onChange("paymentMethod", e.target.value)}
+            >
+              {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-1.5">Unit Cost (RWF)</p>
+          <Input
+            type="number" min={0}
+            value={form.unitCost}
+            onChange={e => onChange("unitCost", e.target.value)}
+            placeholder="0"
+          />
+        </div>
       </div>
     </div>
   );
@@ -414,29 +691,19 @@ export default function PurchasesPage() {
   const [poNumber, setPoNumber] = useState("");
   const [draftId, setDraftId] = useState<number | null>(null);
 
-  // Cancel flow
   const [cancelStep, setCancelStep] = useState<0 | 1 | 2>(0);
-  const [cancelCode] = useState(generateCode);
   const [activeCancelCode, setActiveCancelCode] = useState("");
 
-  // Cost breakdown expand
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // Per-unit rows (serialized mode)
   const [rows, setRows] = useState<PurchaseRow[]>([emptyRow()]);
-
-  // Simple form (non-serialized mode)
   const [simple, setSimple] = useState<SimpleForm>({
     itemId: "", quantity: "", unitCost: "",
     vendorId: "", paymentMethod: "cash", condition: "Brand New",
   });
 
-  // Detected mode based on selected item
   const [isSerial, setIsSerial] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState("");
-
-  // Inline vendor add
-  const [addVendorForRow, setAddVendorForRow] = useState<string | null>(null); // row id or "simple"
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -464,29 +731,53 @@ export default function PurchasesPage() {
     !search || (p.itemName ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  // Detect if item requires serial tracking
-  const handleItemSelect = (itemId: string, rowId?: string) => {
+  const itemOptions = stockItems.map((s: any) => {
+    const qty = parseFloat(s.quantity ?? "0");
+    const outOfStock = qty <= 0;
+    return {
+      id: s.itemId ?? s.id,
+      name: outOfStock
+        ? `${s.itemName} (out of stock)`
+        : `${s.itemName} (in stock: ${qty.toLocaleString()})`,
+      outOfStock,
+    };
+  });
+
+  const handleItemSelect = (itemId: string) => {
     const item = stockItems.find((s: any) => String(s.itemId ?? s.id) === itemId);
     const serial = item?.trackSerial === true;
     setSelectedItemId(itemId);
     setIsSerial(serial);
     setVerified(false);
-
-    if (rowId) {
-      setRows(rs => rs.map(r => r.id === rowId ? { ...r, itemId } : r));
-    } else {
-      setSimple(f => ({ ...f, itemId }));
-    }
   };
 
   const updateRow = (id: string, field: keyof PurchaseRow, val: string) => {
     setVerified(false);
     setRows(rs => rs.map(r => r.id === id ? { ...r, [field]: val } : r));
+    if (field === "itemId") handleItemSelect(val);
   };
-  const addRow = () => { setVerified(false); setRows(rs => [...rs, emptyRow()]); };
-  const removeRow = (id: string) => { setVerified(false); setRows(rs => rs.filter(r => r.id !== id)); };
 
-  // Totals
+  const addRow = () => {
+    setVerified(false);
+    setRows(rs => [...rs, emptyRow()]);
+  };
+
+  const removeRow = (id: string) => {
+    setVerified(false);
+    setRows(rs => rs.filter(r => r.id !== id));
+  };
+
+  const updateSimple = (field: keyof SimpleForm, val: string) => {
+    setVerified(false);
+    if (field === "itemId") {
+      const item = stockItems.find((s: any) => String(s.itemId ?? s.id) === val);
+      const serial = item?.trackSerial === true;
+      setSelectedItemId(val);
+      setIsSerial(serial);
+    }
+    setSimple(f => ({ ...f, [field]: val }));
+  };
+
   const totalQty = isSerial ? rows.length : parseFloat(simple.quantity || "0");
   const totalCost = isSerial
     ? rows.reduce((s, r) => s + parseFloat(r.unitCost || "0"), 0)
@@ -511,7 +802,9 @@ export default function PurchasesPage() {
 
   const handleSaveDraft = async () => {
     const notes = JSON.stringify({ mode: isSerial ? "serial" : "simple", rows, simple });
-    const itemId = isSerial ? (rows[0]?.itemId ? Number(rows[0].itemId) : null) : (simple.itemId ? Number(simple.itemId) : null);
+    const itemId = isSerial
+      ? (rows[0]?.itemId ? Number(rows[0].itemId) : null)
+      : (simple.itemId ? Number(simple.itemId) : null);
     if (!itemId) { toast({ title: "Select an item first", variant: "destructive" }); return; }
 
     setSaving(true);
@@ -521,7 +814,9 @@ export default function PurchasesPage() {
         quantity: String(totalQty || 1),
         totalCost: String(totalCost),
         paymentMethod: isSerial ? (rows[0]?.paymentMethod || "cash") : simple.paymentMethod,
-        vendorId: isSerial ? (rows[0]?.vendorId ? Number(rows[0].vendorId) : null) : (simple.vendorId ? Number(simple.vendorId) : null),
+        vendorId: isSerial
+          ? (rows[0]?.vendorId ? Number(rows[0].vendorId) : null)
+          : (simple.vendorId ? Number(simple.vendorId) : null),
         status: "draft",
         poNumber: poNumber || null,
         notes,
@@ -534,7 +829,7 @@ export default function PurchasesPage() {
         setDraftId(saved.id);
       }
 
-      toast({ title: "Purchase saved as draft" });
+      toast({ title: "Draft saved successfully" });
       qc.invalidateQueries({ queryKey: getListPurchasesQueryKey() });
     } catch (e: any) {
       toast({ title: "Error saving draft", description: e.message, variant: "destructive" });
@@ -552,7 +847,9 @@ export default function PurchasesPage() {
         quantity: String(totalQty),
         totalCost: String(totalCost),
         paymentMethod: isSerial ? Object.keys(byPayment)[0] || "cash" : simple.paymentMethod,
-        vendorId: isSerial ? (rows[0]?.vendorId ? Number(rows[0].vendorId) : null) : (simple.vendorId ? Number(simple.vendorId) : null),
+        vendorId: isSerial
+          ? (rows[0]?.vendorId ? Number(rows[0].vendorId) : null)
+          : (simple.vendorId ? Number(simple.vendorId) : null),
         status: "confirmed",
         poNumber,
         units: isSerial ? rows.map(r => ({
@@ -567,7 +864,7 @@ export default function PurchasesPage() {
       };
 
       if (draftId) {
-        await api.patch<any>(`/purchases/${draftId}`, { ...payload });
+        await api.patch<any>(`/purchases/${draftId}`, payload);
       } else {
         await api.post<any>("/purchases", payload);
       }
@@ -591,7 +888,6 @@ export default function PurchasesPage() {
     setPoNumber("");
     setDraftId(null);
     setShowBreakdown(false);
-    setAddVendorForRow(null);
   };
 
   const handleCancelClick = () => {
@@ -607,7 +903,6 @@ export default function PurchasesPage() {
     toast({ title: "Purchase cancelled." });
   };
 
-  // Load draft
   const loadDraft = async (purchase: any) => {
     if (purchase.status !== "draft") return;
     setDraftId(purchase.id);
@@ -636,40 +931,37 @@ export default function PurchasesPage() {
     await api.post("/colors", { name });
     refetchColors();
   };
+
   const createStorage = async (name: string) => {
     await api.post("/storage-options", { name });
     refetchStorage();
   };
-  const createVendor = async (vendor: any) => {
+
+  const handleVendorSaveForRow = async (rowId: string, vendor: any) => {
     await refetchVendors();
-    setAddVendorForRow(null);
+    setRows(rs => rs.map(r => r.id === rowId ? { ...r, vendorId: String(vendor.id) } : r));
+    setVerified(false);
   };
 
-  const itemOptions = stockItems.map((s: any) => ({
-    id: s.itemId ?? s.id,
-    name: `${s.itemName} (in stock: ${parseFloat(s.quantity).toLocaleString()})`,
-  }));
+  const handleVendorSaveSimple = async (vendor: any) => {
+    await refetchVendors();
+    setSimple(f => ({ ...f, vendorId: String(vendor.id) }));
+    setVerified(false);
+  };
 
-  const itemSelected = stockItems.find((s: any) => String(s.itemId ?? s.id) === selectedItemId);
+  const canVerify = isSerial
+    ? rows.some(r => r.itemId && r.unitCost)
+    : !!(simple.itemId && simple.quantity && simple.unitCost);
 
   return (
     <div className="space-y-5">
-      {/* Cancel Modals */}
       {cancelStep === 1 && (
-        <CancelModal1
-          onBack={() => setCancelStep(0)}
-          onProceed={() => setCancelStep(2)}
-        />
+        <CancelModal1 onBack={() => setCancelStep(0)} onProceed={() => setCancelStep(2)} />
       )}
       {cancelStep === 2 && (
-        <CancelModal2
-          code={activeCancelCode}
-          onBack={() => setCancelStep(1)}
-          onConfirm={handleCancelConfirm}
-        />
+        <CancelModal2 code={activeCancelCode} onBack={() => setCancelStep(1)} onConfirm={handleCancelConfirm} />
       )}
 
-      {/* PO Preview */}
       {showPO && (
         <POPreview
           rows={rows} simpleForm={simple}
@@ -744,7 +1036,7 @@ export default function PurchasesPage() {
                       <td className="px-4 py-3 text-muted-foreground">{p.vendorName ?? "—"}</td>
                       <td className="px-4 py-3">
                         <Badge className={`text-xs ${paymentBadgeColor(p.paymentMethod)}`}>
-                          {p.paymentMethod?.replace(/_/g, " ")}
+                          {pmLabel(p.paymentMethod ?? "")}
                         </Badge>
                       </td>
                       <td className="px-4 py-3">
@@ -766,291 +1058,181 @@ export default function PurchasesPage() {
 
       {/* Purchase Form */}
       {showForm && (
-        <div className="space-y-5">
+        <div className="space-y-5 max-w-3xl">
           {/* Header */}
-          <div className="flex items-center gap-3">
-            <button onClick={handleCancelClick} className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-5 w-5" />
-            </button>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <button
+                onClick={handleCancelClick}
+                className="mt-1 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold font-sora">Record New Purchase</h1>
+                {draftId && (
+                  <p className="text-xs text-amber-600 font-medium mt-0.5">Editing draft #{draftId}</p>
+                )}
+              </div>
+            </div>
+            {isSerial && (
+              <Badge className="bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1.5 px-3 py-1.5 mt-1 shrink-0">
+                <Barcode className="h-3.5 w-3.5" />Serialized Item
+              </Badge>
+            )}
+          </div>
+
+          {/* Item Cards */}
+          <div className="space-y-4">
+            {isSerial ? (
+              <>
+                {rows.map((row, idx) => (
+                  <UnitCard
+                    key={row.id}
+                    row={row}
+                    index={idx}
+                    total={rows.length}
+                    stockItems={stockItems}
+                    itemOptions={itemOptions}
+                    colors={colors}
+                    storageOptions={storageOptions}
+                    vendorList={vendorList}
+                    onUpdate={updateRow}
+                    onRemove={removeRow}
+                    onCreateColor={createColor}
+                    onCreateStorage={createStorage}
+                    onAddVendorSave={handleVendorSaveForRow}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={addRow}
+                  className="w-full py-3 border-2 border-dashed border-border rounded-xl text-muted-foreground hover:border-[#1A6DB5] hover:text-[#1A6DB5] transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                >
+                  <Plus className="h-4 w-4" />Add Item
+                </button>
+              </>
+            ) : (
+              <SimpleCard
+                form={simple}
+                itemOptions={itemOptions}
+                vendorList={vendorList}
+                stockItems={stockItems}
+                onChange={updateSimple}
+                onAddVendorSave={handleVendorSaveSimple}
+              />
+            )}
+          </div>
+
+          {/* Summary */}
+          <div className="bg-white border border-border rounded-xl shadow-sm p-5 space-y-3">
+            <h2 className="font-semibold">Summary</h2>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Total Units</span>
+              <span className="font-bold">{totalQty}</span>
+            </div>
             <div>
-              <h1 className="text-2xl font-bold font-sora">Record New Purchase</h1>
-              {draftId && <p className="text-xs text-amber-600 font-medium">Editing draft #{draftId}</p>}
+              <button
+                type="button"
+                className="flex items-center justify-between w-full text-sm"
+                onClick={() => setShowBreakdown(b => !b)}
+              >
+                <span className="text-muted-foreground">Total Cost</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[#1A6DB5]">{fmtRWF(String(totalCost))}</span>
+                  {showBreakdown
+                    ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </div>
+              </button>
+              {showBreakdown && (
+                <div className="mt-2 pl-4 space-y-1 border-l-2 border-border">
+                  {PAYMENT_METHODS.map(m => {
+                    const amt = byPayment[m.value] ?? 0;
+                    return (
+                      <div key={m.value} className="flex justify-between text-xs text-muted-foreground">
+                        <span>{m.label}</span>
+                        <span>{fmtRWF(String(amt))}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Item selector (only in simple mode or before any row has an item) */}
-          {!isSerial && (
-            <div className="glass-panel p-5 space-y-4">
-              <h2 className="font-semibold">Item Details</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Item *</p>
-                  <SearchableSelect
-                    options={itemOptions}
-                    value={simple.itemId}
-                    onChange={v => handleItemSelect(v)}
-                    placeholder="Select item…"
-                  />
-                </div>
-                {simple.itemId && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Condition</p>
-                    <select className="w-full h-8 rounded border border-input bg-background px-2 text-xs"
-                      value={simple.condition} onChange={e => setSimple(f => ({ ...f, condition: e.target.value }))}>
-                      {SIMPLE_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-              {simple.itemId && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Quantity *</p>
-                    <Input type="number" min={1} className="h-8 text-xs" value={simple.quantity}
-                      onChange={e => { setSimple(f => ({ ...f, quantity: e.target.value })); setVerified(false); }} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Unit Cost (RWF) *</p>
-                    <Input type="number" min={0} className="h-8 text-xs" value={simple.unitCost}
-                      onChange={e => { setSimple(f => ({ ...f, unitCost: e.target.value })); setVerified(false); }} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Payment Method</p>
-                    <select className="w-full h-8 rounded border border-input bg-background px-2 text-xs"
-                      value={simple.paymentMethod} onChange={e => { setSimple(f => ({ ...f, paymentMethod: e.target.value })); setVerified(false); }}>
-                      {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Vendor</p>
-                    <SearchableSelect
-                      options={vendorList}
-                      value={simple.vendorId}
-                      onChange={v => { if (v === "__add__") { setAddVendorForRow("simple"); } else { setSimple(f => ({ ...f, vendorId: v })); setVerified(false); } }}
-                      placeholder="Select vendor…"
-                    />
-                    {addVendorForRow === "simple" && (
-                      <AddVendorInline
-                        onSave={v => { refetchVendors(); setSimple(f => ({ ...f, vendorId: String(v.id) })); setAddVendorForRow(null); setVerified(false); }}
-                        onClose={() => setAddVendorForRow(null)}
-                      />
-                    )}
-                    {addVendorForRow !== "simple" && (
-                      <button type="button" className="mt-1 text-xs text-purple-600 hover:underline flex items-center gap-1"
-                        onClick={() => setAddVendorForRow("simple")}>
-                        <Building2 className="h-3 w-3" />Add new vendor
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-              {simple.itemId && stockItems.find((s: any) => String(s.itemId ?? s.id) === simple.itemId)?.trackSerial && (
-                <p className="text-xs text-purple-600 flex items-center gap-1 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
-                  <Barcode className="h-3 w-3" />
-                  This item requires IMEI / serial number tracking — switch to "Serialized Entry" above
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Per-unit table (serialized mode) */}
-          {isSerial && (
-            <div className="glass-panel p-5 space-y-4 overflow-x-auto">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Per-Unit Entry</h2>
-                <Badge className="bg-purple-100 text-purple-700 border border-purple-200 text-xs">
-                  <Barcode className="h-3 w-3 mr-1" />Serialized Item
-                </Badge>
-              </div>
-
-              <div className="min-w-[900px]">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-muted/60 rounded">
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-36">Item</th>
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-28">Color</th>
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-28">Storage</th>
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-36">IMEI / Serial</th>
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-36">Condition</th>
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-32">Vendor</th>
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-28">Payment</th>
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground w-28">Unit Cost</th>
-                      <th className="w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {rows.map((row, idx) => (
-                      <tr key={row.id} className="group">
-                        <td className="px-1 py-1.5">
-                          <SearchableSelect
-                            options={itemOptions}
-                            value={row.itemId}
-                            onChange={v => { updateRow(row.id, "itemId", v); if (idx === 0) handleItemSelect(v, row.id); else updateRow(row.id, "itemId", v); }}
-                            placeholder="Item…"
-                          />
-                          {row.itemId && stockItems.find((s: any) => String(s.itemId ?? s.id) === row.itemId)?.trackSerial && (
-                            <p className="text-[10px] text-purple-600 mt-0.5 flex items-center gap-0.5">
-                              <Barcode className="h-2.5 w-2.5" />Requires IMEI/serial
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-1 py-1.5">
-                          <SearchableSelect
-                            options={colors}
-                            value={row.color ? String(colors.find(c => c.name === row.color)?.id ?? "") : ""}
-                            onChange={v => { const c = colors.find(c => String(c.id) === v); updateRow(row.id, "color", c?.name ?? ""); }}
-                            placeholder="Color…"
-                            onCreate={async name => { await createColor(name); const fresh = await api.get<any[]>("/colors"); const found = fresh.find((c: any) => c.name === name); if (found) updateRow(row.id, "color", found.name); }}
-                          />
-                        </td>
-                        <td className="px-1 py-1.5">
-                          <SearchableSelect
-                            options={storageOptions}
-                            value={row.storage ? String(storageOptions.find(s => s.name === row.storage)?.id ?? "") : ""}
-                            onChange={v => { const s = storageOptions.find(s => String(s.id) === v); updateRow(row.id, "storage", s?.name ?? ""); }}
-                            placeholder="Storage…"
-                            onCreate={async name => { await createStorage(name); const fresh = await api.get<any[]>("/storage-options"); const found = fresh.find((s: any) => s.name === name); if (found) updateRow(row.id, "storage", found.name); }}
-                          />
-                        </td>
-                        <td className="px-1 py-1.5">
-                          <Input
-                            className="h-8 text-xs font-mono"
-                            value={row.imeiOrSerial}
-                            onChange={e => updateRow(row.id, "imeiOrSerial", e.target.value)}
-                            placeholder={itemSelected?.category?.includes("Laptop") || row.itemId && stockItems.find((s: any) => String(s.itemId ?? s.id) === row.itemId)?.category?.toLowerCase().includes("laptop") ? "Serial Number…" : "IMEI…"}
-                          />
-                        </td>
-                        <td className="px-1 py-1.5">
-                          <select className="w-full h-8 rounded border border-input bg-background px-1.5 text-xs"
-                            value={row.condition} onChange={e => updateRow(row.id, "condition", e.target.value)}>
-                            <option value="">Condition…</option>
-                            {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </td>
-                        <td className="px-1 py-1.5">
-                          <SearchableSelect
-                            options={vendorList}
-                            value={row.vendorId}
-                            onChange={v => updateRow(row.id, "vendorId", v)}
-                            placeholder="Vendor…"
-                          />
-                          {addVendorForRow !== row.id && (
-                            <button type="button" className="mt-0.5 text-[10px] text-purple-600 hover:underline"
-                              onClick={() => setAddVendorForRow(row.id)}>
-                              + New vendor
-                            </button>
-                          )}
-                          {addVendorForRow === row.id && (
-                            <AddVendorInline
-                              onSave={v => { refetchVendors(); updateRow(row.id, "vendorId", String(v.id)); setAddVendorForRow(null); setVerified(false); }}
-                              onClose={() => setAddVendorForRow(null)}
-                            />
-                          )}
-                        </td>
-                        <td className="px-1 py-1.5">
-                          <select className="w-full h-8 rounded border border-input bg-background px-1.5 text-xs"
-                            value={row.paymentMethod} onChange={e => { updateRow(row.id, "paymentMethod", e.target.value); setVerified(false); }}>
-                            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
-                          </select>
-                        </td>
-                        <td className="px-1 py-1.5">
-                          <Input
-                            type="number" min={0} className="h-8 text-xs"
-                            value={row.unitCost}
-                            onChange={e => { updateRow(row.id, "unitCost", e.target.value); setVerified(false); }}
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="px-1 py-1.5">
-                          {rows.length > 1 && (
-                            <button onClick={() => removeRow(row.id)} className="text-red-400 hover:text-red-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <button
-                onClick={addRow}
-                className="flex items-center gap-2 text-sm text-[#1A6DB5] hover:text-[#1A6DB5]/80 font-medium"
-              >
-                <Plus className="h-4 w-4" />Add Item
-              </button>
-            </div>
-          )}
-
-          {/* Summary Section */}
-          {(isSerial ? rows.some(r => r.itemId) : simple.itemId) && (
-            <div className="glass-panel p-5 space-y-3">
-              <h2 className="font-semibold text-sm">Summary</h2>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Total Quantity</span>
-                <span className="font-bold">{totalQty} {totalQty === 1 ? "unit" : "units"}</span>
-              </div>
-              <div>
-                <button
-                  className="flex items-center justify-between w-full text-sm group"
-                  onClick={() => setShowBreakdown(b => !b)}
-                >
-                  <span className="text-muted-foreground">Total Cost (RWF)</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#1A6DB5]">{fmtRWF(String(totalCost))}</span>
-                    {showBreakdown ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                  </div>
-                </button>
-                {showBreakdown && (
-                  <div className="mt-2 pl-4 space-y-1 border-l-2 border-border">
-                    {Object.entries(byPayment).map(([m, amt]) => (
-                      <div key={m} className="flex justify-between text-xs text-muted-foreground">
-                        <span className="capitalize">{m.replace(/_/g, " ")}</span>
-                        <span>{fmtRWF(String(amt))}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Action Buttons */}
-          <div className="flex items-center gap-3 pb-8">
-            <Button
-              variant="outline"
-              className="text-red-600 border-red-200 hover:bg-red-50"
-              onClick={handleCancelClick}
-            >
-              <X className="h-4 w-4 mr-1.5" />Cancel Purchase
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleSaveDraft}
-              disabled={saving}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
-              Save
-            </Button>
-            <Button
-              className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90"
-              onClick={handleVerify}
-              disabled={
-                isSerial
-                  ? !rows.some(r => r.itemId && r.unitCost)
-                  : !simple.itemId || !simple.quantity || !simple.unitCost
-              }
-            >
-              <FileCheck className="h-4 w-4 mr-1.5" />Verify
-            </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              disabled={!verified}
-              onClick={handleConfirm}
-            >
-              <CheckCircle2 className="h-4 w-4 mr-1.5" />Confirm Purchase
-            </Button>
+          <div className="pb-8">
+            {/* Desktop layout */}
+            <div className="hidden sm:flex items-center gap-3">
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={handleCancelClick}
+              >
+                <X className="h-4 w-4 mr-1.5" />Cancel Purchase
+              </Button>
+              <div className="flex-1" />
+              <Button variant="outline" onClick={handleSaveDraft} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
+                Save
+              </Button>
+              <Button
+                className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90"
+                onClick={handleVerify}
+                disabled={!canVerify}
+              >
+                <FileCheck className="h-4 w-4 mr-1.5" />Verify
+              </Button>
+              <div className="relative group">
+                <Button
+                  className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!verified}
+                  onClick={handleConfirm}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />Confirm Purchase
+                </Button>
+                {!verified && (
+                  <div className="absolute bottom-full mb-2 right-0 hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg px-3 py-1.5 whitespace-nowrap z-10">
+                    Please verify first
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Mobile layout — Confirm on top */}
+            <div className="flex flex-col gap-3 sm:hidden">
+              <div className="relative group">
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!verified}
+                  onClick={handleConfirm}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />Confirm Purchase
+                </Button>
+                {!verified && (
+                  <p className="text-center text-xs text-muted-foreground mt-1">Please verify first</p>
+                )}
+              </div>
+              <Button
+                className="w-full bg-[#1A6DB5] hover:bg-[#1A6DB5]/90"
+                onClick={handleVerify}
+                disabled={!canVerify}
+              >
+                <FileCheck className="h-4 w-4 mr-1.5" />Verify
+              </Button>
+              <Button className="w-full" variant="outline" onClick={handleSaveDraft} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
+                Save
+              </Button>
+              <Button
+                className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                variant="outline"
+                onClick={handleCancelClick}
+              >
+                <X className="h-4 w-4 mr-1.5" />Cancel Purchase
+              </Button>
+            </div>
           </div>
         </div>
       )}
