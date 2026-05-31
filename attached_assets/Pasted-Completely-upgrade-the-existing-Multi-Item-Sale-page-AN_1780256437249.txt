@@ -1,0 +1,260 @@
+Completely upgrade the existing Multi-Item Sale page AND the New Sale modal to work as one unified, professional sales system. Do not rebuild from scratch — enhance what already exists. The goal is a system that handles serialized items (phones/computers with IMEI), non-serialized items (accessories), multiple items per sale, split payments, credit sales, discounts, receipts, and WhatsApp sharing.
+
+PART 1 — SALE DETAILS SECTION
+Keep the existing top section but improve it with the following changes:
+Date — keep as is, auto-filled with today's date
+Customer — replace with a searchable dropdown:
+
+Default option: "Walk-in Customer"
+Shows all existing customers with name and phone
+Add a small "+ New Customer" icon button beside it that opens an inline mini-form (name + phone only) without closing or leaving the sale page
+When Credit is selected as payment method, this field becomes mandatory — highlight border red and show message: "A customer is required for credit sales — walk-in customers cannot buy on credit"
+When typing a phone number, auto-suggest matching customers from the database
+
+Payment Method — update options to exactly: Cash, MoMo, Bank Transfer, Credit, Split Payment. Remove the separate "Payment Status" dropdown — status is determined automatically:
+
+Cash / MoMo / Bank Transfer = Completed
+Credit = Pending
+Split Payment = Completed
+
+When Credit is selected:
+
+Show a Payment Terms (Days) field below — number of days until full payment is due, default 30
+Customer field becomes required immediately
+
+When Split Payment is selected:
+
+Show two payment rows below:
+
+Row 1: [Payment Method ▼] [Amount RWF input]
+Row 2: [Payment Method ▼] [Amount RWF input]
+
+
+Both amounts must add up to the order total
+If they don't match, show warning: "Split amounts must equal the total of [X] RWF"
+Available methods per row: Cash, MoMo, Bank Transfer
+
+
+PART 2 — ITEMS SECTION
+Replace the current simple item rows with smart responsive item cards. The system must automatically detect whether a selected product is serialized or not based on its category's requires_serial flag.
+For non-serialized items (accessories, cables, cases, etc.):
+Each card contains:
+
+Item — searchable dropdown showing product name + available stock count e.g. "AirPods Pro 3 — 38 in stock". Out-of-stock items appear grayed out and disabled
+Quantity — number input. Cannot exceed available stock. If quantity entered exceeds stock, show inline error: "Only [X] units available"
+Unit Price (RWF) — pre-filled from product's selling price, editable by admin
+Subtotal — auto-calculated (quantity × unit price), read-only
+🗑 Remove button — top right of card, only visible when more than one card exists
+
+For serialized items (phones, computers, laptops):
+When a serialized product is selected, the card transforms to show:
+
+Item — searchable dropdown showing product name + number of units in stock e.g. "Apple iPhone 16 — 5 units available"
+Select Unit — second searchable dropdown showing every available unit of that product formatted as:
+[Color] / [Storage] / IMEI: [number] / [Condition]
+Example: "Black / 128GB / IMEI: 353012341234567 / Brand New"
+
+Only shows units where status = 'in_stock'
+Condition color-coded badge: Brand New = green, Screen Issue = red, Battery below 70% = red, Battery 70–80% = amber, Battery 80–90% = amber, Battery above 90% = green
+Once a unit is selected in one card, it is removed from the dropdown options of all other cards in the same sale to prevent duplicate selection
+If no units are available for a product, show: "No units in stock for this product"
+
+
+Unit Price (RWF) — pre-filled from product selling price, editable
+Subtotal — auto-calculated, read-only
+🗑 Remove button
+
+"+ Add Line" button — below all cards, full width with dashed border and + icon. Adds a new empty card below existing ones.
+On mobile: each card stacks fields vertically. On desktop: fields are in a horizontal row.
+
+PART 3 — ORDER SUMMARY BOX
+Below the item cards, show a live updating summary box:
+┌──────────────────────────────────────────┐
+│  Items: [count]                           │
+│                                           │
+│  Subtotal:                  X,XXX,XXX RWF │
+│                                           │
+│  Discount: [________] [RWF ⇄ %]          │
+│  Discount amount:            -XX,XXX RWF  │
+│                                           │
+│  ─────────────────────────────────────── │
+│  TOTAL:                     X,XXX,XXX RWF │
+│                                           │
+│  Amount Received: [__________] RWF        │
+│  Change Due:                   XXX RWF    │
+└──────────────────────────────────────────┘
+
+Discount field: optional. Admin can toggle between fixed RWF amount and percentage using a small switch button labeled "RWF ⇄ %". Discount cannot exceed subtotal — show error if it does
+Amount Received and Change Due only appear when payment method is Cash
+All values recalculate live whenever any item, quantity, price, or discount changes
+Change Due shown in green if positive, red if negative (meaning amount received is less than total)
+
+
+PART 4 — ACTION BUTTONS
+Remove the current single "Record Sale" button and replace with:
+On desktop: three buttons in a row at the bottom right
+On mobile: stacked vertically, full width
+Buttons:
+
+Cancel (outlined, left) — shows a confirmation popup: "Are you sure you want to cancel? All entered data will be lost." with Cancel and Confirm buttons
+Preview Sale (blue, middle) — opens the Preview modal (see below)
+Confirm & Record Sale (green, right) — disabled and grayed out until Preview has been opened at least once. Shows tooltip: "Please preview the sale first". Resets to disabled if any item, price, or customer is changed after previewing
+
+
+PART 5 — SALE PREVIEW MODAL
+When Preview Sale is clicked, open a clean modal showing a full summary of the sale before it is recorded:
+Header: "Sale Preview — Please Review Before Confirming"
+Content:
+
+Customer: [name] or Walk-in Customer
+Date: [today]
+Items table:
+
+#ItemDescriptionQtyUnit PriceSubtotal
+For serialized items, Description = Color / Storage / IMEI: [number] / Condition
+
+Discount: -[amount] RWF (only if discount applied)
+Payment: [method(s)] — for split payment show both methods and amounts
+Payment Terms: [X days] (only for credit)
+Grand Total: [amount] RWF in large bold
+
+Buttons inside preview:
+
+← Back to Edit — closes preview, returns to form with all data intact
+✅ Confirm & Record Sale — saves the sale (same action as main confirm button)
+
+
+PART 6 — RECEIPT (AUTO-OPENS AFTER SALE IS CONFIRMED)
+Immediately after the sale is confirmed and saved, automatically open a Receipt modal without any extra clicks.
+Receipt document contents:
+Header:
+
+Dopik Electronics logo (top left)
+Shop name, address, phone, email (top right)
+Title: SALES RECEIPT
+Receipt Number: REC-YYYYMMDD-XXXX (auto-generated)
+Date and time of sale
+
+Customer section:
+
+Customer name and phone, or "Walk-in Customer"
+
+Items table:
+#ItemDescriptionQtyUnit PriceTotal
+For serialized items: Description column = Color / Storage / IMEI: [number]
+Payment section:
+
+Payment Method(s) used
+Amount Received (if cash)
+Change Given (if cash)
+Discount applied (if any)
+Grand Total in large bold text
+
+Warranty section (only for serialized items sold):
+For each serialized item, show one line:
+"✅ Warranty: 6 months from purchase date — IMEI: [number]"
+Footer:
+
+"Thank you for shopping at Dopik Electronics — Kigali, Rwanda 🇷🇼"
+"For support or warranty claims, contact us: [shop phone]"
+"Check your warranty anytime at: [site-url]/warranty"
+
+Receipt action buttons (4 buttons):
+
+🖨 Print — triggers browser print showing only the receipt, no sidebar, no navigation, no buttons. Add proper @media print CSS
+⬇ Download PDF — generates and downloads the receipt as a clean PDF file
+💬 Share via WhatsApp — constructs and opens this URL in a new tab:
+wa.me/[customer_phone]?text=[encoded_message]
+
+WhatsApp message content:
+Hello [Customer Name] 👋
+
+Thank you for your purchase at Dopik Electronics! 🎉
+
+📋 Receipt No: [REC-NUMBER]
+📅 Date: [DATE AND TIME]
+
+🛍 Items purchased:
+- [Item 1 name] x[qty] — [price] RWF[if serialized: (IMEI: [number])]
+- [Item 2 name] x[qty] — [price] RWF
+...
+
+💰 Total Paid: [AMOUNT] RWF
+💳 Payment: [METHOD]
+[If discount]: 🏷 Discount applied: -[AMOUNT] RWF
+
+🔧 Warranty:
+[For each serialized item]: [Item name] — 6 months warranty (IMEI: [number])
+
+Check your warranty: [site-url]/warranty
+
+For support contact us: [shop phone]
+
+Thank you for choosing Dopik Electronics! 🙏
+If customer is Walk-in (no phone), disable the WhatsApp button and show tooltip: "No phone number available for walk-in customer"
+
+✕ Close — closes receipt modal and refreshes the sales list
+
+
+PART 7 — SALES HISTORY PAGE IMPROVEMENTS
+On the Sales History page, update the table to show:
+#CustomerItems SummaryTotalPaymentStatusDateActions
+
+Items Summary: e.g. "iPhone 16 ×1, AirPods Pro ×2"
+Payment badge: color-coded — Cash = green, MoMo = blue, Credit = amber, Split = purple, Bank = teal
+Status badge: Completed = green, Credit Pending = amber, Partially Paid = orange
+Actions column: two icon buttons per row:
+
+📄 Receipt — opens the receipt modal for that sale so staff can reprint or reshare at any time
+↩ Return — existing return functionality, keep it
+
+
+
+
+PART 8 — DATABASE & BACKEND UPDATES
+Apply the following database changes and backend logic:
+serialized_units table updates:
+When a sale is confirmed, for each serialized unit sold update its record:
+
+status → 'sold'
+sale_id → the new sale ID
+sold_at → current timestamp
+sold_price → the unit price recorded in the sale
+sold_to_customer_id → the customer ID (null if walk-in)
+
+sales table — add columns if missing:
+
+discount_amount (decimal, default 0)
+discount_type (varchar: 'rwf' or 'percent')
+amount_received (decimal, nullable — only for cash)
+change_given (decimal, nullable — only for cash)
+payment_terms_days (integer, nullable — only for credit)
+split_payment_method_2 (varchar, nullable)
+split_payment_amount_1 (decimal, nullable)
+split_payment_amount_2 (decimal, nullable)
+
+Credit sales — auto-create credit account:
+When payment method is Credit and sale is confirmed, automatically insert a new record into credit_accounts table:
+
+sale_id = new sale ID
+customer_id = selected customer ID
+total_amount = sale grand total
+amount_paid = 0
+balance = sale grand total
+due_date = today + payment_terms_days
+status = 'active'
+
+Select Unit dropdown API:
+Make sure GET /api/products/:id/units returns only units where status = 'in_stock', ordered by condition (Brand New first), includes color, storage, imei_or_serial, condition fields.
+Receipt generation:
+Create or update POST /api/receipts/generate endpoint that accepts a sale ID and returns receipt HTML and/or triggers PDF generation using the existing receipt infrastructure.
+Apply all migrations carefully. Do not drop or modify any existing columns. Do not affect existing sale records, purchase records, or any other existing data.
+
+PART 9 — NAVIGATION CLEANUP
+
+Merge "New Sale" and "Multi-Item Sale" into one unified page. Remove the separate "New Sale" modal if it duplicates functionality — all sales should go through the upgraded Multi-Item Sale page
+Rename the navigation item to simply "New Sale" with a shopping cart icon
+Keep "Sales History" as a separate page
+
+
+Apply all parts in order. Test that existing sales history still loads correctly after changes. Do not break any existing module including Purchases, Receipts, Credit, Staff, Repairs, Customers, or Warranty.
