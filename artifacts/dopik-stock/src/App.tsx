@@ -23,6 +23,7 @@ import PayablesPage from "@/pages/payables";
 import ReceivablesPage from "@/pages/receivables";
 import LoansPage from "@/pages/loans";
 import BalancesPage from "@/pages/balances";
+import ProfilePage from "@/pages/profile";
 import ExpensesPage from "@/pages/expenses";
 import ExpenseAccountsPage from "@/pages/expense-accounts";
 import ReportsPage from "@/pages/reports";
@@ -91,6 +92,7 @@ function AppRoutes() {
         <Route path="/reports/expenses"><ReportsPage defaultTab="expenses" /></Route>
         <Route path="/reports/summary"><ReportsPage defaultTab="summary" /></Route>
         <Route path="/reports"><ReportsPage /></Route>
+        <Route path="/profile" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
       </Switch>

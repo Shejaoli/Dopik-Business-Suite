@@ -1,12 +1,29 @@
 import { Router } from "express";
-import { eq, sql, gte, desc } from "drizzle-orm";
-import { db, itemsTable, stockTable, salesTable, saleItemsTable, purchasesTable, receivablesTable, balancesTable, customersTable, vendorsTable } from "@workspace/db";
+import { eq, sql, gte, lte, and, desc } from "drizzle-orm";
+import { db, itemsTable, stockTable, salesTable, saleItemsTable, purchasesTable, receivablesTable, balancesTable, customersTable, vendorsTable, expensesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
 router.use(requireAuth);
 
 router.get("/dashboard", async (req, res): Promise<void> => {
+  const period = (req.query.period as string) ?? "month";
+
+  // Period bounds
+  const now = new Date();
+  let periodStart: Date;
+  let periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  if (period === "today") {
+    periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  } else if (period === "year") {
+    periodStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    periodEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+  } else {
+    // month (default)
+    periodStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  }
+
   // Total items
   const [itemCount] = await db.select({ count: sql<number>`count(*)` }).from(itemsTable);
 
@@ -17,11 +34,11 @@ router.get("/dashboard", async (req, res): Promise<void> => {
     .innerJoin(itemsTable, eq(stockTable.itemId, itemsTable.id));
   const totalStockValue = stockRows.reduce((sum, r) => sum + parseFloat(r.quantity) * parseFloat(r.purchasePrice), 0);
 
-  // Today's sales
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todaySalesRows = await db.select({ total: salesTable.totalAmount }).from(salesTable).where(gte(salesTable.createdAt, today));
-  const todaySales = todaySalesRows.reduce((sum, r) => sum + parseFloat(r.total), 0);
+  // Today's sales (always today regardless of period)
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const todaySalesRows = await db.select({ total: salesTable.totalAmount, reverted: salesTable.reverted })
+    .from(salesTable).where(gte(salesTable.createdAt, todayStart));
+  const todaySales = todaySalesRows.filter(r => !r.reverted).reduce((sum, r) => sum + parseFloat(r.total), 0);
 
   // Outstanding receivables
   const recRows = await db.select({ total: receivablesTable.totalAmount, paid: receivablesTable.paidAmount })
@@ -40,6 +57,34 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   const outOfStockCount = stockAll.filter(s => parseFloat(s.quantity) === 0).length;
   const lowStockCount = stockAll.filter(s => parseFloat(s.quantity) > 0 && parseFloat(s.quantity) <= parseFloat(s.minStock)).length;
 
+  // ── Profit for period ──────────────────────────────
+  // Revenue: sum of non-reverted sales in period
+  const salesInPeriod = await db.select({ total: salesTable.totalAmount, reverted: salesTable.reverted })
+    .from(salesTable)
+    .where(and(gte(salesTable.createdAt, periodStart), lte(salesTable.createdAt, periodEnd)));
+  const revenue = salesInPeriod.filter(s => !s.reverted).reduce((sum, s) => sum + parseFloat(s.total), 0);
+
+  // COGS: sum of (quantity × purchase_price) for sale items in period
+  const cogsRows = await db
+    .select({ quantity: saleItemsTable.quantity, purchasePrice: itemsTable.purchasePrice, reverted: salesTable.reverted })
+    .from(saleItemsTable)
+    .innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
+    .leftJoin(itemsTable, eq(saleItemsTable.itemId, itemsTable.id))
+    .where(and(gte(salesTable.createdAt, periodStart), lte(salesTable.createdAt, periodEnd)));
+  const cogs = cogsRows
+    .filter(r => !r.reverted)
+    .reduce((sum, r) => sum + parseFloat(r.quantity) * parseFloat(r.purchasePrice ?? "0"), 0);
+
+  const grossProfit = revenue - cogs;
+
+  // Total expenses in period
+  const expRows = await db.select({ amount: expensesTable.amount })
+    .from(expensesTable)
+    .where(and(gte(expensesTable.createdAt, periodStart), lte(expensesTable.createdAt, periodEnd)));
+  const totalExpenses = expRows.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+
+  const netProfit = grossProfit - totalExpenses;
+
   // Recent sales (last 10)
   const recentSales = await db
     .select({
@@ -57,7 +102,6 @@ router.get("/dashboard", async (req, res): Promise<void> => {
     .orderBy(desc(salesTable.createdAt))
     .limit(10);
 
-  // Fetch items for recent sales
   const recentSalesWithItems = await Promise.all(recentSales.map(async sale => {
     const items = await db
       .select({
@@ -107,6 +151,12 @@ router.get("/dashboard", async (req, res): Promise<void> => {
     mobileMoney: mobileBal,
     outOfStockCount,
     lowStockCount,
+    // Profit summary
+    revenue: String(revenue.toFixed(2)),
+    grossProfit: String(grossProfit.toFixed(2)),
+    totalExpenses: String(totalExpenses.toFixed(2)),
+    netProfit: String(netProfit.toFixed(2)),
+    period,
     recentSales: recentSalesWithItems,
     recentPurchases: recentPurchases.map(p => ({ ...p, vendorName: p.vendorName ?? null, itemName: p.itemName ?? null })),
   });

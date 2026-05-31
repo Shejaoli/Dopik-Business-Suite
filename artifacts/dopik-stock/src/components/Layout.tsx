@@ -207,12 +207,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 relative">
               <Bell className="h-4 w-4" />
             </button>
-            <div className="hidden sm:flex items-center gap-2">
+            <Link href="/profile" className="hidden sm:flex items-center gap-2 hover:opacity-80 transition">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1A6DB5] to-[#F5A800] flex items-center justify-center">
                 <span className="text-white text-xs font-bold">{(user?.name || "A")[0].toUpperCase()}</span>
               </div>
               <span className="text-sm font-medium text-gray-700">{user?.name}</span>
-            </div>
+            </Link>
           </div>
         </header>
 

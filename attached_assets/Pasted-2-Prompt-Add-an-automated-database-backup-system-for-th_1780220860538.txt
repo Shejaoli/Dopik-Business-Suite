@@ -1,0 +1,33 @@
+2. Prompt:
+Add an automated database backup system for the Dopik Electronics store. The backup should run on the server side and support uploading to either Google Drive or Microsoft OneDrive as the cloud destination.
+Requirements:
+1. Backup Job (Server-side)
+Create a scheduled backup job (using node-cron or similar) that runs automatically — daily at a configurable time (e.g. 2:00 AM)
+The job should dump the full PostgreSQL database using pg_dump and save it as a compressed .sql.gz file
+Name each backup file with a timestamp, e.g. backup_2026-05-31_02-00.sql.gz
+Store the last N backups locally (configurable, default 7) before uploading, then delete old local copies
+2. Cloud Upload
+Support two upload destinations, selectable via an environment variable BACKUP_DESTINATION=googledrive or BACKUP_DESTINATION=onedrive
+Google Drive: Use the Google Drive API (via googleapis npm package) with a service account or OAuth2 credentials. Upload to a dedicated folder named DopikBackups
+OneDrive: Use the Microsoft Graph API (via @microsoft/microsoft-graph-client) with app credentials. Upload to a folder named DopikBackups in the authenticated user's OneDrive
+3. Environment Variables to add to .env
+    BACKUP_DESTINATION=googledrive
+BACKUP_CRON_SCHEDULE=0 2 * * *
+BACKUP_RETENTION_DAYS=7
+
+# Google Drive
+GOOGLE_SERVICE_ACCOUNT_JSON=
+
+# OneDrive
+ONEDRIVE_CLIENT_ID=
+ONEDRIVE_CLIENT_SECRET=
+ONEDRIVE_TENANT_ID=
+
+4. Admin UI (Settings page)
+Add a "Backup & Storage" section in the admin settings panel
+Show: last backup date/time, backup destination (Google Drive / OneDrive), and a "Run Backup Now" button that triggers a manual backup immediately via a POST endpoint /api/admin/backup/run
+Show a status indicator: success ✅ or failed ❌ with the last error message if any
+5. API Endpoints
+POST /api/admin/backup/run — trigger manual backup
+GET /api/admin/backup/status — return last backup time, destination, and status
+Keep all backup logic in a dedicated file server/backup.ts. Register the cron job in the main server entry point.

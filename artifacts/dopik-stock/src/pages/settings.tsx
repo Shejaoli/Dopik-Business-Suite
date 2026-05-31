@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine } from "lucide-react";
+import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive } from "lucide-react";
 import { useGetBalances } from "@workspace/api-client-react";
 
 const BALANCE_METHODS = [
@@ -126,6 +126,27 @@ export default function SettingsPage() {
     }
   };
 
+  const [backupStatus, setBackupStatus] = useState<any>(null);
+  const [runningBackup, setRunningBackup] = useState(false);
+
+  const fetchBackupStatus = async () => {
+    try {
+      const s = await api.get<any>("/admin/backup/status");
+      setBackupStatus(s);
+    } catch { /* non-admin or not available */ }
+  };
+
+  const handleRunBackup = async () => {
+    setRunningBackup(true);
+    try {
+      const result = await api.post<any>("/admin/backup/run");
+      toast({ title: result.success ? "Backup completed" : "Backup failed", description: result.file ?? result.error, variant: result.success ? "default" : "destructive" });
+      await fetchBackupStatus();
+    } catch (e: any) {
+      toast({ title: "Backup failed", description: e.message, variant: "destructive" });
+    } finally { setRunningBackup(false); }
+  };
+
   const isAdmin = user?.role === "admin";
 
   return (
@@ -135,12 +156,13 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">Manage your account, preferences and data</p>
       </div>
 
-      <Tabs defaultValue="profile">
-        <TabsList className="mb-2">
+      <Tabs defaultValue="profile" onValueChange={v => { if (v === "backup-cloud" && isAdmin) fetchBackupStatus(); }}>
+        <TabsList className="mb-2 flex-wrap h-auto">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           {isAdmin && <TabsTrigger value="balances">Balances</TabsTrigger>}
           <TabsTrigger value="backup">Backup</TabsTrigger>
+          {isAdmin && <TabsTrigger value="backup-cloud">Cloud Backup</TabsTrigger>}
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
 
@@ -335,6 +357,96 @@ export default function SettingsPage() {
             </div>
           </div>
         </TabsContent>
+
+        {/* ── Cloud Backup (Admin only) ────── */}
+        {isAdmin && (
+          <TabsContent value="backup-cloud" className="mt-4 space-y-4">
+            {/* Status card */}
+            <div className="glass-panel p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-8 h-8 rounded-lg bg-[#1A6DB5]/10 flex items-center justify-center">
+                  <CloudUpload className="h-4 w-4 text-[#1A6DB5]" />
+                </div>
+                <div>
+                  <h2 className="font-semibold font-sora">Backup &amp; Storage</h2>
+                  <p className="text-xs text-muted-foreground">Automated pg_dump backups, uploaded to Google Drive or OneDrive</p>
+                </div>
+              </div>
+
+              {backupStatus ? (
+                <div className="space-y-3 mb-5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase">Last Backup</span>
+                      </div>
+                      <p className="text-sm font-medium">
+                        {backupStatus.lastBackupAt ? new Date(backupStatus.lastBackupAt).toLocaleString() : "Never"}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase">Destination</span>
+                      </div>
+                      <p className="text-sm font-medium capitalize">{backupStatus.destination?.replace("_", " ") || "Local"}</p>
+                    </div>
+                  </div>
+                  <div className={`p-3 rounded-xl border flex items-center gap-2 text-sm ${backupStatus.lastStatus === "success" ? "bg-green-50 border-green-200 text-green-700" : backupStatus.lastStatus === "failed" ? "bg-red-50 border-red-200 text-red-700" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
+                    {backupStatus.lastStatus === "success" ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> : backupStatus.lastStatus === "failed" ? <AlertTriangle className="h-4 w-4 flex-shrink-0" /> : <Clock className="h-4 w-4 flex-shrink-0" />}
+                    {backupStatus.lastStatus === "success"
+                      ? `Last backup succeeded — ${backupStatus.lastBackupFile ?? ""}`
+                      : backupStatus.lastStatus === "failed"
+                      ? `Last backup failed: ${backupStatus.lastError ?? "Unknown error"}`
+                      : "No backup has run yet"}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 mb-5">
+                  Click "Check Status" or "Run Backup Now" to see current backup status.
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleRunBackup}
+                  disabled={runningBackup}
+                  className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90"
+                >
+                  {runningBackup
+                    ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Running Backup...</>
+                    : <><CloudUpload className="h-4 w-4 mr-2" />Run Backup Now</>}
+                </Button>
+                <Button variant="outline" onClick={fetchBackupStatus}>
+                  Check Status
+                </Button>
+              </div>
+            </div>
+
+            {/* Configuration reference */}
+            <div className="glass-panel p-5 space-y-3">
+              <h3 className="font-semibold text-sm font-sora">Configuration (Environment Variables)</h3>
+              <div className="space-y-2 text-xs text-muted-foreground">
+                {[
+                  { key: "BACKUP_DESTINATION", desc: 'googledrive, onedrive, or local (default: local)' },
+                  { key: "BACKUP_CRON_SCHEDULE", desc: 'Cron expression (default: 0 2 * * * — daily at 2 AM)' },
+                  { key: "BACKUP_RETENTION_DAYS", desc: 'Number of local backups to keep (default: 7)' },
+                  { key: "GOOGLE_SERVICE_ACCOUNT_JSON", desc: 'Service account JSON for Google Drive upload' },
+                  { key: "ONEDRIVE_CLIENT_ID", desc: 'Azure app client ID for OneDrive' },
+                  { key: "ONEDRIVE_CLIENT_SECRET", desc: 'Azure app client secret for OneDrive' },
+                  { key: "ONEDRIVE_TENANT_ID", desc: 'Azure tenant ID for OneDrive' },
+                ].map(({ key, desc }) => (
+                  <div key={key} className="flex gap-2">
+                    <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[11px] font-mono text-gray-700 flex-shrink-0">{key}</code>
+                    <span>{desc}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground pt-1">Set these in your Replit environment secrets. Backups are stored in <code className="bg-gray-100 px-1 rounded">/tmp/dopik-backups/</code> locally before cloud upload.</p>
+            </div>
+          </TabsContent>
+        )}
 
         {/* ── System ──────────────────────── */}
         <TabsContent value="system" className="mt-4">

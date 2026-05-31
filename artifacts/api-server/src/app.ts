@@ -5,6 +5,8 @@ import session from "express-session";
 import { PgSessionStore } from "./lib/session-store";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import cron from "node-cron";
+import { runBackup } from "./lib/pg-backup";
 
 const app: Express = express();
 
@@ -48,5 +50,17 @@ app.use(session({
 }));
 
 app.use("/api", router);
+
+// Scheduled backup cron job
+const cronSchedule = process.env.BACKUP_CRON_SCHEDULE || "0 2 * * *";
+cron.schedule(cronSchedule, async () => {
+  logger.info("Running scheduled database backup...");
+  const result = await runBackup();
+  if (result.success) {
+    logger.info({ file: result.file }, "Scheduled backup completed");
+  } else {
+    logger.error({ error: result.error }, "Scheduled backup failed");
+  }
+});
 
 export default app;
