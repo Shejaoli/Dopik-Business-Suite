@@ -1,0 +1,298 @@
+Prompt:
+Implement the following 8 major feature modules into the Dopik Electronics management system. Build them in order. Each module must be fully functional, connected to the existing database, consistent with the current theme, and responsive on both desktop and mobile.
+
+MODULE 1 — SALES RECEIPTS WITH WHATSAPP SHARING
+Receipt Generation
+After every completed sale, automatically generate a professional PDF receipt containing:
+
+Dopik Electronics logo, name, address, and contact info at the top
+Receipt number (format: REC-YYYYMMDD-XXXX)
+Date and time of sale
+Customer name and phone number
+Table of items sold with columns: #, Item, Description (color/storage/IMEI if serialized), Quantity, Unit Price, Total
+Payment method used
+Amount paid and change given (if cash)
+Grand Total in large bold text
+Warranty period per serialized item (e.g. "Warranty: 6 months from date of purchase")
+Footer: "Thank you for shopping at Dopik Electronics — Kigali, Rwanda"
+Small print at the bottom: "Keep this receipt as proof of purchase and warranty"
+
+Receipt Actions
+After a sale is confirmed, show a modal with three buttons:
+
+Download PDF — downloads the receipt as a PDF file
+Share via WhatsApp — opens WhatsApp with a pre-filled message:
+"Hello [Customer Name], thank you for your purchase at Dopik Electronics! 🎉 Please find your receipt below. Receipt No: [REC-NUMBER] | Date: [DATE] | Items: [ITEM LIST] | Total: [AMOUNT] RWF | Payment: [METHOD]. For warranty or support, contact us anytime."
+Opens as a wa.me/[customer_phone]?text=[encoded_message] link in a new tab
+Print — triggers browser print of the receipt only
+
+Receipt History
+Add a "Receipts" section inside each sale record where the admin can re-download or re-share any past receipt at any time.
+
+MODULE 2 — CUSTOMER MANAGEMENT (CRM)
+Customer Database Page
+Add a "Customers" page to the admin navigation with a customer icon. It shows a searchable, filterable table of all customers with columns: Name, Phone, Email, Total Purchases, Total Spent (RWF), Credit Balance, Last Purchase Date, Actions.
+Customer Profile Page
+Clicking a customer opens their full profile page containing:
+
+Header: Avatar with initials, full name, phone, email, location, date added
+Stats row: Total orders, Total spent, Average order value, Credit balance
+Purchase History tab: Full list of every sale made to this customer — date, items, amount, payment method, receipt link
+Credit & Payments tab: All credit transactions, payment records, outstanding balance
+Warranty tab: All active warranties for serialized items this customer purchased — item, IMEI, purchase date, warranty expiry, status (Active / Expired / Claimed)
+Notes tab: Admin can add private notes about the customer
+
+Add / Edit Customer
+
+When creating a sale, if the customer doesn't exist, allow creating them inline without leaving the sale form
+Full customer edit form: name, phone, email, location, date of birth (optional)
+Auto-generate customer initials avatar from name
+
+Customer Search
+Global search across name, phone number, and email. Typing a phone number in the sale form should auto-suggest matching customers.
+Loyalty Points (Optional toggle)
+Admin can enable loyalty points in Settings. Every 1,000 RWF spent = 1 point. Points can be redeemed as discount on future purchases. Show point balance on customer profile.
+
+MODULE 3 — WARRANTY CHECK PUBLIC PAGE
+Public Page
+Create a public-facing page at the route /warranty that does not require admin login. It has:
+
+Dopik Electronics logo and name at the top
+Title: "Check Your Warranty"
+A single input field: "Enter your IMEI or Serial Number"
+A "Check Warranty" button
+Below: result card showing:
+
+✅ Active (green) or ❌ Expired (red) or ⚠️ Not Found (amber)
+Product name and description (color, storage)
+Date of purchase
+Warranty period
+Warranty expiry date
+Days remaining (if active) or days since expiry (if expired)
+Store contact info at the bottom
+
+
+
+Backend
+
+GET /api/public/warranty/:imei — looks up the serialized unit by IMEI or serial number, returns warranty info if found
+No authentication required on this endpoint
+Rate limit this endpoint to 20 requests per IP per hour to prevent abuse
+
+Link from Receipt
+On every printed/PDF receipt, add a line: "Check your warranty anytime at: [store-url]/warranty"
+
+MODULE 4 — REPAIR / SERVICE TRACKING MODULE
+Repair Jobs Page
+Add a "Repairs" page to admin navigation with a wrench icon. Shows a Kanban-style board with columns:
+| Received | Diagnosing | Repairing | Ready | Collected |
+Each repair job is a card showing: customer name, device, problem summary, days in shop, and urgency color (green = fresh, amber = 3+ days, red = 7+ days).
+Log New Repair
+A "New Repair" button opens a form:
+
+Customer (select existing or create new)
+Device type (Phone / Laptop / Tablet / Other)
+Brand and Model
+IMEI or Serial Number (optional)
+Problem description (textarea)
+Estimated cost (RWF)
+Deposit paid (RWF)
+Technician assigned (select from staff)
+Priority: Normal / Urgent
+Received date (auto-filled with today)
+
+Repair Detail Page
+Clicking a repair card opens the full repair record:
+
+All intake info
+Status Timeline: shows progress through each stage with timestamps
+Parts Used: admin can log parts used with cost — automatically added to repair cost
+Labor Cost: editable field
+Total Repair Cost: auto-calculated (parts + labor)
+Status Update buttons: move to next stage
+WhatsApp Notify button: sends customer a WhatsApp message like: "Hello [Name], your [Device] is ready for collection at Dopik Electronics! Total cost: [AMOUNT] RWF. Please bring your deposit receipt. Contact us: [phone]"
+
+Repair Invoice
+When status moves to "Ready", generate a repair invoice PDF showing:
+
+Customer info
+Device info and IMEI
+Problem reported
+Work done (description field)
+Parts used with costs
+Labor cost
+Deposit paid
+Balance due
+Warranty on repair (e.g. 30 days on parts replaced)
+
+Database tables needed:
+
+repair_jobs: id, customer_id, device_type, brand, model, imei, problem, status, technician_id, priority, received_date, estimated_cost, deposit_paid, notes
+repair_parts: id, repair_id, part_name, part_cost, quantity
+repair_status_history: id, repair_id, status, changed_at, changed_by
+
+
+MODULE 5 — STAFF PERMISSIONS & ACTIVITY LOG
+Staff Management Page
+Add a "Staff" page under Settings or as a top-level admin page. Shows all staff accounts with: name, role, email, last login, status (Active/Inactive).
+Roles & Permissions
+Four roles with the following access:
+FeatureOwnerManagerCashierStock ManagerView dashboard & charts✅✅✅✅Create sales✅✅✅❌View purchase costs & profit✅✅❌✅Create purchases✅✅❌✅Manage stock & products✅✅❌✅View customers✅✅✅❌Manage repairs✅✅❌❌View reports & analytics✅✅❌❌Manage staff accounts✅❌❌❌Access settings✅❌❌❌Delete any record✅❌❌❌Export data✅✅❌❌
+
+Hide navigation items the current user has no access to
+If a user tries to access a restricted URL directly, redirect to a "Access Denied" page
+Cashiers cannot see purchase cost prices or profit margins anywhere in the UI
+
+Activity Log
+Every action in the system is logged automatically:
+
+Who did it (staff name + role)
+What they did (e.g. "Created sale #45", "Deleted product iPhone 14", "Changed repair #12 status to Ready")
+When (timestamp)
+IP address
+
+Add an "Activity Log" tab in Settings visible to Owner only. Shows a searchable, filterable log table. Can filter by staff member, action type, and date range.
+Add New Staff
+Form to create a new staff account: full name, email, phone, role, temporary password. System sends a WhatsApp message to the new staff member with their login credentials.
+
+MODULE 6 — CREDIT & INSTALLMENT TRACKING
+Credit Sales Enhancement
+When a sale is marked as "Credit" or partial payment:
+
+Record the total amount, amount paid upfront, and balance remaining
+Set a due date for full payment
+Allow setting an installment plan: number of installments, amount per installment, frequency (weekly/monthly)
+
+Credit Dashboard Card
+On the main dashboard, show a credit summary card:
+
+Total outstanding credit (RWF)
+Number of customers with active credit
+Overdue credit (past due date) highlighted in red
+
+Credit Management Page
+Add a "Credit" tab or page showing:
+
+All active credit accounts sorted by due date (most overdue first)
+Each row: customer name, phone, original amount, paid so far, balance, due date, days overdue, actions
+Color coding: green (not due yet), amber (due within 7 days), red (overdue)
+Record Payment button per customer — opens a modal to record a payment amount and method, updates balance automatically
+Send Reminder button — opens WhatsApp with pre-filled message: "Hello [Name], this is a friendly reminder that your payment of [AMOUNT] RWF is due on [DATE] at Dopik Electronics. Please contact us if you need assistance."
+
+Installment Schedule
+Each credit customer has a payment schedule view showing all installments, which are paid, which are pending, and which are overdue.
+Database tables needed:
+
+credit_accounts: id, sale_id, customer_id, total_amount, amount_paid, balance, due_date, status (active/paid/overdue)
+credit_payments: id, credit_account_id, amount, payment_method, paid_at, recorded_by
+installment_plans: id, credit_account_id, installment_number, amount, due_date, paid_at, status
+
+
+MODULE 7 — PWA (INSTALLABLE ON PHONE)
+Convert the entire admin panel into a Progressive Web App so staff can install it on their phone or desktop like a native app.
+Required files and configuration:
+Web App Manifest (/public/manifest.json)
+json{
+  "name": "Dopik Electronics",
+  "short_name": "Dopik",
+  "description": "Dopik Electronics Store Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1A6DB5",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
+Service Worker (/public/sw.js)
+
+Cache all static assets (JS, CSS, images, fonts) on install
+Serve cached assets when offline
+For API requests: use network-first strategy — try network, fall back to cached response if offline
+Show a custom offline page if the user is offline and tries to access an uncached route
+
+Offline Page
+A simple styled page showing the Dopik logo and: "You are currently offline. Some features may not be available. Please check your internet connection."
+Install Prompt
+
+Detect when the browser fires the beforeinstallprompt event
+Show a subtle banner at the top of the screen: "Install Dopik Electronics app for faster access" with an Install button and a dismiss (×) button
+If dismissed, don't show again for 7 days (store in localStorage)
+
+Push Notifications (basic)
+
+Request notification permission on first login
+Send a push notification when:
+
+A new sale is created (notify owner)
+A repair job is marked "Ready" (notify customer via WhatsApp — already covered in Module 4 — and notify the assigned technician via push)
+Stock drops to low stock level
+
+
+Use the Web Push API with VAPID keys stored in environment variables:
+
+  VAPID_PUBLIC_KEY=
+  VAPID_PRIVATE_KEY=
+Link manifest and service worker in the main HTML file:
+html<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1A6DB5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+Generate placeholder 192×192 and 512×512 PNG icons using the Dopik Electronics logo colors (#1A6DB5 blue with a "D" lettermark) if no icon files already exist.
+
+MODULE 8 — MULTI-TENANT SAAS STRUCTURE
+Convert the application into a multi-tenant platform where multiple independent shops can each have their own isolated instance.
+Tenant Model
+Each tenant (shop) has:
+
+A unique subdomain: shopname.dopik-pos.rw (or use path-based: /shop/shopname/ for Replit)
+Their own isolated data — no tenant can see another tenant's data
+Their own admin users, products, customers, sales, purchases, repairs
+Their own logo, shop name, and branding colors (configurable in their settings)
+
+Database Architecture
+Add a tenants table:
+id, name, subdomain, logo_url, primary_color, address, phone, email, plan (basic/standard/premium), status (active/suspended/trial), created_at, trial_ends_at
+Add a tenant_id column to ALL existing tables: products, sales, purchases, customers, staff, repairs, credit_accounts, serialized_units, vendors, etc.
+All database queries throughout the entire application must be filtered by the current tenant_id. No query should ever return data from a different tenant.
+Super Admin Panel
+Create a separate super admin panel at /superadmin (protected by a separate super admin login, credentials stored in environment variables):
+
+List of all tenants with their plan, status, user count, and last activity
+Create New Tenant — form: shop name, subdomain, owner email, owner name, plan, trial period
+Suspend / Activate tenant toggle
+View tenant stats: total sales, total products, storage used
+Impersonate — super admin can log into any tenant's account for support purposes (logged in activity log)
+
+Tenant Onboarding
+When a new tenant is created:
+
+Auto-create their first admin user account
+Send a WhatsApp message to the owner with their login link and temporary password
+Pre-seed their account with default product categories (Phones, Computers, Accessories)
+Show a setup checklist on first login: Add your logo ✅ Add your first product ✅ Add your first staff member ✅
+
+Plan Limits
+Enforce feature limits per plan:
+FeatureBasicStandardPremiumStaff accounts13UnlimitedProducts100500UnlimitedMonthly sales records2001000UnlimitedWhatsApp sharing❌✅✅Repairs module❌✅✅Analytics & ChartsBasicFullFullMulti-branch❌❌✅Priority support❌❌✅
+Show an upgrade prompt when a tenant hits their plan limit.
+Tenant Settings Page
+Each tenant admin can customize their instance from Settings:
+
+Shop name, logo upload, address, phone, email
+Primary brand color (color picker)
+Currency (default: RWF)
+Warranty period default (e.g. 6 months)
+Low stock threshold
+Monthly sales target
+Backup destination (Google Drive / OneDrive)
+
+Environment Variables to add:
+SUPER_ADMIN_EMAIL=
+SUPER_ADMIN_PASSWORD=
+DEFAULT_TRIAL_DAYS=14
+Apply all tenant isolation carefully — existing data (Moustapha's shop) becomes tenant #1 automatically. All existing records get tenant_id = 1. No existing functionality should break.
+
+Apply all 8 modules in order. Each module must be fully wired to the database, fully functional on both desktop and mobile, and consistent with the existing app theme and navigation structure. Do not break any existing features.
