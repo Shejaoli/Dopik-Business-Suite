@@ -2,6 +2,7 @@ import { pgTable, serial, integer, varchar, numeric, timestamp, text } from "dri
 import { itemsTable } from "./items";
 import { vendorsTable } from "./vendors";
 import { purchasesTable } from "./purchases";
+import { customersTable } from "./customers";
 
 export const serializedUnitsTable = pgTable("serialized_units", {
   id: serial("id").primaryKey(),
@@ -17,6 +18,10 @@ export const serializedUnitsTable = pgTable("serialized_units", {
   status: varchar("status", { length: 30 }).default("in_stock"),
   notes: text("notes"),
   dateReceived: timestamp("date_received", { withTimezone: true }).defaultNow(),
+  saleId: integer("sale_id"),
+  soldAt: timestamp("sold_at", { withTimezone: true }),
+  soldPrice: numeric("sold_price", { precision: 12, scale: 2 }),
+  soldToCustomerId: integer("sold_to_customer_id").references(() => customersTable.id),
 });
 
 export type SerializedUnit = typeof serializedUnitsTable.$inferSelect;

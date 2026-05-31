@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, salesTable, saleItemsTable, itemsTable, customersTable, serialNumbersTable } from "@workspace/db";
+import { db, salesTable, saleItemsTable, itemsTable, customersTable, serialNumbersTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -21,6 +21,14 @@ async function buildReceipt(saleId: number) {
       customerPhone: customersTable.phone,
       paymentMethod: salesTable.paymentMethod,
       totalAmount: salesTable.totalAmount,
+      discountAmount: salesTable.discountAmount,
+      discountType: salesTable.discountType,
+      amountReceived: salesTable.amountReceived,
+      changeGiven: salesTable.changeGiven,
+      paymentTermsDays: salesTable.paymentTermsDays,
+      splitPaymentMethod2: salesTable.splitPaymentMethod2,
+      splitPaymentAmount1: salesTable.splitPaymentAmount1,
+      splitPaymentAmount2: salesTable.splitPaymentAmount2,
       createdAt: salesTable.createdAt,
       reverted: salesTable.reverted,
     })
@@ -39,6 +47,7 @@ async function buildReceipt(saleId: number) {
       quantity: saleItemsTable.quantity,
       unitPrice: saleItemsTable.unitPrice,
       lineTotal: saleItemsTable.lineTotal,
+      serializedUnitId: saleItemsTable.serializedUnitId,
     })
     .from(saleItemsTable)
     .leftJoin(itemsTable, eq(saleItemsTable.itemId, itemsTable.id))
@@ -53,6 +62,24 @@ async function buildReceipt(saleId: number) {
     serialsByItem[item.itemId!] = serials.map((s) => s.serialNumber);
   }
 
+  const enrichedItems = await Promise.all(items.map(async (it) => {
+    let serializedUnit: { imeiOrSerial: string | null; color: string | null; storage: string | null; condition: string | null } | null = null;
+    if (it.serializedUnitId) {
+      const [unit] = await db.select({
+        imeiOrSerial: serializedUnitsTable.imeiOrSerial,
+        color: serializedUnitsTable.color,
+        storage: serializedUnitsTable.storage,
+        condition: serializedUnitsTable.condition,
+      }).from(serializedUnitsTable).where(eq(serializedUnitsTable.id, it.serializedUnitId));
+      if (unit) serializedUnit = unit;
+    }
+    return {
+      ...it,
+      serialNumbers: serialsByItem[it.itemId!] || [],
+      serializedUnit,
+    };
+  }));
+
   const receiptNumber = generateReceiptNumber(sale.id, new Date(sale.createdAt!));
 
   return {
@@ -63,12 +90,17 @@ async function buildReceipt(saleId: number) {
       customerPhone: sale.customerPhone || null,
       paymentMethod: sale.paymentMethod,
       totalAmount: sale.totalAmount,
+      discountAmount: sale.discountAmount || "0",
+      discountType: sale.discountType || null,
+      amountReceived: sale.amountReceived || null,
+      changeGiven: sale.changeGiven || null,
+      paymentTermsDays: sale.paymentTermsDays || null,
+      splitPaymentMethod2: sale.splitPaymentMethod2 || null,
+      splitPaymentAmount1: sale.splitPaymentAmount1 || null,
+      splitPaymentAmount2: sale.splitPaymentAmount2 || null,
       createdAt: sale.createdAt,
     },
-    items: items.map((it) => ({
-      ...it,
-      serialNumbers: serialsByItem[it.itemId!] || [],
-    })),
+    items: enrichedItems,
     store: {
       name: "Dopik Electronics",
       address: "Kigali, Rwanda",

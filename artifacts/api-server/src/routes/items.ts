@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, ilike, sql, desc } from "drizzle-orm";
-import { db, itemsTable, stockTable, purchasesTable, saleItemsTable, stockAdjustmentsTable, vendorsTable, customersTable, salesTable } from "@workspace/db";
+import { eq, ilike, sql, desc, and, asc } from "drizzle-orm";
+import { db, itemsTable, stockTable, purchasesTable, saleItemsTable, stockAdjustmentsTable, vendorsTable, customersTable, salesTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -138,6 +138,17 @@ router.get("/items/:id/history", async (req, res): Promise<void> => {
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   res.json(history);
+});
+
+router.get("/items/:id/units", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const units = await db
+    .select()
+    .from(serializedUnitsTable)
+    .where(and(eq(serializedUnitsTable.itemId, id), eq(serializedUnitsTable.status, "in_stock")))
+    .orderBy(asc(serializedUnitsTable.condition));
+  res.json(units);
 });
 
 export default router;

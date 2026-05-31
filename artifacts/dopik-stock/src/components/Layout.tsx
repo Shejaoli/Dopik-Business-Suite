@@ -3,12 +3,12 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
 import {
   Package, History, Archive, SlidersHorizontal, RotateCcw, AlertTriangle,
-  ShoppingCart, ShoppingBag, Tag, PackagePlus, Scale,
+  ShoppingCart, ShoppingBag, Scale,
   Building2, Users, CreditCard, Wallet, HandCoins,
   Receipt, BookOpen,
   BarChart2,
   LayoutDashboard, Settings, LogOut, Menu, X, Bell,
-  UserCog, FileText, Landmark, Wrench, Shield
+  UserCog, FileText, Landmark, Wrench
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -44,8 +44,7 @@ const navSections: NavSection[] = [
     items: [
       { href: "/purchases", label: "New Purchase", icon: ShoppingCart, minRole: ["owner", "manager", "admin"] },
       { href: "/purchase-history", label: "Purchase History", icon: ShoppingBag, minRole: ["owner", "manager", "admin", "stock_manager"] },
-      { href: "/sales", label: "New Sale", icon: Tag },
-      { href: "/multi-sale", label: "Multi-Item Sale", icon: PackagePlus },
+      { href: "/multi-sale", label: "New Sale", icon: ShoppingCart },
       { href: "/sales-history", label: "Sales History", icon: Scale },
     ],
   },
