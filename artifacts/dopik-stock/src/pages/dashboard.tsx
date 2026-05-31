@@ -1,16 +1,21 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { api, fmtRWF, fmtDateTime } from "@/lib/api";
+import { api, fmtRWF, fmtDateTime, paymentBadgeColor } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Package, TrendingUp, Wallet, AlertTriangle,
   Banknote, Landmark, Smartphone, ShoppingCart,
   Tag, ShoppingBag, Receipt, LayoutList,
-  Users, BarChart2, HeadphonesIcon, MoreHorizontal, ChevronDown
+  Users, BarChart2, HeadphonesIcon, MoreHorizontal, ChevronDown,
+  ChevronLeft, ChevronRight, Target, CreditCard,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  LineChart, Line, BarChart, Bar, AreaChart, Area,
+  PieChart, Pie, Cell, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, Legend
+} from "recharts";
 import { cn } from "@/lib/utils";
 
 const PERIODS = [
@@ -19,10 +24,26 @@ const PERIODS = [
   { key: "year", label: "THIS YEAR" },
 ];
 
+const CHART_PERIODS = [
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "year", label: "Year" },
+];
+
+const COLORS = ["#1A6DB5", "#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
+
 function useDashboard(period: string) {
   return useQuery({
     queryKey: ["dashboard", period],
     queryFn: () => api.get<any>(`/dashboard?period=${period}`),
+  });
+}
+
+function useAnalytics<T = any>(endpoint: string, params?: Record<string, string>) {
+  const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+  return useQuery<T>({
+    queryKey: ["analytics", endpoint, params],
+    queryFn: () => api.get<T>(`/analytics/${endpoint}${qs}`),
   });
 }
 
@@ -31,45 +52,30 @@ function ProfitGauge({ netProfit, grossProfit, totalExpenses, isLoading, period,
   netProfit: number; grossProfit: number; totalExpenses: number;
   isLoading: boolean; period: string; onPeriodChange: (p: string) => void;
 }) {
-  const W = 260;
-  const H = 155;
-  const cx = W / 2;
-  const cy = 140;
-  const R = 100;
-  const strokeW = 14;
+  const W = 260; const H = 155; const cx = W / 2; const cy = 140; const R = 100; const strokeW = 14;
 
-  // Arc path helper (counter-clockwise for bottom-out semicircle)
   const polarToXY = (angleDeg: number) => {
     const rad = (angleDeg - 180) * (Math.PI / 180);
     return { x: cx + R * Math.cos(rad), y: cy + R * Math.sin(rad) };
   };
 
-  const start = polarToXY(0);    // left end
-  const end = polarToXY(180);    // right end
-
+  const start = polarToXY(0);
+  const end = polarToXY(180);
   const trackPath = `M ${start.x} ${start.y} A ${R} ${R} 0 0 1 ${end.x} ${end.y}`;
 
-  // Fill pct (0–1): how much of gross profit flows to net profit
   const isNeg = netProfit < 0;
   const pct = grossProfit > 0 ? Math.max(0, Math.min(1, netProfit / grossProfit)) : 0;
-
-  // Circumference of semicircle
   const halfCirc = Math.PI * R;
   const dashArray = halfCirc;
   const dashOffset = halfCirc - pct * halfCirc;
-
-  const gaugeColor = isNeg ? "#ef4444" : "#06b6d4"; // red or cyan
+  const gaugeColor = isNeg ? "#ef4444" : "#06b6d4";
 
   return (
     <div className="glass-panel p-5 flex flex-col items-center">
-      {/* Period selector */}
       <div className="flex items-center justify-between w-full mb-4">
         <div className="relative">
-          <select
-            value={period}
-            onChange={e => onPeriodChange(e.target.value)}
-            className="appearance-none bg-gray-100 border-0 rounded-lg text-[11px] font-bold uppercase tracking-wider text-gray-600 pl-2 pr-6 py-1.5 cursor-pointer outline-none"
-          >
+          <select value={period} onChange={e => onPeriodChange(e.target.value)}
+            className="appearance-none bg-gray-100 border-0 rounded-lg text-[11px] font-bold uppercase tracking-wider text-gray-600 pl-2 pr-6 py-1.5 cursor-pointer outline-none">
             {PERIODS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
           <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
@@ -77,56 +83,25 @@ function ProfitGauge({ netProfit, grossProfit, totalExpenses, isLoading, period,
         <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">NET PROFIT</span>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="w-[260px] h-[155px] rounded-2xl" />
-      ) : (
+      {isLoading ? <Skeleton className="w-[260px] h-[155px] rounded-2xl" /> : (
         <div className="relative">
           <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} overflow="visible">
-            {/* Track */}
-            <path
-              d={trackPath}
-              fill="none"
-              stroke="#e5e7eb"
-              strokeWidth={strokeW}
-              strokeLinecap="round"
-            />
-            {/* Fill */}
-            <path
-              d={trackPath}
-              fill="none"
-              stroke={gaugeColor}
-              strokeWidth={strokeW}
-              strokeLinecap="round"
-              strokeDasharray={dashArray}
-              strokeDashoffset={dashOffset}
-              style={{ transition: "stroke-dashoffset 0.6s ease" }}
-            />
-            {/* Center text */}
+            <path d={trackPath} fill="none" stroke="#e5e7eb" strokeWidth={strokeW} strokeLinecap="round" />
+            <path d={trackPath} fill="none" stroke={gaugeColor} strokeWidth={strokeW} strokeLinecap="round"
+              strokeDasharray={dashArray} strokeDashoffset={dashOffset}
+              style={{ transition: "stroke-dashoffset 0.6s ease" }} />
             <text x={cx} y={cy - 32} textAnchor="middle" fontSize="22" fontWeight="700"
               fill={isNeg ? "#ef4444" : "#0f172a"} fontFamily="inherit">
               {fmtRWF(String(netProfit))}
             </text>
-            <text x={cx} y={cy - 12} textAnchor="middle" fontSize="11" fill="#94a3b8" fontFamily="inherit">
-              Net Profit
-            </text>
-            {/* Gross Profit label - left */}
-            <text x={start.x + 4} y={cy + 22} textAnchor="start" fontSize="13" fontWeight="700" fill="#0f172a" fontFamily="inherit">
-              {fmtRWF(String(grossProfit))}
-            </text>
-            <text x={start.x + 4} y={cy + 34} textAnchor="start" fontSize="10" fill="#06b6d4" fontFamily="inherit">
-              Gross Profit
-            </text>
-            {/* Expenses label - right */}
-            <text x={end.x - 4} y={cy + 22} textAnchor="end" fontSize="13" fontWeight="700" fill="#0f172a" fontFamily="inherit">
-              {fmtRWF(String(totalExpenses))}
-            </text>
-            <text x={end.x - 4} y={cy + 34} textAnchor="end" fontSize="10" fill="#06b6d4" fontFamily="inherit">
-              Expenses
-            </text>
+            <text x={cx} y={cy - 12} textAnchor="middle" fontSize="11" fill="#94a3b8" fontFamily="inherit">Net Profit</text>
+            <text x={start.x + 4} y={cy + 22} textAnchor="start" fontSize="13" fontWeight="700" fill="#0f172a" fontFamily="inherit">{fmtRWF(String(grossProfit))}</text>
+            <text x={start.x + 4} y={cy + 34} textAnchor="start" fontSize="10" fill="#06b6d4" fontFamily="inherit">Gross Profit</text>
+            <text x={end.x - 4} y={cy + 22} textAnchor="end" fontSize="13" fontWeight="700" fill="#0f172a" fontFamily="inherit">{fmtRWF(String(totalExpenses))}</text>
+            <text x={end.x - 4} y={cy + 34} textAnchor="end" fontSize="10" fill="#06b6d4" fontFamily="inherit">Expenses</text>
           </svg>
         </div>
       )}
-
       {!isLoading && (
         <p className="text-xs text-muted-foreground mt-2">
           {pct > 0 ? `${(pct * 100).toFixed(1)}% profit margin` : isNeg ? "Net loss this period" : "No sales this period"}
@@ -136,7 +111,7 @@ function ProfitGauge({ netProfit, grossProfit, totalExpenses, isLoading, period,
   );
 }
 
-// ── Quick Action Buttons ───────────────────────────────────────────────────
+// ── Quick Actions ──────────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
   { label: "Sale", icon: Tag, color: "bg-green-500", href: "/sales" },
   { label: "Purchase", icon: ShoppingCart, color: "bg-orange-500", href: "/purchases" },
@@ -156,15 +131,8 @@ function QuickActions() {
       <h2 className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wide">Quick Actions</h2>
       <div className="grid grid-cols-3 gap-3">
         {QUICK_ACTIONS.map(({ label, icon: Icon, color, href }) => (
-          <button
-            key={label}
-            onClick={() => navigate(href)}
-            className="flex flex-col items-center gap-2 group"
-          >
-            <div className={cn(
-              "w-14 h-14 rounded-2xl flex items-center justify-center transition-transform active:scale-95 group-hover:scale-105 shadow-sm",
-              color
-            )}>
+          <button key={label} onClick={() => navigate(href)} className="flex flex-col items-center gap-2 group">
+            <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center transition-transform active:scale-95 group-hover:scale-105 shadow-sm", color)}>
               <Icon className="h-6 w-6 text-white" />
             </div>
             <span className="text-[11px] font-medium text-gray-600">{label}</span>
@@ -193,6 +161,381 @@ function StatCard({ label, value, icon: Icon, color, sub }: {
   );
 }
 
+// ── Chart Carousel Slides ──────────────────────────────────────────────────
+
+function SlideRevenue() {
+  const [period, setPeriod] = useState("month");
+  const { data, isLoading } = useAnalytics("revenue", { period });
+  const rows: any[] = data ?? [];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Revenue Over Time</h3>
+          <p className="text-xs text-muted-foreground">Daily revenue</p>
+        </div>
+        <div className="flex gap-1">
+          {CHART_PERIODS.map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${period === p.key ? "bg-[#1A6DB5] text-white" : "bg-muted text-muted-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isLoading ? <Skeleton className="h-36 w-full" /> : (
+        <ResponsiveContainer width="100%" height={140}>
+          <LineChart data={rows}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={d => d?.slice(5) ?? ""} />
+            <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${(v / 1000).toFixed(0)}K`} />
+            <Tooltip formatter={(v: any) => fmtRWF(v)} />
+            <Line type="monotone" dataKey="revenue" stroke="#1A6DB5" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+function SlideCategories() {
+  const [period, setPeriod] = useState("month");
+  const { data, isLoading } = useAnalytics("categories", { period });
+  const rows: any[] = data ?? [];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Sales by Category</h3>
+          <p className="text-xs text-muted-foreground">Revenue split by category</p>
+        </div>
+        <div className="flex gap-1">
+          {CHART_PERIODS.map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${period === p.key ? "bg-[#1A6DB5] text-white" : "bg-muted text-muted-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isLoading ? <Skeleton className="h-36 w-full" /> : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">No sales data yet</p>
+      ) : (
+        <div className="flex items-center gap-4">
+          <ResponsiveContainer width={140} height={140}>
+            <PieChart>
+              <Pie data={rows} dataKey="total" nameKey="category" cx="50%" cy="50%" innerRadius={40} outerRadius={65}>
+                {rows.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(v: any) => fmtRWF(v)} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex-1 space-y-1.5">
+            {rows.slice(0, 5).map((r: any, i: number) => (
+              <div key={r.category} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                  <span className="text-muted-foreground truncate max-w-[80px]">{r.category}</span>
+                </div>
+                <span className="font-medium">{r.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SlideTopProducts() {
+  const [period, setPeriod] = useState("month");
+  const { data, isLoading } = useAnalytics("top-products", { period, limit: "5" });
+  const rows: any[] = (data ?? []).slice(0, 5);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Top Selling Products</h3>
+          <p className="text-xs text-muted-foreground">Top 5 by revenue</p>
+        </div>
+        <div className="flex gap-1">
+          {CHART_PERIODS.map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${period === p.key ? "bg-[#1A6DB5] text-white" : "bg-muted text-muted-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isLoading ? <Skeleton className="h-36 w-full" /> : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">No sales data yet</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={140}>
+          <BarChart data={rows} layout="vertical" margin={{ left: 50, right: 30 }}>
+            <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={v => `${(v / 1000).toFixed(0)}K`} />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={50} />
+            <Tooltip formatter={(v: any) => fmtRWF(v)} />
+            <Bar dataKey="total" fill="#1A6DB5" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+function SlideProfitVsExpenses() {
+  const [period, setPeriod] = useState("month");
+  const { data, isLoading } = useAnalytics("profit-vs-expenses", { period });
+  const rows: any[] = data ?? [];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Gross Profit vs Expenses</h3>
+          <p className="text-xs text-muted-foreground">Profitability over time</p>
+        </div>
+        <div className="flex gap-1">
+          {CHART_PERIODS.map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${period === p.key ? "bg-[#1A6DB5] text-white" : "bg-muted text-muted-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isLoading ? <Skeleton className="h-36 w-full" /> : (
+        <ResponsiveContainer width="100%" height={140}>
+          <AreaChart data={rows}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="date" tick={{ fontSize: 9 }} tickFormatter={d => d?.slice(5) ?? ""} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={v => `${(v / 1000).toFixed(0)}K`} />
+            <Tooltip formatter={(v: any) => fmtRWF(v)} />
+            <Area type="monotone" dataKey="grossProfit" stroke="#10b981" fill="#10b981" fillOpacity={0.15} name="Gross Profit" />
+            <Area type="monotone" dataKey="expenses" stroke="#ef4444" fill="#ef4444" fillOpacity={0.15} name="Expenses" />
+            <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+function SlidePaymentMethods() {
+  const [period, setPeriod] = useState("month");
+  const { data, isLoading } = useAnalytics("payment-methods", { period });
+  const rows: any[] = data ?? [];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Payment Method Breakdown</h3>
+          <p className="text-xs text-muted-foreground">Sales by payment type</p>
+        </div>
+        <div className="flex gap-1">
+          {CHART_PERIODS.map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${period === p.key ? "bg-[#1A6DB5] text-white" : "bg-muted text-muted-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isLoading ? <Skeleton className="h-36 w-full" /> : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">No sales data yet</p>
+      ) : (
+        <div className="flex items-center gap-4">
+          <ResponsiveContainer width={140} height={140}>
+            <PieChart>
+              <Pie data={rows} dataKey="total" nameKey="method" cx="50%" cy="50%" innerRadius={40} outerRadius={65}>
+                {rows.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(v: any) => fmtRWF(v)} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex-1 space-y-1.5">
+            {rows.map((r: any, i: number) => (
+              <div key={r.method} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                  <span className="text-muted-foreground capitalize">{(r.method || "other").replace(/_/g, " ")}</span>
+                </div>
+                <span className="font-medium">{r.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SlideCreditSummary() {
+  const [, navigate] = useLocation();
+  const { data, isLoading } = useAnalytics("credit-summary");
+  const d: any = data ?? {};
+  return (
+    <div className="space-y-3">
+      <h3 className="font-semibold text-sm">Outstanding Credit Summary</h3>
+      {isLoading ? <Skeleton className="h-32 w-full" /> : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-red-700">{fmtRWF(String(d.totalOutstanding ?? 0))}</p>
+              <p className="text-xs text-red-600 mt-0.5">Outstanding</p>
+            </div>
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-orange-700">{d.customerCount ?? 0}</p>
+              <p className="text-xs text-orange-600 mt-0.5">Customers</p>
+            </div>
+          </div>
+          {d.oldest && (
+            <div className="text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Oldest unpaid:</span>
+                <span className="font-medium">{d.oldest.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Most recent:</span>
+                <span className="font-medium">{d.newest?.name ?? "—"}</span>
+              </div>
+            </div>
+          )}
+          <button onClick={() => navigate("/receivables")}
+            className="w-full text-xs text-[#1A6DB5] hover:underline text-center">
+            View all credit →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SlideMonthlyTarget() {
+  const [target] = useState(() => Number(localStorage.getItem("monthlyTarget") || "0"));
+  const { data } = useAnalytics("revenue", { period: "month" });
+  const rows: any[] = data ?? [];
+  const achieved = rows.reduce((s: number, r: any) => s + (r.revenue ?? 0), 0);
+  const pct = target > 0 ? Math.min(100, (achieved / target) * 100) : 0;
+  const remaining = Math.max(0, target - achieved);
+  const [, navigate] = useLocation();
+  return (
+    <div className="space-y-3">
+      <h3 className="font-semibold text-sm">Monthly Target Progress</h3>
+      {target === 0 ? (
+        <div className="text-center py-6 space-y-2">
+          <Target className="h-8 w-8 mx-auto text-muted-foreground opacity-40" />
+          <p className="text-sm text-muted-foreground">No monthly target set</p>
+          <button onClick={() => navigate("/charts")} className="text-xs text-[#1A6DB5] hover:underline">
+            Set target in Charts page →
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="relative h-8 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
+              style={{ width: `${pct}%`, background: pct >= 100 ? "#10b981" : "#1A6DB5" }}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white"
+              style={{ textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>
+              {pct.toFixed(1)}%
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Target</p>
+              <p className="text-sm font-bold">{fmtRWF(String(target))}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Achieved</p>
+              <p className="text-sm font-bold text-green-600">{fmtRWF(String(achieved))}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Remaining</p>
+              <p className="text-sm font-bold text-[#1A6DB5]">{fmtRWF(String(remaining))}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SLIDES = [
+  { id: "revenue", label: "Revenue Over Time", component: SlideRevenue },
+  { id: "categories", label: "Sales by Category", component: SlideCategories },
+  { id: "top-products", label: "Top Products", component: SlideTopProducts },
+  { id: "profit-expenses", label: "Profit vs Expenses", component: SlideProfitVsExpenses },
+  { id: "payments", label: "Payment Methods", component: SlidePaymentMethods },
+  { id: "credit", label: "Outstanding Credit", component: SlideCreditSummary },
+  { id: "target", label: "Monthly Target", component: SlideMonthlyTarget },
+];
+
+// ── Chart Carousel ─────────────────────────────────────────────────────────
+function ChartCarousel() {
+  const [slide, setSlide] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+
+  const prev = useCallback(() => setSlide(s => (s - 1 + SLIDES.length) % SLIDES.length), []);
+  const next = useCallback(() => setSlide(s => (s + 1) % SLIDES.length), []);
+
+  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.touches[0].clientX; };
+  const onTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) > 40) { if (diff > 0) next(); else prev(); }
+    touchStartX.current = null; touchEndX.current = null;
+  };
+
+  const CurrentSlide = SLIDES[slide].component;
+
+  return (
+    <div className="glass-panel p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <BarChart2 className="h-4 w-4 text-[#1A6DB5]" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Analytics</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={prev} className="p-1.5 rounded-full hover:bg-muted transition-colors">
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <span className="text-xs text-muted-foreground font-medium w-12 text-center">
+            {slide + 1} / {SLIDES.length}
+          </span>
+          <button onClick={next} className="p-1.5 rounded-full hover:bg-muted transition-colors">
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+      </div>
+
+      {/* Slides */}
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className="min-h-[200px]"
+      >
+        <CurrentSlide />
+      </div>
+
+      {/* Dot indicators */}
+      <div className="flex justify-center gap-1.5 mt-4">
+        {SLIDES.map((s, i) => (
+          <button key={s.id} onClick={() => setSlide(i)}
+            className={cn(
+              "rounded-full transition-all duration-200",
+              i === slide ? "w-5 h-2 bg-[#1A6DB5]" : "w-2 h-2 bg-gray-200 hover:bg-gray-300"
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [period, setPeriod] = useState("month");
@@ -201,15 +544,6 @@ export default function DashboardPage() {
   const netProfit = parseFloat(data?.netProfit ?? "0");
   const grossProfit = parseFloat(data?.grossProfit ?? "0");
   const totalExpenses = parseFloat(data?.totalExpenses ?? "0");
-
-  const recentSalesChart = (data?.recentSales ?? [])
-    .filter((s: any) => !s.reverted)
-    .slice(0, 7)
-    .reverse()
-    .map((s: any, i: number) => ({
-      name: `#${i + 1}`,
-      amount: parseFloat(s.totalAmount),
-    }));
 
   return (
     <div className="space-y-5">
@@ -221,12 +555,8 @@ export default function DashboardPage() {
       {/* Top row: Profit Gauge + Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ProfitGauge
-          netProfit={netProfit}
-          grossProfit={grossProfit}
-          totalExpenses={totalExpenses}
-          isLoading={isLoading}
-          period={period}
-          onPeriodChange={setPeriod}
+          netProfit={netProfit} grossProfit={grossProfit} totalExpenses={totalExpenses}
+          isLoading={isLoading} period={period} onPeriodChange={setPeriod}
         />
         <QuickActions />
       </div>
@@ -244,6 +574,9 @@ export default function DashboardPage() {
           <StatCard label="Receivables" value={fmtRWF(data?.outstandingReceivables)} icon={Wallet} color="bg-orange-100 text-orange-600" sub="Outstanding" />
         </div>
       )}
+
+      {/* Chart Carousel */}
+      <ChartCarousel />
 
       {/* Balances + Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -268,27 +601,11 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-
-          {!isLoading && recentSalesChart.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Recent Sales</h3>
-              <ResponsiveContainer width="100%" height={140}>
-                <BarChart data={recentSalesChart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1000).toFixed(0)}K`} />
-                  <Tooltip formatter={(v: any) => fmtRWF(v)} />
-                  <Bar dataKey="amount" fill="#1A6DB5" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
         </div>
 
         <div className="glass-panel p-5">
           <h2 className="text-base font-semibold font-sora mb-4 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
-            Stock Alerts
+            <AlertTriangle className="h-4 w-4 text-orange-500" />Stock Alerts
           </h2>
           {isLoading ? (
             <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div>

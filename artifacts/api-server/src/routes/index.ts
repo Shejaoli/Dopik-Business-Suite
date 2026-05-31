@@ -18,6 +18,8 @@ import loansRouter from "./loans";
 import backupRouter from "./backup";
 import adminRouter from "./admin";
 import serialNumbersRouter from "./serial-numbers";
+import analyticsRouter from "./analytics";
+import colorsRouter from "./colors";
 
 const router: IRouter = Router();
 
@@ -40,5 +42,7 @@ router.use(dashboardRouter);
 router.use(backupRouter);
 router.use(adminRouter);
 router.use(serialNumbersRouter);
+router.use(analyticsRouter);
+router.use(colorsRouter);
 
 export default router;

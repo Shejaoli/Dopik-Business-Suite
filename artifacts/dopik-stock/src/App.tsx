@@ -27,6 +27,7 @@ import ProfilePage from "@/pages/profile";
 import ExpensesPage from "@/pages/expenses";
 import ExpenseAccountsPage from "@/pages/expense-accounts";
 import ReportsPage from "@/pages/reports";
+import ChartsPage from "@/pages/charts";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -92,6 +93,7 @@ function AppRoutes() {
         <Route path="/reports/expenses"><ReportsPage defaultTab="expenses" /></Route>
         <Route path="/reports/summary"><ReportsPage defaultTab="summary" /></Route>
         <Route path="/reports"><ReportsPage /></Route>
+        <Route path="/charts" component={ChartsPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />

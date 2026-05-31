@@ -1,0 +1,3 @@
+- [DB schema additions](db-schema-additions.md) — colors, storage_options, serialized_units tables added manually via raw SQL; purchases table got status/po_number/notes columns
+- [Purchase form architecture](purchase-form-arch.md) — dual-mode form: trackSerial=true→per-unit row table; false→simple form; draft stored as JSON in purchases.notes; PATCH /purchases/:id confirms draft
+- [Analytics routes](analytics-routes.md) — all analytics endpoints at /api/analytics/* registered in routes/index.ts; colors/storage routes in routes/colors.ts

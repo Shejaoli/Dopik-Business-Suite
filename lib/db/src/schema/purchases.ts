@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, numeric, varchar, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, numeric, varchar, timestamp, text } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { itemsTable } from "./items";
@@ -13,6 +13,9 @@ export const purchasesTable = pgTable("purchases", {
   vendorId: integer("vendor_id").references(() => vendorsTable.id),
   paymentMethod: varchar("payment_method", { length: 30 }).default("cash"),
   recordedBy: integer("recorded_by").references(() => usersTable.id),
+  status: varchar("status", { length: 20 }).default("confirmed"),
+  poNumber: varchar("po_number", { length: 50 }),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

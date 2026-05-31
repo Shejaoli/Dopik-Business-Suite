@@ -1,0 +1,50 @@
+4. Prompt:
+Extend the "Record New Purchase" form with the following additional behavior:
+PART 5 — Three Action Buttons
+Replace the current bottom buttons with these three:
+Cancel Purchase — always visible and clickable
+Save — always visible and clickable
+Confirm Purchase — visible but disabled and grayed out until the admin has clicked Verify and the Purchase Order preview has been successfully generated. Only after verification is it enabled and clickable.
+Cancel Purchase — Safety Flow
+When the admin clicks "Cancel Purchase", do NOT cancel immediately. Instead:
+Step 1: Show a popup/modal with:
+Warning icon ⚠️
+Title: "Are you sure you want to cancel this purchase?"
+Message: "This action cannot be undone. Before cancelling, consider whether you can simply edit or modify this purchase instead."
+Two buttons: "Go Back & Edit" and "Yes, I want to cancel"
+Step 2: If they click "Yes, I want to cancel", show a second confirmation screen with:
+Message: "To confirm cancellation, type the code below exactly as shown:"
+Display a randomly generated alphanumeric code (e.g. X7K2-9MQP) in large bold styled text
+A text input field where the admin must type that exact code
+A "Confirm Cancellation" button — disabled until the typed text matches the generated code exactly (case-sensitive)
+A "Go Back" button to abort
+Step 3: If the code matches and they confirm, cancel the purchase, clear the form, and show a brief success toast: "Purchase cancelled."
+Save — Draft Behavior
+When the admin clicks "Save":
+Save the current state of the form as a draft purchase in the database with status draft
+Show a success toast: "Purchase saved as draft."
+The draft must appear in the purchases list/table with a "Draft" badge so the admin can return to it at any time
+When they click on a draft from the list, it must reopen the form with all previously entered rows, items, colors, storage, IMEI/serials, conditions, vendors, costs — exactly as they left it
+The admin can then continue filling it, verify, and confirm
+PART 6 — Non-Serialized Items (Accessories & regular products)
+When an item is selected that belongs to a category that does NOT require IMEI or serial number tracking (e.g. accessories, cables, cases, chargers):
+Do NOT show the per-unit row table
+Instead, show the original simple form layout:
+Item — already selected
+Quantity — number input
+Unit Cost (RWF) — number input
+Total Cost — auto-calculated (quantity × unit cost), read-only
+Vendor — searchable dropdown with add-new option
+Payment Method — single dropdown (Cash, MoMo, Bank Transfer, Other)
+Condition — dropdown: Brand New, Good Condition, Refurbished
+The Verify → Confirm Purchase flow still applies the same way
+The Cancel Purchase safety flow still applies the same way
+Save as draft still works the same way
+The system must detect automatically which layout to show based on the product's category:
+Category flagged as requires_serial = true → show the per-unit row table (IMEI/serial flow)
+Category flagged as requires_serial = false → show the simple quantity form
+Make sure the product_categories table has a requires_serial boolean column. Update existing categories accordingly:
+Phones → requires_serial = true
+Computers / Laptops → requires_serial = true
+Accessories, Cables, Cases, Chargers, Other → requires_serial = false
+All of this must work seamlessly with the purchase flow built in the previous prompt. Apply all necessary database migrations without affecting existing data.

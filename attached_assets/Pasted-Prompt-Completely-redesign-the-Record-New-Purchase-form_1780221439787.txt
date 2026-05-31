@@ -1,0 +1,68 @@
+Prompt:
+Completely redesign the "Record New Purchase" form/modal. Replace the current simple form with the following advanced structure:
+PART 1 — Item Entry Table
+Below the title "Record New Purchase", remove the old single item dropdown and replace it with a dynamic table where each row represents one individual unit being purchased.
+Each row contains these columns:
+Item — dropdown of existing products. When a phone/computer product is selected, show a small purple barcode icon with text "This item requires IMEI / serial number tracking"
+Color — searchable dropdown. Options are pre-loaded from existing colors in the database. If the typed color doesn't exist, show a "Create [color]" option that saves it
+Storage — searchable dropdown (e.g. 64GB, 128GB, 256GB). Same create-if-not-exists behavior
+IMEI / Serial Number — single text input. Label shows "IMEI" if item is a phone, "Serial Number" if item is a computer
+Condition — dropdown with exactly these options:
+Brand New
+Screen Issue
+Battery below 70%
+Battery 70% – 80%
+Battery 80% – 90%
+Battery above 90%
+Vendor — searchable dropdown of existing vendors. If vendor doesn't exist, show "Add new vendor" option that opens a small inline form to create one (name, phone, optional notes) without leaving the page
+Payment Method — dropdown per row: Cash, MoMo, Bank Transfer, Other
+Unit Cost (RWF) — number input for cost of that specific unit
+Delete — a trash icon on the right to remove that row
+Below the table, add a button: "+ Add Item" — clicking it adds a new empty row to the table.
+PART 2 — Summary Section (below the table)
+Total Quantity — auto-calculated, shows the number of rows currently in the table. This is the number that will be added to stock when the purchase is confirmed
+Total Cost (RWF) — shows the grand total of all unit costs. This field has a dropdown expand arrow. When clicked, it expands to show a breakdown by payment method, for example:
+Cash: 450,000 RWF
+MoMo: 120,000 RWF
+Bank Transfer: 0 RWF
+PART 3 — Action Buttons
+Two buttons at the bottom:
+Verify — generates and opens an internal Purchase Order preview (see below)
+Cancel — closes the form without saving
+The Record Purchase / confirm button only appears inside the PO preview after verification, not on the main form.
+PART 4 — Purchase Order Preview (opens when Verify is clicked)
+Open a full-screen modal or new view showing a print-ready internal Purchase Order document:
+Header:
+Company logo (use the existing Dopik Electronics logo) on the left
+Company name, address, and contact info on the right
+Document title: "PURCHASE ORDER — INTERNAL RECORD"
+Auto-generated unique PO number (format: PO-YYYYMMDD-XXXX where XXXX is a random 4-digit number)
+Date of creation
+Warning Banner (prominent, at the top below the header):
+⚠️ This is an internal document for record-keeping purposes only. It must not be shared, posted, or distributed externally.
+Style this banner with a yellow/amber background and bold text.
+Items Table:
+#
+Item
+Description
+Condition
+Vendor
+Payment Method
+Unit Cost
+The Description column combines: Color + Storage + IMEI or Serial Number (e.g. "Black / 128GB / IMEI: 353012341234567")
+Footer:
+Total Quantity: X units
+Total Cost breakdown by payment method (same as summary section)
+Grand Total in bold
+Buttons inside the preview:
+Print — triggers browser print of this document only (hide all other UI elements during print)
+Confirm & Save Purchase — saves the purchase to the database, updates stock levels (adds quantity to the selected product), saves each individual unit as a separate serialized stock record with its IMEI/serial number, condition, vendor, and cost. Then closes the modal and refreshes the purchases list.
+Back — returns to the form to make edits
+Database / Backend changes needed:
+Create a serialized_units table with fields: id, product_id, imei_or_serial, color, storage, condition, vendor_id, purchase_id, cost_price, status (in_stock / sold / returned / repaired / lost), date_received
+When a purchase is confirmed, insert one row per unit into serialized_units
+Update the product's stock count based on number of units added
+Save the full PO as a record in the purchases table with a generated PO number
+Add a vendors table if it doesn't exist: id, name, phone, notes
+Add a colors table and storage_options table for the dynamic dropdowns
+Apply all database migrations to the existing PostgreSQL schema. Keep all existing purchase history intact.

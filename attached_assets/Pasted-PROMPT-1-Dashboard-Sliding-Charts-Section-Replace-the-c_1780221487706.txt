@@ -1,0 +1,52 @@
+PROMPT 1 — Dashboard Sliding Charts Section
+Replace the current "Recent Sales" bar chart on the dashboard with a horizontal swipeable/slideable chart carousel. Each slide contains one full chart. The admin swipes left or right to view the next chart. Show dot indicators at the bottom so the admin knows which slide they are on.
+Include these slides in this order:
+Slide 1 — Net Profit & Expenses Gauge
+The semicircular gauge already built showing Net Profit in the center, Gross Profit on the left, Expenses on the right. Period selector: This Week / This Month / This Year.
+Slide 2 — Revenue Over Time (Line Chart)
+Smooth line chart showing daily revenue over the selected period. X-axis shows dates, Y-axis shows RWF amounts. Toggle buttons: This Week / This Month / This Year. Use real sales data from the database.
+Slide 3 — Sales by Category (Donut Chart)
+Donut/pie chart showing revenue percentage split between Phones, Computers, and Accessories. Show legend with category name, percentage, and total RWF amount below the chart.
+Slide 4 — Top Selling Products (Horizontal Bar Chart)
+Top 5 products ranked by revenue generated. Each bar shows product name on the left and RWF amount on the right. Use real sales data.
+Slide 5 — Gross Profit vs Expenses (Area Chart)
+Two overlapping shaded area lines — one teal for Gross Profit, one red/coral for Expenses — plotted over time. Shows visually when expenses were higher than profit.
+Slide 6 — Payment Method Breakdown (Donut Chart)
+Split of total sales by payment method: Cash, MoMo, Bank Transfer, Credit, Other. Show RWF totals per method in the legend.
+Slide 7 — Outstanding Credit Summary
+Not a chart — a styled card showing:
+Total credit amount outstanding (RWF)
+Number of customers with unpaid credit
+Most recent credit sale (customer name + amount + date)
+Oldest unpaid credit (customer name + how many days overdue)
+Clicking it navigates to the full credit/transactions page.
+Slide 8 — Monthly Target Progress
+A horizontal progress bar showing sales progress toward a monthly target. Admin can set the target from Settings. Show percentage achieved and RWF remaining to target.
+All charts must use real data from the database. Use Recharts or Chart.js (whichever is already in the project). The carousel must be swipeable on mobile (touch swipe) and also have left/right arrow buttons for desktop. Each slide has a title at the top.
+PROMPT 2 — Charts Tab in Admin Panel
+Add a new top-level tab/page in the admin navigation called "Charts" (with a chart/analytics icon).
+This page contains all charts displayed vertically, one after another (no carousel — all visible by scrolling down). Each chart is in its own white card with a title, a description subtitle, and a period selector (This Week / This Month / This Year) where applicable.
+Include all of these in this order, stacked vertically:
+Revenue Over Time — Line chart, daily revenue, with period toggle
+Gross Profit vs Expenses — Area chart, two lines, with period toggle
+Sales by Category — Donut chart with legend showing RWF + percentage per category
+Top Selling Products — Horizontal bar chart, top 10 products by revenue
+Payment Method Breakdown — Donut chart, split by Cash / MoMo / Bank Transfer / Credit / Other
+Stock Health Overview — Three stat cards in a row: Total Products, Low Stock count (amber), Out of Stock count (red). Clicking Low Stock or Out of Stock filters the inventory page
+Stock Value — Single large number card showing total inventory value (sum of all units in stock × their cost price)
+Outstanding Credit — Same card as dashboard slide but with a full list of all credit customers below it, showing name, amount owed, last payment date, and days overdue
+Daily Sales Heatmap — Calendar grid for the current month where each day cell is colored by sales volume. No sales = light gray, low = light teal, high = dark teal
+Monthly Target Progress — Progress bar with target editable inline on this page
+New vs Returning Customers — Two large numbers side by side: new customers this month vs returning customers this month
+Best Performing Day & Time — Two small bar charts: one showing sales by day of week (Mon–Sun), one showing sales by hour of day (6am–10pm)
+All charts use real data from the database via dedicated API endpoints. Add the following API endpoints:
+GET /api/analytics/revenue?period=week|month|year
+GET /api/analytics/categories
+GET /api/analytics/top-products
+GET /api/analytics/payment-methods
+GET /api/analytics/stock-health
+GET /api/analytics/credit-summary
+GET /api/analytics/heatmap?month=YYYY-MM
+GET /api/analytics/customer-types
+GET /api/analytics/best-times
+Add "Charts" to the admin sidebar navigation with an analytics/chart icon. Keep all existing pages and navigation intact.

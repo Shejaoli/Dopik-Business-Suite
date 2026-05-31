@@ -57,6 +57,12 @@ const navSections = [
     ],
   },
   {
+    label: "ANALYTICS",
+    items: [
+      { href: "/charts", label: "Charts & Analytics", icon: BarChart2 },
+    ],
+  },
+  {
     label: "REPORTS",
     items: [
       { href: "/reports/sales", label: "Sales Report", icon: BarChart2 },
