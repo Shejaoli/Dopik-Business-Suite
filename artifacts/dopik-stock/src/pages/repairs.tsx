@@ -12,8 +12,55 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
 import {
   Wrench, Plus, Clock, ChevronRight, AlertTriangle, Trash2,
-  MessageSquare, Phone, User, Smartphone, Package, CheckCircle2, X
+  MessageSquare, Phone, Printer, CheckCircle2, X
 } from "lucide-react";
+
+function buildRepairInvoiceHTML(repair: RepairJob): string {
+  const deviceLabel = [repair.brand, repair.model].filter(Boolean).join(" ") || repair.deviceType;
+  const balanceDue = parseFloat(repair.totalCost || "0") - parseFloat(repair.depositPaid || "0");
+  const dateStr = new Date().toLocaleDateString("en-RW", { day: "2-digit", month: "long", year: "numeric" });
+  const partsRows = repair.parts.map((p, i) =>
+    `<tr><td style="padding:5px 4px;border-bottom:1px solid #f0f0f0">${i + 1}. ${p.partName}</td><td style="padding:5px 4px;border-bottom:1px solid #f0f0f0;text-align:right">${p.quantity > 1 ? `×${p.quantity}` : ""}</td><td style="padding:5px 4px;border-bottom:1px solid #f0f0f0;text-align:right">${(parseFloat(p.partCost) * p.quantity).toLocaleString()} RWF</td></tr>`
+  ).join("");
+
+  return `<!DOCTYPE html><html><head><title>Repair Invoice #${repair.id}</title><meta charset="utf-8">
+<style>@page{margin:12mm;size:80mm auto}*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;color:#111;background:white;padding:16px;max-width:380px;margin:0 auto}table{width:100%;border-collapse:collapse}.center{text-align:center}.logo{width:48px;height:48px;border-radius:50%;background:#1A6DB5;color:white;font-size:22px;font-weight:900;margin:0 auto 8px;line-height:48px;text-align:center}.dashed{border-top:1px dashed #ccc;border-bottom:1px dashed #ccc;padding:8px 0;margin:10px 0}.row{display:flex;justify-content:space-between;margin-bottom:3px}.label{color:#777}.total-box{background:#f8f8f8;border-radius:6px;padding:8px 12px;margin:10px 0}.footer{text-align:center;font-size:10px;color:#aaa;border-top:1px dashed #ddd;padding-top:8px;margin-top:10px}@media print{body{padding:0}}</style>
+</head><body>
+<div class="center" style="margin-bottom:12px">
+  <div class="logo">D</div>
+  <div style="font-size:18px;font-weight:900;color:#1A6DB5">Dopik Electronics Ltd</div>
+  <div style="font-size:11px;color:#777">Kigali, Rwanda | +250 788 000 000</div>
+  <div style="font-size:11px;font-weight:700;color:#555;margin-top:4px">REPAIR INVOICE</div>
+</div>
+<div class="dashed">
+  <div class="row"><span class="label">Invoice #</span><strong>REP-${String(repair.id).padStart(4, "0")}</strong></div>
+  <div class="row"><span class="label">Date</span><span>${dateStr}</span></div>
+  <div class="row"><span class="label">Customer</span><strong>${repair.customerName || "Unknown"}</strong></div>
+  ${repair.customerPhone ? `<div class="row"><span class="label">Phone</span><span>${repair.customerPhone}</span></div>` : ""}
+  <div class="row"><span class="label">Device</span><span>${deviceLabel}</span></div>
+  ${repair.imeiOrSerial ? `<div class="row"><span class="label">IMEI/S/N</span><span>${repair.imeiOrSerial}</span></div>` : ""}
+</div>
+<div style="margin:8px 0;font-size:11px"><span class="label">Problem: </span>${repair.problem}</div>
+${repair.workDone ? `<div style="margin:4px 0;font-size:11px"><span class="label">Work Done: </span>${repair.workDone}</div>` : ""}
+<table style="margin:8px 0">
+  <thead><tr><th style="text-align:left;font-size:11px;color:#555;padding:4px;border-bottom:1px solid #ddd">Description</th><th style="text-align:right;font-size:11px;color:#555;padding:4px;border-bottom:1px solid #ddd">Qty</th><th style="text-align:right;font-size:11px;color:#555;padding:4px;border-bottom:1px solid #ddd">Amount</th></tr></thead>
+  <tbody>
+    ${partsRows}
+    ${repair.laborCost && parseFloat(repair.laborCost) > 0 ? `<tr><td style="padding:5px 4px">Labor</td><td></td><td style="padding:5px 4px;text-align:right">${parseFloat(repair.laborCost).toLocaleString()} RWF</td></tr>` : ""}
+  </tbody>
+</table>
+<div class="total-box">
+  <div style="font-size:15px;font-weight:900;display:flex;justify-content:space-between"><span>TOTAL</span><span>${parseFloat(repair.totalCost || "0").toLocaleString()} RWF</span></div>
+  <div class="row" style="margin-top:4px;font-size:11px"><span class="label">Deposit Paid</span><span style="color:green">- ${parseFloat(repair.depositPaid || "0").toLocaleString()} RWF</span></div>
+  <div style="font-size:14px;font-weight:900;display:flex;justify-content:space-between;border-top:1px dashed #ddd;margin-top:4px;padding-top:4px;color:${balanceDue > 0 ? "#c00" : "green"}"><span>Balance Due</span><span>${balanceDue.toLocaleString()} RWF</span></div>
+</div>
+<div class="footer">
+  <p>Thank you for choosing Dopik Electronics!</p>
+  <p>Kigali, Rwanda | +250 788 000 000</p>
+  <p style="margin-top:4px">Keep this invoice as proof of service</p>
+</div>
+</body></html>`;
+}
 
 const STATUSES = [
   { key: "received", label: "Received", color: "bg-gray-100 text-gray-700", bg: "bg-gray-50 border-gray-200" },
@@ -391,6 +438,22 @@ function RepairDetailModal({ repair, open, onClose, staff }: { repair: RepairJob
         </div>
 
         <DialogFooter className="flex flex-wrap gap-2 mt-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 text-gray-600 text-sm"
+            onClick={() => {
+              const html = buildRepairInvoiceHTML(repair);
+              const win = window.open("", "_blank", "width=480,height=700");
+              if (!win) return;
+              win.document.write(html);
+              win.document.close();
+              win.focus();
+              setTimeout(() => { win.print(); }, 350);
+            }}
+          >
+            <Printer className="w-4 h-4" /> Print Invoice
+          </Button>
           {waLink && (
             <a href={waLink} target="_blank" rel="noopener noreferrer">
               <Button type="button" variant="outline" className="gap-2 text-green-600 border-green-200 hover:bg-green-50 text-sm">

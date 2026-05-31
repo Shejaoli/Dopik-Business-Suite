@@ -3,8 +3,9 @@ import { useListCustomers } from "@workspace/api-client-react";
 import { api, fmtRWF } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { PackagePlus, Plus, Trash2, Loader2 } from "lucide-react";
-import { useLocation } from "wouter";
+import { PackagePlus, Plus, Trash2, Loader2, CheckCircle2 } from "lucide-react";
+import { ReceiptModal } from "@/components/ReceiptModal";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface LineItem {
   itemId: string;
@@ -23,7 +24,7 @@ export default function MultiSalePage() {
   const { data: inStockItems = [] } = useInStockItems();
   const { data: customers } = useListCustomers();
   const { toast } = useToast();
-  const [, navigate] = useLocation();
+  const qc = useQueryClient();
 
   const [customerId, setCustomerId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -31,6 +32,7 @@ export default function MultiSalePage() {
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [lines, setLines] = useState<LineItem[]>([{ itemId: "", quantity: "", unitPrice: "" }]);
   const [submitting, setSubmitting] = useState(false);
+  const [receiptSaleId, setReceiptSaleId] = useState<number | null>(null);
 
   const addLine = () => setLines(l => [...l, { itemId: "", quantity: "", unitPrice: "" }]);
   const removeLine = (i: number) => setLines(l => l.filter((_, idx) => idx !== i));
@@ -43,6 +45,14 @@ export default function MultiSalePage() {
     return sum + qty * price;
   }, 0);
 
+  const resetForm = () => {
+    setCustomerId("");
+    setPaymentMethod("cash");
+    setPaymentStatus("paid");
+    setSaleDate(new Date().toISOString().split("T")[0]);
+    setLines([{ itemId: "", quantity: "", unitPrice: "" }]);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validLines = lines.filter(l => l.itemId && l.quantity && l.unitPrice);
@@ -52,7 +62,7 @@ export default function MultiSalePage() {
     }
     setSubmitting(true);
     try {
-      await api.post("/sales", {
+      const sale = await api.post<any>("/sales", {
         customerId: customerId ? Number(customerId) : null,
         paymentMethod,
         paymentStatus,
@@ -64,8 +74,10 @@ export default function MultiSalePage() {
           unitPrice: l.unitPrice,
         })),
       });
-      toast({ title: "Multi-item sale recorded successfully" });
-      navigate("/sales-history");
+      toast({ title: "Sale recorded successfully!", description: "Receipt is ready to print or share." });
+      qc.invalidateQueries({ queryKey: ["sales"] });
+      resetForm();
+      setReceiptSaleId(sale.id);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -193,12 +205,16 @@ export default function MultiSalePage() {
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
             Record Sale
           </button>
-          <button type="button" onClick={() => navigate("/sales-history")}
-            className="px-6 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition">
-            Cancel
-          </button>
         </div>
       </form>
+
+      {receiptSaleId && (
+        <ReceiptModal
+          saleId={receiptSaleId}
+          open={!!receiptSaleId}
+          onClose={() => setReceiptSaleId(null)}
+        />
+      )}
     </div>
   );
 }

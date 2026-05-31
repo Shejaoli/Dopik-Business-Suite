@@ -1,0 +1,62 @@
+All 7 modules are confirmed live. Before we move forward, do a full quality check across every module and fix anything that is incomplete, broken, or below standard. Go through each module one by one:
+M1 — Receipts
+
+Confirm the Receipt button appears directly on the Sales page on each completed sale row — not just in the Receipts history page
+Confirm the receipt modal auto-opens immediately after a sale is confirmed
+Confirm PDF download works correctly and produces a clean file
+Confirm WhatsApp share opens correctly with the full pre-filled message including shop phone number and warranty link
+Confirm print output is clean with no browser UI elements
+
+M2 — Customer CRM
+
+Confirm customer profile tabs all load real data: Purchases, Credit, Warranties
+Confirm creating a new customer inline from the Sales form works without leaving the page
+Confirm customer search by phone number works and auto-suggests in the sale form
+Confirm all customer stats (total orders, total spent, credit balance) are calculated correctly from real data
+
+M3 — Warranty Public Page
+
+Open /warranty without being logged in and confirm it loads correctly
+Test with a real IMEI from a serialized unit in the database — confirm it returns the correct result
+Test with a fake IMEI — confirm it shows the "Not Found" amber warning
+Confirm the rate limiting is active on the endpoint
+
+M4 — Repairs
+
+Confirm the Kanban board loads and cards can be dragged between columns
+Confirm creating a new repair job saves correctly and appears on the board
+Confirm parts can be added to a repair and the total cost updates automatically
+Confirm the WhatsApp notify button generates the correct pre-filled message with customer phone, device, and balance due
+Confirm the repair invoice PDF generates correctly with all required fields
+
+M5 — Staff & Permissions
+
+Log in as a Cashier account and confirm purchase cost prices and profit margins are completely hidden
+Confirm the Cashier cannot access Settings, Reports, or Purchases pages
+Confirm the temporary password modal shows once and has a copy button
+Confirm Reset Password works and shows the new password
+Confirm Activity Log export to CSV downloads correctly
+Confirm every major action across the app (sales, purchases, repairs, credit payments) is being logged
+
+M6 — Credit
+
+Confirm fully paid credit accounts automatically move to a "Paid" tab
+Confirm the overpayment warning shows when amount entered exceeds remaining balance
+Confirm installment schedule shows correct status per installment
+Confirm "Total collected this month" stat card shows correct figure
+Confirm WhatsApp reminder message includes shop phone and exact due date
+
+M7 — PWA
+
+Open the app on a mobile browser and confirm the install prompt appears
+Confirm the app can be installed to the home screen
+Turn off internet and confirm the offline page shows correctly
+Confirm cached pages still load when offline
+
+After the quality check:
+
+List everything that passed ✅
+List everything that failed or is incomplete ⚠️
+Fix all failures before we proceed to anything new
+
+Do not add any new features until this quality check is complete and all issues are resolved.

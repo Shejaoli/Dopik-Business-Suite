@@ -12,7 +12,22 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navSections = [
+type Role = "owner" | "manager" | "cashier" | "stock_manager" | "admin";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.FC<any>;
+  minRole?: Role[]; // if set, only these roles can see it
+};
+
+type NavSection = {
+  label: string;
+  items: NavItem[];
+  minRole?: Role[]; // if set, whole section restricted
+};
+
+const navSections: NavSection[] = [
   {
     label: "INVENTORY",
     items: [
@@ -27,8 +42,8 @@ const navSections = [
   {
     label: "TRANSACTIONS",
     items: [
-      { href: "/purchases", label: "New Purchase", icon: ShoppingCart },
-      { href: "/purchase-history", label: "Purchase History", icon: ShoppingBag },
+      { href: "/purchases", label: "New Purchase", icon: ShoppingCart, minRole: ["owner", "manager", "admin"] },
+      { href: "/purchase-history", label: "Purchase History", icon: ShoppingBag, minRole: ["owner", "manager", "admin", "stock_manager"] },
       { href: "/sales", label: "New Sale", icon: Tag },
       { href: "/multi-sale", label: "Multi-Item Sale", icon: PackagePlus },
       { href: "/sales-history", label: "Sales History", icon: Scale },
@@ -37,24 +52,24 @@ const navSections = [
   {
     label: "PAYABLES & RECEIVABLES",
     items: [
-      { href: "/vendors", label: "Vendors", icon: Building2 },
+      { href: "/vendors", label: "Vendors", icon: Building2, minRole: ["owner", "manager", "admin"] },
       { href: "/customers", label: "Customers", icon: Users },
-      { href: "/payables", label: "Payables", icon: CreditCard },
-      { href: "/receivables", label: "Receivables", icon: Wallet },
+      { href: "/payables", label: "Payables", icon: CreditCard, minRole: ["owner", "manager", "admin"] },
+      { href: "/receivables", label: "Receivables", icon: Wallet, minRole: ["owner", "manager", "admin"] },
     ],
   },
   {
     label: "LOANS",
     items: [
-      { href: "/loans", label: "Loans", icon: HandCoins },
+      { href: "/loans", label: "Loans", icon: HandCoins, minRole: ["owner", "manager", "admin"] },
     ],
   },
   {
     label: "ACCOUNTING",
     items: [
-      { href: "/balances", label: "Balances", icon: Wallet },
-      { href: "/expenses", label: "Pay Expense", icon: Receipt },
-      { href: "/expense-accounts", label: "Expense Accounts", icon: BookOpen },
+      { href: "/balances", label: "Balances", icon: Wallet, minRole: ["owner", "manager", "admin"] },
+      { href: "/expenses", label: "Pay Expense", icon: Receipt, minRole: ["owner", "manager", "admin"] },
+      { href: "/expense-accounts", label: "Expense Accounts", icon: BookOpen, minRole: ["owner", "manager", "admin"] },
     ],
   },
   {
@@ -66,18 +81,19 @@ const navSections = [
   {
     label: "CREDIT",
     items: [
-      { href: "/credit", label: "Credit Accounts", icon: Landmark },
+      { href: "/credit", label: "Credit Accounts", icon: Landmark, minRole: ["owner", "manager", "admin"] },
       { href: "/receipts", label: "Receipts", icon: FileText },
     ],
   },
   {
     label: "ANALYTICS",
     items: [
-      { href: "/charts", label: "Charts & Analytics", icon: BarChart2 },
+      { href: "/charts", label: "Charts & Analytics", icon: BarChart2, minRole: ["owner", "manager", "admin"] },
     ],
   },
   {
     label: "REPORTS",
+    minRole: ["owner", "manager", "admin"],
     items: [
       { href: "/reports/sales", label: "Sales Report", icon: BarChart2 },
       { href: "/reports/purchases", label: "Purchase Report", icon: BarChart2 },
@@ -87,11 +103,18 @@ const navSections = [
   },
   {
     label: "ADMIN",
+    minRole: ["owner", "manager", "admin"],
     items: [
       { href: "/staff", label: "Staff & Permissions", icon: UserCog },
     ],
   },
 ];
+
+function canSeeItem(role: string | undefined, minRole?: Role[]): boolean {
+  if (!minRole) return true;
+  if (!role) return false;
+  return minRole.includes(role as Role);
+}
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -102,6 +125,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (href === "/") return location === "/";
     return location === href || location.startsWith(href + "/");
   };
+
+  const userRole = user?.role;
+  const canSeeSettings = canSeeItem(userRole, ["owner", "manager", "admin"]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F4F6FB]">
@@ -151,57 +177,64 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav sections */}
         <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-0">
-          {navSections.map((section, si) => (
-            <div key={section.label}>
-              {/* Divider + section label */}
-              <div className={cn("pt-4 pb-1", si === 0 ? "pt-3" : "")}>
-                <div className="border-t border-white/10 mb-3" />
-                <p className="text-[10px] font-bold tracking-widest text-white/35 uppercase px-3 mb-1">
-                  {section.label}
-                </p>
+          {navSections.map((section, si) => {
+            if (!canSeeItem(userRole, section.minRole)) return null;
+            const visibleItems = section.items.filter(item => canSeeItem(userRole, item.minRole));
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={section.label}>
+                {/* Divider + section label */}
+                <div className={cn("pt-4 pb-1", si === 0 ? "pt-3" : "")}>
+                  <div className="border-t border-white/10 mb-3" />
+                  <p className="text-[10px] font-bold tracking-widest text-white/35 uppercase px-3 mb-1">
+                    {section.label}
+                  </p>
+                </div>
+                {/* Items */}
+                <div className="space-y-0.5">
+                  {visibleItems.map(({ href, label, icon: Icon }) => {
+                    const active = isActive(href);
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all",
+                          active
+                            ? "bg-[#1A6DB5]/20 text-white border-l-2 border-[#F5A800] font-medium"
+                            : "text-white/55 hover:text-white hover:bg-white/8 border-l-2 border-transparent"
+                        )}
+                      >
+                        <Icon className={cn("h-4 w-4 flex-shrink-0", active ? "text-[#F5A800]" : "text-white/50")} />
+                        <span className="truncate">{label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-              {/* Items */}
-              <div className="space-y-0.5">
-                {section.items.map(({ href, label, icon: Icon }) => {
-                  const active = isActive(href);
-                  return (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all",
-                        active
-                          ? "bg-[#1A6DB5]/20 text-white border-l-2 border-[#F5A800] font-medium"
-                          : "text-white/55 hover:text-white hover:bg-white/8 border-l-2 border-transparent"
-                      )}
-                    >
-                      <Icon className={cn("h-4 w-4 flex-shrink-0", active ? "text-[#F5A800]" : "text-white/50")} />
-                      <span className="truncate">{label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {/* Settings */}
-          <div className="pt-4">
-            <div className="border-t border-white/10 mb-3" />
-            <Link
-              href="/settings"
-              onClick={() => setOpen(false)}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all",
-                isActive("/settings")
-                  ? "bg-[#1A6DB5]/20 text-white border-l-2 border-[#F5A800] font-medium"
-                  : "text-white/55 hover:text-white hover:bg-white/8 border-l-2 border-transparent"
-              )}
-            >
-              <Settings className={cn("h-4 w-4 flex-shrink-0", isActive("/settings") ? "text-[#F5A800]" : "text-white/50")} />
-              <span>Settings</span>
-            </Link>
-          </div>
+          {/* Settings — owner/manager/admin only */}
+          {canSeeSettings && (
+            <div className="pt-4">
+              <div className="border-t border-white/10 mb-3" />
+              <Link
+                href="/settings"
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all",
+                  isActive("/settings")
+                    ? "bg-[#1A6DB5]/20 text-white border-l-2 border-[#F5A800] font-medium"
+                    : "text-white/55 hover:text-white hover:bg-white/8 border-l-2 border-transparent"
+                )}
+              >
+                <Settings className={cn("h-4 w-4 flex-shrink-0", isActive("/settings") ? "text-[#F5A800]" : "text-white/50")} />
+                <span>Settings</span>
+              </Link>
+            </div>
+          )}
         </nav>
 
         {/* User footer */}

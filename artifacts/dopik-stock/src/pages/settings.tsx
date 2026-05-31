@@ -507,6 +507,29 @@ export default function SettingsPage() {
                     <SelectItem value="repair">Repairs</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 shrink-0"
+                  disabled={!activityLogs?.length}
+                  onClick={() => {
+                    const rows = activityLogs ?? [];
+                    const header = "ID,User,Role,Action,Description,IP Address,Date/Time";
+                    const lines = rows.map(log =>
+                      [log.id, `"${log.userName ?? ""}"`, log.userRole ?? "", log.action, `"${log.description.replace(/"/g, '""')}"`, log.ipAddress ?? "", new Date(log.createdAt).toLocaleString()].join(",")
+                    );
+                    const csv = [header, ...lines].join("\n");
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `activity-log-${new Date().toISOString().split("T")[0]}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
               </div>
 
               {logsLoading ? (
