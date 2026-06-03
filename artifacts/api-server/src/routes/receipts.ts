@@ -48,6 +48,7 @@ async function buildReceipt(saleId: number) {
       unitPrice: saleItemsTable.unitPrice,
       lineTotal: saleItemsTable.lineTotal,
       serializedUnitId: saleItemsTable.serializedUnitId,
+      additionalInfo: saleItemsTable.additionalInfo,
     })
     .from(saleItemsTable)
     .leftJoin(itemsTable, eq(saleItemsTable.itemId, itemsTable.id))
@@ -63,11 +64,12 @@ async function buildReceipt(saleId: number) {
   }
 
   const enrichedItems = await Promise.all(items.map(async (it) => {
-    let serializedUnit: { imeiOrSerial: string | null; color: string | null; storage: string | null; condition: string | null } | null = null;
+    let serializedUnit: { imeiOrSerial: string | null; color: string | null; ram: string | null; storage: string | null; condition: string | null } | null = null;
     if (it.serializedUnitId) {
       const [unit] = await db.select({
         imeiOrSerial: serializedUnitsTable.imeiOrSerial,
         color: serializedUnitsTable.color,
+        ram: serializedUnitsTable.ram,
         storage: serializedUnitsTable.storage,
         condition: serializedUnitsTable.condition,
       }).from(serializedUnitsTable).where(eq(serializedUnitsTable.id, it.serializedUnitId));

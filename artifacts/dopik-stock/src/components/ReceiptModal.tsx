@@ -31,9 +31,11 @@ export type ReceiptDetail = {
     unitPrice: string;
     lineTotal: string;
     serialNumbers: string[];
+    additionalInfo?: string | null;
     serializedUnit?: {
       imeiOrSerial: string | null;
       color: string | null;
+      ram: string | null;
       storage: string | null;
       condition: string | null;
     } | null;
@@ -63,8 +65,8 @@ function getItemImei(item: ReceiptDetail["items"][0]): string | null {
 
 function getItemDescription(item: ReceiptDetail["items"][0]): string | null {
   if (item.serializedUnit) {
-    const { color, storage, condition, imeiOrSerial } = item.serializedUnit;
-    const parts = [color, storage, condition, imeiOrSerial ? `IMEI: ${imeiOrSerial}` : null].filter(Boolean);
+    const { color, ram, storage, condition, imeiOrSerial } = item.serializedUnit;
+    const parts = [color, ram ? `${ram} RAM` : null, storage, condition, imeiOrSerial ? `IMEI: ${imeiOrSerial}` : null].filter(Boolean);
     return parts.join(" / ") || null;
   }
   if (item.serialNumbers.length > 0) return `IMEI: ${item.serialNumbers.join(", ")}`;
@@ -92,6 +94,7 @@ function buildReceiptHTML(receipt: ReceiptDetail): string {
       <td style="padding:6px 4px">
         <div style="font-weight:600">${item.itemName}</div>
         ${desc ? `<div style="font-size:10px;color:#aaa">${desc}</div>` : ""}
+        ${item.additionalInfo ? `<div style="font-size:10px;color:#999;font-style:italic;margin-top:2px">ℹ️ ${item.additionalInfo}</div>` : ""}
       </td>
       <td style="padding:6px 4px;text-align:right">${item.quantity}</td>
       <td style="padding:6px 4px;text-align:right">${parseFloat(item.unitPrice).toLocaleString()}</td>
@@ -334,6 +337,7 @@ export function ReceiptModal({ saleId, open, onClose }: { saleId: number; open: 
                           <td className="py-1.5">
                             <div className="font-medium">{item.itemName}</div>
                             {desc && <div className="text-gray-400 text-[10px]">{desc}</div>}
+                            {item.additionalInfo && <div className="text-gray-400 text-[10px] italic mt-0.5">ℹ️ {item.additionalInfo}</div>}
                           </td>
                           <td className="py-1.5 text-right">{item.quantity}</td>
                           <td className="py-1.5 text-right">{parseFloat(item.unitPrice).toLocaleString()}</td>

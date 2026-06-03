@@ -71,6 +71,15 @@ const migrations = [
   `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS ram VARCHAR(50)`,
   `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS additional_info TEXT`,
   `ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS additional_info TEXT`,
+
+  `CREATE TABLE IF NOT EXISTS system_events (
+    id SERIAL PRIMARY KEY,
+    event_type VARCHAR(100) NOT NULL,
+    performed_by INTEGER,
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    ip_address VARCHAR(100),
+    details JSONB
+  )`,
 ];
 
 async function run() {

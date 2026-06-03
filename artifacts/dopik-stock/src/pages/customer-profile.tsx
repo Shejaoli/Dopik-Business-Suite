@@ -25,7 +25,7 @@ type CustomerProfile = {
     dueDate?: string; status: string; createdAt: string;
   }[];
   warranties: {
-    id: number; imeiOrSerial?: string; color?: string; storage?: string;
+    id: number; imeiOrSerial?: string; color?: string; ram?: string; storage?: string;
     dateReceived?: string; status: string; itemName?: string;
   }[];
 };
@@ -222,7 +222,7 @@ export default function CustomerProfilePage() {
                   <div>
                     <p className="font-semibold text-sm">{w.itemName || "Unknown Device"}</p>
                     <p className="text-xs text-gray-500">
-                      {[w.color, w.storage].filter(Boolean).join(" · ")}
+                      {[w.color, w.ram ? `${w.ram} RAM` : null, w.storage].filter(Boolean).join(" · ")}
                       {w.imeiOrSerial && ` · IMEI: ${w.imeiOrSerial}`}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">Purchased: {fmtDate(w.dateReceived)}</p>

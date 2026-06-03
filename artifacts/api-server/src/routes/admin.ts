@@ -43,9 +43,17 @@ router.post("/admin/reset-data", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
+  const ipAddress = ((req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown").split(",")[0].trim();
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    // Log the reset event BEFORE deleting — this table is never cleared
+    await client.query(
+      `INSERT INTO system_events (event_type, performed_by, ip_address, details) VALUES ($1, $2, $3, $4)`,
+      ["data_reset", user.id, ipAddress, JSON.stringify({ performedBy: user.name, email: user.email, timestamp: new Date().toISOString() })]
+    );
 
     const tables = [
       "credit_payments",
@@ -67,6 +75,9 @@ router.post("/admin/reset-data", requireAuth, async (req, res): Promise<void> =>
       "usage_events",
       "notifications",
       "repairs",
+      "announcements",
+      "stock_adjustments",
+      "customers",
     ];
 
     for (const t of tables) {

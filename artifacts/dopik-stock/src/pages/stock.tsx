@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListStock, useGetStockAlerts, useListStockAdjustments, getListStockQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF, fmtDateTime, statusBadgeColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, AlertTriangle, TrendingUp, TrendingDown, Loader2, Boxes } from "lucide-react";
+import { Search, AlertTriangle, TrendingUp, TrendingDown, Loader2, Boxes, ChevronDown, ChevronUp } from "lucide-react";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { useCategoryTab, matchesSuperCat, SUPER_CATS, type SuperCat } from "@/lib/categories";
 
@@ -23,6 +23,7 @@ export default function StockPage() {
   const [search, setSearch] = useState("");
   const [superCat, setSuperCat] = useCategoryTab("stock");
   const [adjustItem, setAdjustItem] = useState<StockEntry | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
   const [form, setForm] = useState({ adjustmentType: "increase", quantity: "", reason: "" });
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -32,6 +33,12 @@ export default function StockPage() {
   const { data: alerts } = useGetStockAlerts();
   const { data: adjustments } = useListStockAdjustments({});
   const allStock: StockEntry[] = (stockData as any) ?? [];
+
+  const { data: expandedUnits, isLoading: unitsLoading } = useQuery<any[]>({
+    queryKey: ["stock-units", expandedItemId],
+    queryFn: () => api.get(`/stock/${expandedItemId}/units`),
+    enabled: expandedItemId !== null,
+  });
 
   const stock = allStock.filter(s => matchesSuperCat(s.category, superCat));
 
@@ -130,6 +137,7 @@ export default function StockPage() {
                       {superCat !== "all" ? `No ${SUPER_CATS.find(c => c.key === superCat)?.label} stock` : "No stock records"}
                     </td></tr>
                   ) : stock.map(s => (
+                    <>
                     <tr key={s.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-medium max-w-[180px]"><span className="truncate block">{s.itemName}</span></td>
                       <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{s.category}</Badge></td>
@@ -158,9 +166,61 @@ export default function StockPage() {
                           >
                             <TrendingDown className="h-4 w-4" />
                           </Button>
+                          {s.trackSerial && (
+                            <Button
+                              size="sm" variant="ghost"
+                              className="text-[#1A6DB5] hover:bg-[#1A6DB5]/10"
+                              onClick={() => setExpandedItemId(expandedItemId === s.itemId ? null : s.itemId)}
+                              title="View individual units"
+                            >
+                              {expandedItemId === s.itemId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
+                    {s.trackSerial && expandedItemId === s.itemId && (
+                      <tr key={`${s.id}-units`} className="bg-muted/20">
+                        <td colSpan={8} className="px-6 pb-4 pt-2">
+                          {unitsLoading ? (
+                            <div className="flex items-center gap-2 text-muted-foreground text-xs py-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading units...</div>
+                          ) : !expandedUnits?.length ? (
+                            <p className="text-xs text-muted-foreground py-2">No individual units recorded for this item.</p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs border-collapse">
+                                <thead>
+                                  <tr className="border-b border-border">
+                                    {["IMEI / Serial", "Color", "RAM", "Storage", "Condition", "Status", "Notes", "Date In"].map(h => (
+                                      <th key={h} className="text-left px-2 py-1.5 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {expandedUnits.map((u: any) => (
+                                    <tr key={u.id} className="border-b border-border/50 hover:bg-muted/30">
+                                      <td className="px-2 py-1.5 font-mono text-[10px]">{u.imeiOrSerial || "—"}</td>
+                                      <td className="px-2 py-1.5">{u.color || "—"}</td>
+                                      <td className="px-2 py-1.5">{u.ram || "—"}</td>
+                                      <td className="px-2 py-1.5">{u.storage || "—"}</td>
+                                      <td className="px-2 py-1.5">{u.condition || "—"}</td>
+                                      <td className="px-2 py-1.5">
+                                        <Badge className={`text-[10px] px-1.5 py-0 ${statusBadgeColor(u.status || "")}`}>{u.status || "—"}</Badge>
+                                      </td>
+                                      <td className="px-2 py-1.5 max-w-[180px]">
+                                        {u.additionalInfo ? <span className="italic text-gray-500 truncate block">{u.additionalInfo}</span> : <span className="text-muted-foreground">—</span>}
+                                      </td>
+                                      <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{u.dateReceived ? new Date(u.dateReceived).toLocaleDateString("en-GB") : "—"}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </>
                   ))}
                 </tbody>
               </table>

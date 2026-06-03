@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, ilike, sql, inArray, and } from "drizzle-orm";
-import { db, stockTable, itemsTable, stockAdjustmentsTable, usersTable, serialNumbersTable } from "@workspace/db";
+import { eq, ilike, sql, inArray, and, desc } from "drizzle-orm";
+import { db, stockTable, itemsTable, stockAdjustmentsTable, usersTable, serialNumbersTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getCategoriesForSuper } from "../lib/category-filter";
 
@@ -156,6 +156,25 @@ router.get("/stock/adjustments", async (req, res): Promise<void> => {
 
   const rows = await query.orderBy(sql`${stockAdjustmentsTable.createdAt} DESC`);
   res.json(rows.map(r => ({ ...r, adjustedBy: r.adjustedByName ?? null })));
+});
+
+router.get("/stock/:itemId/units", async (req, res): Promise<void> => {
+  const itemId = parseInt(req.params.itemId);
+  if (isNaN(itemId)) { res.status(400).json({ error: "Invalid itemId" }); return; }
+  const units = await db.select({
+    id: serializedUnitsTable.id,
+    imeiOrSerial: serializedUnitsTable.imeiOrSerial,
+    color: serializedUnitsTable.color,
+    ram: serializedUnitsTable.ram,
+    storage: serializedUnitsTable.storage,
+    condition: serializedUnitsTable.condition,
+    status: serializedUnitsTable.status,
+    additionalInfo: serializedUnitsTable.additionalInfo,
+    dateReceived: serializedUnitsTable.dateReceived,
+  }).from(serializedUnitsTable)
+    .where(eq(serializedUnitsTable.itemId, itemId))
+    .orderBy(desc(serializedUnitsTable.dateReceived));
+  res.json(units);
 });
 
 export default router;

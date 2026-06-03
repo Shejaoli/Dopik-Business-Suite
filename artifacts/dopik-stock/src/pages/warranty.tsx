@@ -9,6 +9,7 @@ type WarrantyResult = {
   productName?: string;
   category?: string;
   color?: string;
+  ram?: string;
   storage?: string;
   condition?: string;
   purchaseDate?: string;
@@ -130,6 +131,12 @@ export default function WarrantyPage() {
                   <div className="flex justify-between py-2 border-b border-gray-100">
                     <span className="text-gray-500">Color</span>
                     <span className="font-medium">{result.color}</span>
+                  </div>
+                )}
+                {result.ram && (
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-500">RAM</span>
+                    <span className="font-medium">{result.ram}</span>
                   </div>
                 )}
                 {result.storage && (

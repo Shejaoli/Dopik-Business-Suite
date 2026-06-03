@@ -305,7 +305,10 @@ function POPreview({
                     <tr key={row.id} className="border-b border-gray-100">
                       <td className="border border-gray-200 px-3 py-2 text-xs">{i + 1}</td>
                       <td className="border border-gray-200 px-3 py-2 text-xs font-medium">{item?.itemName ?? item?.name ?? "—"}</td>
-                      <td className="border border-gray-200 px-3 py-2 text-xs">{desc || "—"}</td>
+                      <td className="border border-gray-200 px-3 py-2 text-xs">
+                        {desc || "—"}
+                        {row.additionalInfo && <div className="text-gray-400 italic mt-0.5">ℹ️ {row.additionalInfo}</div>}
+                      </td>
                       <td className="border border-gray-200 px-3 py-2 text-xs">{row.condition || "—"}</td>
                       <td className="border border-gray-200 px-3 py-2 text-xs">{vendor?.name ?? "—"}</td>
                       <td className="border border-gray-200 px-3 py-2 text-xs capitalize">{pmLabel(row.paymentMethod || "")}</td>
