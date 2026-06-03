@@ -1,0 +1,137 @@
+FEATURE 24 — BEST TIME TO RESTOCK INTELLIGENCE
+Smart restocking recommendations:
+Analyze sales data to determine average sales velocity per product
+On the Stock page, add a "Restock Intelligence" panel showing:
+Products that need restocking in the next 7 days (based on velocity)
+For each: product name, current stock, daily sales rate, days remaining, recommended order quantity, last supplier
+"Order Now" button that opens New Purchase pre-filled with product and recommended quantity
+Weekly restock reminder: every Monday at 9:00 AM send owner a WhatsApp summary:
+
+📦 Weekly Restock Reminder — Dopik Electronics
+Week of [Date]
+
+Products to reorder this week:
+1. iPhone 16 128GB — 2 left, sells ~3/week → Order 10+
+2. AirPods Pro 3 — 5 left, sells ~8/week → Order 20+
+3. Samsung A55 — 0 left — OUT OF STOCK ⚠️
+
+Tap to create purchase orders: [site-url]/purchases/new
+
+FEATURE 25 — STOCK COUNT MODE (PHYSICAL AUDIT)
+Enable physical stock counting and reconciliation:
+Add a "Stock Count" page accessible from the Stock menu
+Start Count button begins a new stock count session — locks stock adjustments during counting
+On mobile: staff walks through the shop and for each product:
+Search or scan barcode to find product
+Enter actual physical count
+System shows expected count from database
+Discrepancy highlighted immediately
+For serialized items: staff scans or enters each IMEI one by one to verify presence
+Count Summary after completing: shows all discrepancies (missing units, extra units found)
+Approve & Adjust button: applies discrepancies to database stock levels with a note
+Generates a Stock Audit Report PDF showing: count date, staff who performed it, all products counted, discrepancies, and final adjustments made
+Database table: stock_counts: id, started_by, started_at, completed_at, status, notes
+Database table: stock_count_items: id, count_id, product_id, expected_qty, counted_qty, discrepancy, notes
+FEATURE 26 — CAMERA RECEIPT SCANNER (AI-POWERED)
+Use AI to extract purchase data from supplier receipts:
+In the New Purchase form, add a "Scan Supplier Receipt" button at the top
+Opens a camera/file upload modal where admin can take a photo or upload an image of a paper receipt from a supplier
+Send the image to the Claude API (Anthropic) with prompt: "Extract all items, quantities, and prices from this supplier receipt. Return as JSON: [{item_name, quantity, unit_price, total_price}]. Also extract supplier name, date, and total if visible."
+Parse the JSON response and pre-fill the purchase form:
+For each extracted item: search the product database for a matching product name
+If match found: pre-fill the item card with the matched product, quantity, and price
+If no match: pre-fill with the raw text from the receipt and flag it for admin review
+Show a "Review Extracted Data" step before applying to the form — admin can correct any misread items
+Show confidence indicator per extracted item: ✅ High confidence, ⚠️ Please verify
+Use the Anthropic API key from environment variables: ANTHROPIC_API_KEY
+Fallback: if API fails, show message: "Could not process receipt automatically. Please fill in manually."
+FEATURE 27 — IN-APP ANNOUNCEMENTS SYSTEM
+Push announcements to all system users:
+Add an "Announcements" section in Settings (Owner only)
+Owner can create announcements with: title, message, type (Info/Warning/Success), and expiry date
+Active announcements show as a dismissible banner at the top of the dashboard for all logged-in users
+Each user can dismiss an announcement — their dismissal is saved so it doesn't reappear
+Types:
+Info (blue banner): "New feature: Barcode Scanner is now live! 🎉"
+Warning (amber): "System maintenance scheduled for Sunday 2AM"
+Success (green): "Monthly sales target achieved! 🏆"
+Announcement history page showing all past announcements
+Database table: announcements: id, title, message, type, created_by, created_at, expires_at
+Database table: announcement_dismissals: id, announcement_id, staff_id, dismissed_at
+FEATURE 28 — USAGE ANALYTICS (ADMIN INSIGHT)
+Track how the system is being used:
+Add a "System Usage" tab in Settings (Owner only) showing:
+Most used pages (by page view count)
+Most active staff member (by actions logged)
+Peak usage hours (chart showing when the system is most used throughout the day)
+Feature usage: how many times each major feature was used this month (Sales, Purchases, Repairs, etc.)
+Device breakdown: desktop vs mobile usage percentage
+Average session duration per staff member
+Track page views by logging every navigation event in a page_views table: id, staff_id, page, viewed_at, device_type
+Weekly usage report sent to owner via WhatsApp every Monday alongside restock reminder:
+
+
+📱 System Usage — Last 7 Days
+
+Most active: [Staff Name] ([N] actions)
+Total sales recorded: [N]
+Total purchases recorded: [N]
+Most visited page: [Page Name]
+Mobile vs Desktop: [X]% / [X]%
+
+
+FEATURE 29 — REFERRAL SYSTEM FOR NEW SAAS CLIENTS
+Build a referral program for when you sell this system to other shops:
+Add a "Refer a Business" page accessible from the main menu (not hidden in settings)
+Page shows: "Know another shop that needs this system? Refer them and earn 1 month free!"
+Simple referral form: referred business name, owner name, phone number, type of business, location
+On submission: save referral to database, notify super admin via WhatsApp:
+🤝 New Referral Submitted
+
+Referred By: [Current Shop Name]
+Referral: [Business Name]
+Owner: [Name]
+Phone: [Phone]
+Type: [Business Type]
+Location: [Location]
+
+
+Track referral status: Submitted → Contacted → Demo Given → Converted → Rewarded
+When status changes to Converted: automatically credit 1 month to the referring shop's account
+Referral dashboard showing: referrals submitted, status of each, rewards earned
+Database table: referrals: id, referred_by_tenant_id, business_name, owner_name, phone, business_type, location, status, submitted_at, converted_at
+FEATURE 30 — COMPREHENSIVE NOTIFICATION CENTER
+Centralize all system notifications in one place:
+Add a notification bell icon (🔔) in the top navigation bar with a red badge showing unread count
+Clicking the bell opens a notification dropdown/panel showing recent notifications
+All system events create a notification:
+New sale recorded
+New purchase confirmed
+Low stock alert
+Credit payment overdue
+Repair status changed
+New customer added
+Staff login from new device
+Backup completed or failed
+Budget limit reached
+New inquiry from catalog/order form
+Each notification shows: icon, title, description, time ago, and a link to the relevant page
+Mark all as read button at the top of the notification panel
+Notification Settings in Settings page: toggle which events generate notifications, choose delivery method per event (In-app only / In-app + WhatsApp)
+Notifications page (/notifications) showing full notification history with pagination and filters
+Unread notifications persist across sessions (stored in database)
+Database table: notifications: id, staff_id, type, title, message, link, read_at, created_at
+GLOBAL REQUIREMENTS FOR ALL 30 FEATURES
+Every feature must be fully connected to the PostgreSQL database
+Every new database table must be created via a proper migration — do not drop existing tables
+Every API endpoint must have authentication middleware (except public endpoints: /warranty, /catalog, /order)
+Every API endpoint must be wrapped in try/catch with meaningful error responses
+Every frontend page must be responsive — works on mobile (375px+) and desktop (1024px+)
+Every form must have proper validation with clear error messages
+Every destructive action (delete, cancel, adjust stock) must have a confirmation step
+WhatsApp integration uses the wa.me link format throughout — no external WhatsApp API required unless specified
+All scheduled tasks (cron jobs) must be registered in one central file server/scheduler.ts
+All new navigation items must respect the existing staff permissions system — hide items the current user's role cannot access
+All new pages must be added to the activity log
+Do not break any existing feature — test each new feature against existing functionality before completing
+Apply all 30 features. Work through them systematically one by one. After every 5 features, confirm what has been built before proceeding to the next batch.
