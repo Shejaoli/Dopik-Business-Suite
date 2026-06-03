@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { api, fmtRWF, fmtDate } from "@/lib/api";
+import { api, fmtRWF, fmtDate, fmtDateTime } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Printer, MessageSquare, Download, Receipt, X } from "lucide-react";
@@ -75,8 +75,8 @@ function buildReceiptHTML(receipt: ReceiptDetail): string {
   const s = receipt.sale;
   const store = receipt.store;
   const date = new Date(s.createdAt);
-  const dateStr = date.toLocaleDateString("en-RW", { day: "2-digit", month: "long", year: "numeric" });
-  const timeStr = date.toLocaleTimeString("en-RW", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = date.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const timeStr = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const discount = parseFloat(s.discountAmount ?? "0");
   const hasSerial = receipt.items.some(i => i.serializedUnit?.imeiOrSerial || i.serialNumbers.length > 0);
 
@@ -194,8 +194,8 @@ function openPrintWindow(receipt: ReceiptDetail) {
 function buildWhatsAppMessage(r: ReceiptDetail) {
   const store = r.store;
   const date = new Date(r.sale.createdAt);
-  const dateStr = date.toLocaleDateString("en-RW", { day: "2-digit", month: "long", year: "numeric" });
-  const timeStr = date.toLocaleTimeString("en-RW", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = date.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const timeStr = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
   const itemList = r.items.map(i => {
     const imei = getItemImei(i);
@@ -233,9 +233,8 @@ export function ReceiptModal({ saleId, open, onClose }: { saleId: number; open: 
   });
 
   const s = receipt?.sale;
-  const date = s ? new Date(s.createdAt) : null;
-  const dateStr = date?.toLocaleDateString("en-RW", { day: "2-digit", month: "long", year: "numeric" });
-  const timeStr = date?.toLocaleTimeString("en-RW", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = s ? fmtDate(s.createdAt) : null;
+  const timeStr = s ? new Date(s.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
   const discount = parseFloat(s?.discountAmount ?? "0");
   const hasWhatsApp = !!receipt?.sale.customerPhone;
 

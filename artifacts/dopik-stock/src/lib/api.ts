@@ -45,10 +45,10 @@ export function fmtDate(v: string | null | undefined): string {
 
 export function fmtDateTime(v: string | null | undefined): string {
   if (!v) return "—";
-  return new Date(v).toLocaleString("en-RW", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  const d = new Date(v);
+  const datePart = d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const timePart = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return `${datePart} at ${timePart}`;
 }
 
 export function paymentBadgeColor(m: string | null | undefined) {

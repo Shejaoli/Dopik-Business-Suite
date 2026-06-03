@@ -104,12 +104,20 @@ router.get("/customers/:id/summary", async (req, res): Promise<void> => {
 
 router.post("/customers", async (req, res): Promise<void> => {
   const { name, contactPerson, email, phone, address } = req.body;
-  if (!name) { res.status(400).json({ error: "name required" }); return; }
-  const [customer] = await db.insert(customersTable).values({
-    name, contactPerson: contactPerson || null, email: email || null,
-    phone: phone || null, address: address || null,
-  }).returning();
-  res.status(201).json(customer);
+  if (!name?.trim()) { res.status(400).json({ error: "name required" }); return; }
+  try {
+    const [customer] = await db.insert(customersTable).values({
+      name: name.trim(),
+      contactPerson: contactPerson?.trim() || null,
+      email: email?.trim() || null,
+      phone: phone?.trim() || null,
+      address: address?.trim() || null,
+    }).returning();
+    res.status(201).json(customer);
+  } catch (err: any) {
+    console.error("[POST /customers] Error:", err);
+    res.status(500).json({ error: err?.message || "Failed to create customer" });
+  }
 });
 
 router.put("/customers/:id", async (req, res): Promise<void> => {

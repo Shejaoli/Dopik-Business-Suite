@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useListCustomers } from "@workspace/api-client-react";
+import { useListCustomers, getListCustomersQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -79,11 +79,12 @@ function useSerializedUnits(itemId: string, enabled: boolean) {
 }
 
 function LineItemCard({
-  line, allLines, itemList, onUpdate, onRemove, canRemove,
+  line, allLines, itemList, onUpdate, onRemove, canRemove, onMerge,
 }: {
   line: LineItem; allLines: LineItem[]; itemList: any[];
   onUpdate: (key: string, patch: Partial<LineItem>) => void;
   onRemove: (key: string) => void; canRemove: boolean;
+  onMerge?: (fromKey: string, intoKey: string) => void;
 }) {
   const { data: units = [] } = useSerializedUnits(line.itemId, line.isSerial);
 
@@ -196,12 +197,22 @@ function LineItemCard({
       </div>
 
       {/* Duplicate non-serial item warning */}
-      {!line.isSerial && line.itemId && allLines.some(l => l.key !== line.key && l.itemId === line.itemId && !l.isSerial) && (
-        <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-          This item is already in another line — consider merging the quantities into one row.
-        </div>
-      )}
+      {!line.isSerial && line.itemId && (() => {
+        const firstDup = allLines.find(l => l.key !== line.key && l.itemId === line.itemId && !l.isSerial);
+        if (!firstDup) return null;
+        return (
+          <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+            <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="flex-1">This item is already in another line.</span>
+            {onMerge && (
+              <button type="button" onClick={() => onMerge(line.key, firstDup.key)}
+                className="flex-shrink-0 px-2 py-0.5 rounded-md bg-amber-600 text-white hover:bg-amber-700 transition font-medium">
+                Merge
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {line.itemId && line.unitPrice && (
         <div className="flex justify-end">
@@ -227,7 +238,7 @@ function QuickAddCustomerDialog({ open, onClose, onAdded }: {
     try {
       const customer = await api.post<any>("/customers", { name: form.name.trim(), phone: form.phone || null });
       toast({ title: `Customer "${customer.name}" added` });
-      qc.invalidateQueries({ queryKey: ["customers"] });
+      qc.invalidateQueries({ queryKey: getListCustomersQueryKey() });
       setForm({ name: "", phone: "" });
       onAdded(customer);
       onClose();
@@ -442,6 +453,19 @@ export default function MultiSalePage() {
 
   const removeLine = useCallback((key: string) => {
     setLines(prev => prev.filter(l => l.key !== key));
+    markDirty();
+  }, [markDirty]);
+
+  const mergeLine = useCallback((fromKey: string, intoKey: string) => {
+    setLines(prev => {
+      const from = prev.find(l => l.key === fromKey);
+      const into = prev.find(l => l.key === intoKey);
+      if (!from || !into) return prev;
+      const combined = (parseFloat(from.quantity) || 0) + (parseFloat(into.quantity) || 0);
+      return prev
+        .filter(l => l.key !== fromKey)
+        .map(l => l.key === intoKey ? { ...l, quantity: String(combined) } : l);
+    });
     markDirty();
   }, [markDirty]);
 
@@ -696,7 +720,7 @@ export default function MultiSalePage() {
           <div className="space-y-3">
             {lines.map(line => (
               <LineItemCard key={line.key} line={line} allLines={lines} itemList={items}
-                onUpdate={updateLine} onRemove={removeLine} canRemove={lines.length > 1} />
+                onUpdate={updateLine} onRemove={removeLine} canRemove={lines.length > 1} onMerge={mergeLine} />
             ))}
           </div>
 
