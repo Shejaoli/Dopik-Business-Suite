@@ -11,6 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useToast } from "@/hooks/use-toast";
 import { Scale, Plus, Search, ShieldAlert, Loader2, Undo2, Receipt } from "lucide-react";
 import { ReceiptModal } from "@/components/ReceiptModal";
+import { CategoryTabs } from "@/components/CategoryTabs";
+import { useCategoryTab, matchesSuperCat, SUPER_CATS, type SuperCat } from "@/lib/categories";
+
+type SaleItem = {
+  itemName: string; itemId: number; quantity: string; category?: string;
+};
 
 type Sale = {
   id: number;
@@ -19,7 +25,7 @@ type Sale = {
   totalAmount?: string | null;
   reverted?: boolean | null;
   createdAt?: string | null;
-  items?: { itemName: string; itemId: number; quantity: string }[];
+  items?: SaleItem[];
 };
 
 function paymentBadge(m: string | null | undefined) {
@@ -108,15 +114,33 @@ function RevertDialog({ sale, open, onClose, onReverted }: {
 
 export default function SalesHistoryPage() {
   const [search, setSearch] = useState("");
+  const [superCat, setSuperCat] = useCategoryTab("sales");
   const [revertSale, setRevertSale] = useState<Sale | null>(null);
   const [receiptSaleId, setReceiptSaleId] = useState<number | null>(null);
   const { data: sales, isLoading } = useListSales({});
   const qc = useQueryClient();
-  const saleList: Sale[] = (sales as any) ?? [];
+  const allSales: Sale[] = (sales as any) ?? [];
 
-  const filtered = saleList.filter(s =>
+  const saleMatchesCat = (s: Sale): boolean => {
+    if (superCat === "all") return true;
+    const items = s.items ?? [];
+    if (items.length === 0) return false;
+    return items.some(i => matchesSuperCat(i.category ?? "Others", superCat));
+  };
+
+  const catFiltered = allSales.filter(saleMatchesCat);
+  const filtered = catFiltered.filter(s =>
     !search || (s.customerName ?? "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const catCounts: Partial<Record<SuperCat, number>> = { all: allSales.length };
+  for (const sc of SUPER_CATS.filter(c => c.key !== "all")) {
+    catCounts[sc.key] = allSales.filter(s =>
+      (s.items ?? []).some(i => matchesSuperCat(i.category ?? "Others", sc.key))
+    ).length;
+  }
+
+  const totalRevenue = filtered.reduce((s, sale) => s + parseFloat(sale.totalAmount ?? "0"), 0);
 
   return (
     <div className="space-y-5">
@@ -131,6 +155,23 @@ export default function SalesHistoryPage() {
           </Button>
         </Link>
       </div>
+
+      <CategoryTabs value={superCat} onChange={setSuperCat} counts={catCounts} />
+
+      {superCat !== "all" && (
+        <div className="flex items-center gap-4 px-4 py-3 bg-green-50 border border-green-100 rounded-xl">
+          <div>
+            <p className="text-xs text-green-600 font-medium uppercase tracking-wide">
+              {SUPER_CATS.find(c => c.key === superCat)?.emoji} {SUPER_CATS.find(c => c.key === superCat)?.label} Revenue
+            </p>
+            <p className="text-lg font-bold text-green-800">{fmtRWF(String(totalRevenue))}</p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-xs text-green-600">Sales</p>
+            <p className="text-lg font-bold text-green-800">{filtered.length}</p>
+          </div>
+        </div>
+      )}
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -159,7 +200,9 @@ export default function SalesHistoryPage() {
                 <tr>
                   <td colSpan={8} className="py-16 text-center">
                     <Scale className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-400 text-sm">No sales found</p>
+                    <p className="text-gray-400 text-sm">
+                      {superCat !== "all" ? `No ${SUPER_CATS.find(c => c.key === superCat)?.label} sales found` : "No sales found"}
+                    </p>
                   </td>
                 </tr>
               )}

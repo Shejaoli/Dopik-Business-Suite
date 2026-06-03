@@ -36,6 +36,11 @@ import ReceiptsPage from "@/pages/receipts";
 import RepairsPage from "@/pages/repairs";
 import WarrantyPage from "@/pages/warranty";
 import CustomerProfilePage from "@/pages/customer-profile";
+import AnnouncementsPage from "@/pages/announcements";
+import RestockIntelligencePage from "@/pages/restock-intelligence";
+import StockCountPage from "@/pages/stock-count";
+import ReceiptScannerPage from "@/pages/receipt-scanner";
+import UsageAnalyticsPage from "@/pages/usage-analytics";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -112,6 +117,11 @@ function AppRoutes() {
         <Route path="/receipts" component={ReceiptsPage} />
         <Route path="/repairs" component={RepairsPage} />
         <Route path="/staff" component={StaffPage} />
+        <Route path="/announcements" component={AnnouncementsPage} />
+        <Route path="/restock-intelligence" component={RestockIntelligencePage} />
+        <Route path="/stock-count" component={StockCountPage} />
+        <Route path="/receipt-scanner" component={ReceiptScannerPage} />
+        <Route path="/usage-analytics" component={UsageAnalyticsPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />

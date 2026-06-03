@@ -5,6 +5,8 @@ import { useListItems, getListItemsQueryKey } from "@workspace/api-client-react"
 import { api, fmtRWF } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Package, Search, History, Plus, X, Barcode, AlertTriangle, Eye, ArrowRight, CheckCircle2 } from "lucide-react";
+import { CategoryTabs } from "@/components/CategoryTabs";
+import { useCategoryTab, matchesSuperCat, SUPER_CATS, type SuperCat } from "@/lib/categories";
 
 const ITEM_CATEGORIES = [
   "Smartphone",
@@ -27,6 +29,7 @@ type Item = {
   alternativeItemId?: number | null;
   alternativeItemName?: string | null;
   createdAt?: string | null;
+  stockQuantity?: string | null;
 };
 
 function EditItemModal({ item, items, onClose }: { item: Item; items: Item[]; onClose: () => void }) {
@@ -373,12 +376,20 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
 
 export default function ItemsPage() {
   const [search, setSearch] = useState("");
+  const [superCat, setSuperCat] = useCategoryTab("items");
   const [showCreate, setShowCreate] = useState(false);
   const [editItem, setEditItem] = useState<Item | null>(null);
   const [, navigate] = useLocation();
 
-  const { data, isLoading } = useListItems({ search: search || undefined, limit: 200 });
-  const items: Item[] = (data?.items as any) ?? [];
+  const { data, isLoading } = useListItems({ search: search || undefined, limit: 500 });
+  const allItems: Item[] = (data?.items as any) ?? [];
+
+  const items = allItems.filter(i => matchesSuperCat(i.category, superCat));
+
+  const catCounts: Partial<Record<SuperCat, number>> = { all: allItems.length };
+  for (const sc of SUPER_CATS.filter(c => c.key !== "all")) {
+    catCounts[sc.key] = allItems.filter(i => matchesSuperCat(i.category, sc.key)).length;
+  }
 
   return (
     <div className="space-y-5">
@@ -403,6 +414,8 @@ export default function ItemsPage() {
           </button>
         </div>
       </div>
+
+      <CategoryTabs value={superCat} onChange={setSuperCat} counts={catCounts} />
 
       <div className="relative w-72">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -441,7 +454,7 @@ export default function ItemsPage() {
                   <td colSpan={8} className="py-16 text-center">
                     <Package className="h-10 w-10 text-gray-200 mx-auto mb-3" />
                     <p className="text-gray-400 text-sm">
-                      {search ? `No items matching "${search}"` : "No items yet"}
+                      {search ? `No items matching "${search}"` : superCat !== "all" ? `No ${SUPER_CATS.find(c => c.key === superCat)?.label} items yet` : "No items yet"}
                     </p>
                   </td>
                 </tr>
@@ -499,10 +512,10 @@ export default function ItemsPage() {
       </div>
 
       {showCreate && (
-        <AddItemModal items={items} onClose={() => setShowCreate(false)} />
+        <AddItemModal items={allItems} onClose={() => setShowCreate(false)} />
       )}
       {editItem && (
-        <EditItemModal item={editItem} items={items} onClose={() => setEditItem(null)} />
+        <EditItemModal item={editItem} items={allItems} onClose={() => setEditItem(null)} />
       )}
     </div>
   );

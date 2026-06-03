@@ -1,0 +1,53 @@
+Yes, proceed. Start Phase 1 immediately and work through all 8 phases without stopping to ask for approval between phases unless you hit a blocker you cannot resolve on your own.
+Follow these rules throughout all phases:
+Quality rules:
+
+Every feature must be fully functional before moving to the next phase — do not leave half-built features
+Every new database table must be created safely without dropping or modifying existing tables
+Every new page must respect the 4-role permissions system (Owner, Manager, Cashier, Stock Manager)
+Every API endpoint must have try/catch error handling
+Every form must have proper validation
+
+WhatsApp rules:
+
+All WhatsApp integration uses wa.me link format only — no external API
+
+PDF rules:
+
+Phase 3 Stock Count audit report uses window.print() with proper print CSS
+
+Cron jobs:
+
+All scheduled tasks go into one central file src/lib/scheduler.ts
+
+Database rules:
+
+All new tables via Drizzle schema + db push
+Never drop existing columns or tables
+All existing data must remain intact after every phase
+
+Permissions per feature:
+
+Stock Count Mode: Owner and Manager only
+Usage Analytics: Owner only
+Referral System: Owner and Manager
+Notification Center: all roles
+Announcements creation: Owner only, viewing: all roles
+Camera Receipt Scanner: Owner and Manager only
+
+After each phase completes:
+
+Tell me what was built
+Tell me what is working
+Tell me if anything needs manual configuration (API keys, env variables, etc.)
+Then immediately proceed to the next phase without waiting for my response unless there is a critical blocker
+
+If you hit a blocker:
+
+Describe the exact error
+Describe what you tried
+Describe your proposed solution
+Then wait for my input before proceeding past that blocker
+
+For Phase 4 (Camera Receipt Scanner): if ANTHROPIC_API_KEY is not set in environment variables, show a clear message in the UI: "Camera receipt scanning requires an API key. Please add ANTHROPIC_API_KEY in your environment settings." Do not crash or throw an unhandled error.
+Start Phase 1 now.

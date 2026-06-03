@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Search, AlertTriangle, TrendingUp, TrendingDown, Loader2, Boxes } from "lucide-react";
+import { CategoryTabs } from "@/components/CategoryTabs";
+import { useCategoryTab, matchesSuperCat, SUPER_CATS, type SuperCat } from "@/lib/categories";
 
 type StockEntry = {
   id: number; itemId: number; itemName: string; category: string; trackSerial: boolean;
@@ -19,6 +21,7 @@ type StockEntry = {
 
 export default function StockPage() {
   const [search, setSearch] = useState("");
+  const [superCat, setSuperCat] = useCategoryTab("stock");
   const [adjustItem, setAdjustItem] = useState<StockEntry | null>(null);
   const [form, setForm] = useState({ adjustmentType: "increase", quantity: "", reason: "" });
   const [saving, setSaving] = useState(false);
@@ -28,7 +31,18 @@ export default function StockPage() {
   const { data: stockData, isLoading } = useListStock({ search: search || undefined });
   const { data: alerts } = useGetStockAlerts();
   const { data: adjustments } = useListStockAdjustments({});
-  const stock: StockEntry[] = (stockData as any) ?? [];
+  const allStock: StockEntry[] = (stockData as any) ?? [];
+
+  const stock = allStock.filter(s => matchesSuperCat(s.category, superCat));
+
+  const catCounts: Partial<Record<SuperCat, number>> = { all: allStock.length };
+  for (const sc of SUPER_CATS.filter(c => c.key !== "all")) {
+    catCounts[sc.key] = allStock.filter(s => matchesSuperCat(s.category, sc.key)).length;
+  }
+
+  const alertsData = alerts as any;
+  const outOfStockFiltered = (alertsData?.outOfStock ?? []).filter((s: StockEntry) => matchesSuperCat(s.category, superCat));
+  const lowStockFiltered = (alertsData?.lowStock ?? []).filter((s: StockEntry) => matchesSuperCat(s.category, superCat));
 
   const handleAdjust = async () => {
     if (!adjustItem || !form.quantity) return;
@@ -56,7 +70,8 @@ export default function StockPage() {
         <p className="text-sm text-muted-foreground">Monitor and adjust inventory levels</p>
       </div>
 
-      {/* Alert summary */}
+      <CategoryTabs value={superCat} onChange={setSuperCat} counts={catCounts} />
+
       {alerts && (
         <div className="grid grid-cols-2 gap-3">
           <div className="glass-panel p-4 border-l-4 border-red-400">
@@ -64,14 +79,16 @@ export default function StockPage() {
               <AlertTriangle className="h-4 w-4 text-red-500" />
               <span className="text-sm font-medium">Out of Stock</span>
             </div>
-            <p className="text-2xl font-bold text-red-600 mt-1">{(alerts as any).outOfStock?.length ?? 0}</p>
+            <p className="text-2xl font-bold text-red-600 mt-1">{outOfStockFiltered.length}</p>
+            {superCat !== "all" && <p className="text-xs text-muted-foreground mt-0.5">in {SUPER_CATS.find(c => c.key === superCat)?.label}</p>}
           </div>
           <div className="glass-panel p-4 border-l-4 border-yellow-400">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-yellow-500" />
               <span className="text-sm font-medium">Low Stock</span>
             </div>
-            <p className="text-2xl font-bold text-yellow-600 mt-1">{(alerts as any).lowStock?.length ?? 0}</p>
+            <p className="text-2xl font-bold text-yellow-600 mt-1">{lowStockFiltered.length}</p>
+            {superCat !== "all" && <p className="text-xs text-muted-foreground mt-0.5">in {SUPER_CATS.find(c => c.key === superCat)?.label}</p>}
           </div>
         </div>
       )}
@@ -109,7 +126,8 @@ export default function StockPage() {
                     ))
                   ) : stock.length === 0 ? (
                     <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">
-                      <Boxes className="h-8 w-8 mx-auto mb-2 opacity-30" />No stock records
+                      <Boxes className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      {superCat !== "all" ? `No ${SUPER_CATS.find(c => c.key === superCat)?.label} stock` : "No stock records"}
                     </td></tr>
                   ) : stock.map(s => (
                     <tr key={s.id} className="border-b border-border hover:bg-muted/30 transition-colors">
@@ -188,7 +206,6 @@ export default function StockPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Adjust Dialog */}
       <Dialog open={!!adjustItem} onOpenChange={open => !open && setAdjustItem(null)}>
         <DialogContent>
           <DialogHeader>

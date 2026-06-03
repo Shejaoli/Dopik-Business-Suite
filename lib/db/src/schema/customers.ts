@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,7 @@ export const customersTable = pgTable("customers", {
   phone: varchar("phone", { length: 30 }),
   address: text("address"),
   loanLimit: numeric("loan_limit", { precision: 12, scale: 2 }),
+  referredBy: integer("referred_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 

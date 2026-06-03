@@ -14,6 +14,8 @@ import {
   Layers, CreditCard, AlertCircle, Target, Users,
   Clock, BarChart2, Calendar, Thermometer, Package, AlertTriangle
 } from "lucide-react";
+import { CategoryTabs } from "@/components/CategoryTabs";
+import { useCategoryTab, type SuperCat } from "@/lib/categories";
 
 const PERIODS = [
   { key: "week", label: "This Week" },
@@ -157,9 +159,11 @@ function CategoryChart() {
 }
 
 // ── Top Selling Products ──────────────────────────────────────────────────────
-function TopProductsChart() {
+function TopProductsChart({ superCat }: { superCat: SuperCat }) {
   const [period, setPeriod] = useState("month");
-  const { data, isLoading } = useAnalytics("top-products", { period, limit: "10" });
+  const params: Record<string, string> = { period, limit: "10" };
+  if (superCat !== "all") params.superCategory = superCat;
+  const { data, isLoading } = useAnalytics("top-products", params);
   const rows: any[] = (data ?? []).slice(0, 10);
   return (
     <ChartCard title="Top Selling Products" subtitle="Top 10 products by revenue"
@@ -501,16 +505,21 @@ function BestTimesCard() {
 
 // ── Main Charts Page ──────────────────────────────────────────────────────────
 export default function ChartsPage() {
+  const [superCat, setSuperCat] = useCategoryTab("charts");
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold font-sora">Charts & Analytics</h1>
         <p className="text-sm text-muted-foreground">Full business intelligence dashboard</p>
       </div>
+      <div className="glass-panel p-4">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Filter by Product Category</p>
+        <CategoryTabs value={superCat} onChange={setSuperCat} />
+      </div>
       <RevenueChart />
       <ProfitVsExpensesChart />
       <CategoryChart />
-      <TopProductsChart />
+      <TopProductsChart superCat={superCat} />
       <PaymentChart />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <StockHealthCard />

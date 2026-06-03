@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { eq, sql, gte, lte, and, desc } from "drizzle-orm";
+import { eq, sql, gte, lte, and, desc, inArray } from "drizzle-orm";
 import { db, salesTable, saleItemsTable, itemsTable, purchasesTable, expensesTable, stockTable, receivablesTable, customersTable, balancesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { getCategoriesForSuper } from "../lib/category-filter";
 
 const router = Router();
 router.use(requireAuth);
@@ -67,21 +68,32 @@ router.get("/analytics/top-products", async (req, res): Promise<void> => {
   const period = (req.query.period as string) || "month";
   const { start, end } = periodBounds(period);
   const limit = parseInt(req.query.limit as string) || 10;
+  const superCategory = req.query.superCategory as string | undefined;
+  const cats = getCategoriesForSuper(superCategory);
+
+  const conditions: any[] = [
+    gte(salesTable.createdAt, start),
+    lte(salesTable.createdAt, end),
+    eq(salesTable.reverted, false),
+  ];
+  if (cats) conditions.push(inArray(itemsTable.category, cats));
+
   const rows = await db
     .select({
       itemId: saleItemsTable.itemId,
       name: itemsTable.name,
+      category: itemsTable.category,
       total: sql<string>`SUM(${saleItemsTable.lineTotal})`,
       qty: sql<string>`SUM(${saleItemsTable.quantity})`,
     })
     .from(saleItemsTable)
     .innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
     .leftJoin(itemsTable, eq(saleItemsTable.itemId, itemsTable.id))
-    .where(and(gte(salesTable.createdAt, start), lte(salesTable.createdAt, end), eq(salesTable.reverted, false)))
-    .groupBy(saleItemsTable.itemId, itemsTable.name)
+    .where(and(...conditions))
+    .groupBy(saleItemsTable.itemId, itemsTable.name, itemsTable.category)
     .orderBy(desc(sql`SUM(${saleItemsTable.lineTotal})`))
     .limit(limit);
-  res.json(rows.map(r => ({ id: r.itemId, name: r.name ?? "Item", total: parseFloat(r.total ?? "0"), qty: parseFloat(r.qty ?? "0") })));
+  res.json(rows.map(r => ({ id: r.itemId, name: r.name ?? "Item", category: r.category, total: parseFloat(r.total ?? "0"), qty: parseFloat(r.qty ?? "0") })));
 });
 
 // Payment method breakdown
@@ -221,6 +233,78 @@ router.get("/analytics/profit-vs-expenses", async (req, res): Promise<void> => {
     grossProfit: parseFloat(r.revenue ?? "0"),
     expenses: expMap[r.date] ?? 0,
   })));
+});
+
+// Restock Intelligence — items with low/no stock + sales velocity
+router.get("/analytics/restock-intelligence", async (req, res): Promise<void> => {
+  const superCategory = req.query.superCategory as string | undefined;
+  const cats = getCategoriesForSuper(superCategory);
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Get all items with their current stock
+  const stockItems = await db
+    .select({
+      itemId: itemsTable.id,
+      itemName: itemsTable.name,
+      category: itemsTable.category,
+      sku: itemsTable.sku,
+      costPrice: itemsTable.costPrice,
+      quantity: stockTable.quantity,
+      minStock: stockTable.minStock,
+    })
+    .from(itemsTable)
+    .leftJoin(stockTable, eq(stockTable.itemId, itemsTable.id))
+    .where(cats ? inArray(itemsTable.category, cats) : undefined);
+
+  // Get units sold per item over last 30 days
+  const salesVelocity = await db
+    .select({
+      itemId: saleItemsTable.itemId,
+      totalSold: sql<string>`SUM(${saleItemsTable.quantity})`,
+    })
+    .from(saleItemsTable)
+    .innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
+    .where(and(gte(salesTable.createdAt, thirtyDaysAgo), eq(salesTable.reverted, false)))
+    .groupBy(saleItemsTable.itemId);
+
+  const velocityMap: Record<number, number> = {};
+  for (const v of salesVelocity) velocityMap[v.itemId] = parseFloat(v.totalSold ?? "0");
+
+  const results = stockItems.map(item => {
+    const qty = parseFloat(item.quantity ?? "0");
+    const minStock = parseFloat(item.minStock ?? "0");
+    const soldLast30 = velocityMap[item.itemId] ?? 0;
+    const avgDailySales = soldLast30 / 30;
+    const daysUntilStockout = avgDailySales > 0 ? Math.floor(qty / avgDailySales) : (qty > 0 ? 999 : 0);
+    const suggestedRestock = Math.max(Math.ceil(avgDailySales * 30 * 1.2), minStock * 2, 5);
+
+    let urgency: "critical" | "high" | "medium" | "low" = "low";
+    if (qty === 0) urgency = "critical";
+    else if (daysUntilStockout <= 7 || qty <= minStock) urgency = "high";
+    else if (daysUntilStockout <= 14 || qty <= minStock * 2) urgency = "medium";
+
+    return {
+      itemId: item.itemId,
+      itemName: item.itemName,
+      category: item.category,
+      sku: item.sku,
+      currentQty: qty,
+      minStock,
+      soldLast30Days: soldLast30,
+      avgDailySales: Math.round(avgDailySales * 100) / 100,
+      daysUntilStockout: daysUntilStockout === 999 ? null : daysUntilStockout,
+      suggestedRestock,
+      urgency,
+    };
+  }).filter(r => r.urgency !== "low")
+    .sort((a, b) => {
+      const order = { critical: 0, high: 1, medium: 2, low: 3 };
+      return order[a.urgency] - order[b.urgency];
+    });
+
+  res.json(results);
 });
 
 export default router;

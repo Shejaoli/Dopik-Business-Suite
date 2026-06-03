@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq, ilike, sql, desc, and, asc } from "drizzle-orm";
 import { db, itemsTable, stockTable, purchasesTable, saleItemsTable, stockAdjustmentsTable, vendorsTable, customersTable, salesTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { getCategoriesForSuper } from "../lib/category-filter";
 
 const router = Router();
 router.use(requireAuth);
@@ -30,9 +31,13 @@ router.get("/items", async (req, res): Promise<void> => {
     .leftJoin(stockTable, eq(itemsTable.id, stockTable.itemId))
     .$dynamic();
 
+  const superCategory = req.query.superCategory as string | undefined;
+  const cats = getCategoriesForSuper(superCategory);
+
   const conditions = [];
   if (search) conditions.push(ilike(itemsTable.name, `%${search}%`));
   if (inStockOnly) conditions.push(sql`CAST(${stockTable.quantity} AS NUMERIC) > 0`);
+  if (cats) conditions.push(sql`${itemsTable.category} = ANY(ARRAY[${sql.raw(cats.map(c => `'${c.replace(/'/g, "''")}'`).join(","))}]::text[])`);
   if (conditions.length > 0) query = query.where(sql`${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`) as any;
 
   const countBase = db

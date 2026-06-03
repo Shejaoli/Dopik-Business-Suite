@@ -19,7 +19,12 @@ async function req<T>(
 }
 
 export const api = {
-  get: <T>(path: string) => req<T>(path),
+  get: <T>(path: string, params?: Record<string, string>) => {
+    const url = params && Object.keys(params).length > 0
+      ? `${path}?${new URLSearchParams(params)}`
+      : path;
+    return req<T>(url);
+  },
   post: <T>(path: string, body?: unknown) =>
     req<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>
@@ -27,6 +32,7 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     req<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   del: <T>(path: string) => req<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string) => req<T>(path, { method: "DELETE" }),
 };
 
 export const fmtCurrency = (v: string | number | null | undefined): string => fmtRWF(v);

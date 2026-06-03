@@ -7,9 +7,11 @@ import {
   Building2, Users, CreditCard, Wallet, HandCoins,
   Receipt, BookOpen,
   BarChart2,
-  LayoutDashboard, Settings, LogOut, Menu, X, Bell,
-  UserCog, FileText, Landmark, Wrench
+  LayoutDashboard, Settings, LogOut, Menu, X,
+  UserCog, FileText, Landmark, Wrench,
+  Brain, ClipboardList, ScanLine, Megaphone, Activity
 } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
 
 type Role = "owner" | "manager" | "cashier" | "stock_manager" | "admin";
@@ -37,6 +39,7 @@ const navSections: NavSection[] = [
       { href: "/stock-adjustment", label: "Stock Adjustment", icon: SlidersHorizontal },
       { href: "/adjustment-history", label: "Adjustment History", icon: RotateCcw },
       { href: "/stock-alerts", label: "Stock Alerts", icon: AlertTriangle },
+      { href: "/stock-count", label: "Stock Count", icon: ClipboardList, minRole: ["owner", "manager", "admin"] },
     ],
   },
   {
@@ -88,6 +91,8 @@ const navSections: NavSection[] = [
     label: "ANALYTICS",
     items: [
       { href: "/charts", label: "Charts & Analytics", icon: BarChart2, minRole: ["owner", "manager", "admin"] },
+      { href: "/restock-intelligence", label: "Restock Intelligence", icon: Brain, minRole: ["owner", "manager", "admin", "stock_manager"] },
+      { href: "/usage-analytics", label: "Usage Analytics", icon: Activity, minRole: ["owner", "admin"] },
     ],
   },
   {
@@ -98,6 +103,13 @@ const navSections: NavSection[] = [
       { href: "/reports/purchases", label: "Purchase Report", icon: BarChart2 },
       { href: "/reports/expenses", label: "Expense Report", icon: BarChart2 },
       { href: "/reports/summary", label: "Summary Report", icon: BarChart2 },
+    ],
+  },
+  {
+    label: "TOOLS",
+    items: [
+      { href: "/announcements", label: "Announcements", icon: Megaphone },
+      { href: "/receipt-scanner", label: "Receipt Scanner", icon: ScanLine },
     ],
   },
   {
@@ -262,9 +274,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-3">
-            <button className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 relative">
-              <Bell className="h-4 w-4" />
-            </button>
+            <NotificationBell />
             <Link href="/profile" className="hidden sm:flex items-center gap-2 hover:opacity-80 transition">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1A6DB5] to-[#F5A800] flex items-center justify-center">
                 <span className="text-white text-xs font-bold">{(user?.name || "A")[0].toUpperCase()}</span>

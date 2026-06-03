@@ -25,6 +25,11 @@ import creditRouter from "./credit";
 import receiptsRouter from "./receipts";
 import repairsRouter from "./repairs";
 import publicRouter from "./public";
+import announcementsRouter from "./announcements";
+import notificationsRouter from "./notifications";
+import stockCountRouter from "./stock-count";
+import receiptScannerRouter from "./receipt-scanner";
+import usageAnalyticsRouter from "./usage-analytics";
 
 const router: IRouter = Router();
 
@@ -54,5 +59,10 @@ router.use(creditRouter);
 router.use(receiptsRouter);
 router.use(repairsRouter);
 router.use(publicRouter);
+router.use(announcementsRouter);
+router.use(notificationsRouter);
+router.use(stockCountRouter);
+router.use(receiptScannerRouter);
+router.use(usageAnalyticsRouter);
 
 export default router;

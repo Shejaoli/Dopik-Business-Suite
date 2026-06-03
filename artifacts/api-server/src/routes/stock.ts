@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { eq, ilike, sql, inArray } from "drizzle-orm";
+import { eq, ilike, sql, inArray, and } from "drizzle-orm";
 import { db, stockTable, itemsTable, stockAdjustmentsTable, usersTable, serialNumbersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { getCategoriesForSuper } from "../lib/category-filter";
 
 const router = Router();
 router.use(requireAuth);
@@ -16,6 +17,12 @@ function getStockStatus(quantity: string, minStock: string): string {
 
 router.get("/stock", async (req, res): Promise<void> => {
   const search = req.query.search as string | undefined;
+  const superCategory = req.query.superCategory as string | undefined;
+  const cats = getCategoriesForSuper(superCategory);
+
+  const conditions: any[] = [];
+  if (search) conditions.push(ilike(itemsTable.name, `%${search}%`));
+  if (cats) conditions.push(inArray(itemsTable.category, cats));
 
   const rows = await db
     .select({
@@ -31,13 +38,16 @@ router.get("/stock", async (req, res): Promise<void> => {
     })
     .from(stockTable)
     .innerJoin(itemsTable, eq(stockTable.itemId, itemsTable.id))
-    .where(search ? ilike(itemsTable.name, `%${search}%`) : undefined as any)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(itemsTable.name);
 
   res.json(rows.map(r => ({ ...r, status: getStockStatus(r.quantity, r.minStock) })));
 });
 
 router.get("/stock/alerts", async (req, res): Promise<void> => {
+  const superCategory = req.query.superCategory as string | undefined;
+  const cats = getCategoriesForSuper(superCategory);
+
   const rows = await db
     .select({
       id: stockTable.id,
@@ -51,7 +61,8 @@ router.get("/stock/alerts", async (req, res): Promise<void> => {
       salePrice: itemsTable.salePrice,
     })
     .from(stockTable)
-    .innerJoin(itemsTable, eq(stockTable.itemId, itemsTable.id));
+    .innerJoin(itemsTable, eq(stockTable.itemId, itemsTable.id))
+    .where(cats ? inArray(itemsTable.category, cats) : undefined);
 
   const withStatus = rows.map(r => ({ ...r, status: getStockStatus(r.quantity, r.minStock) }));
   const outOfStock = withStatus.filter(r => r.status === "out_of_stock");
