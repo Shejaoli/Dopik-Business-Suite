@@ -130,11 +130,13 @@ type PurchaseRow = {
   itemId: string;
   color: string;
   storage: string;
+  ram: string;
   imeiOrSerial: string;
   condition: string;
   vendorId: string;
   paymentMethod: string;
   unitCost: string;
+  additionalInfo: string;
 };
 
 type SimpleForm = {
@@ -144,14 +146,16 @@ type SimpleForm = {
   vendorId: string;
   paymentMethod: string;
   condition: string;
+  additionalInfo: string;
 };
 
 function emptyRow(): PurchaseRow {
   return {
     id: Math.random().toString(36).slice(2),
-    itemId: "", color: "", storage: "",
+    itemId: "", color: "", storage: "", ram: "",
     imeiOrSerial: "", condition: "Brand New",
     vendorId: "", paymentMethod: "cash", unitCost: "",
+    additionalInfo: "",
   };
 }
 
@@ -295,7 +299,7 @@ function POPreview({
                   const item = getItem(row.itemId);
                   const vendor = getVendor(row.vendorId);
                   const desc = isSerial
-                    ? [row.color, row.storage, row.imeiOrSerial ? `IMEI/SN: ${row.imeiOrSerial}` : ""].filter(Boolean).join(" / ")
+                    ? [row.color, row.ram, row.storage, row.imeiOrSerial ? `IMEI/SN: ${row.imeiOrSerial}` : ""].filter(Boolean).join(" / ")
                     : row.description;
                   return (
                     <tr key={row.id} className="border-b border-gray-100">
@@ -424,16 +428,17 @@ function AddVendorInline({ onSave, onClose }: { onSave: (v: any) => void; onClos
 
 // ── Unit Card (Serialized) ─────────────────────────────────────────────────────
 function UnitCard({
-  row, index, total, stockItems, itemOptions, colors, storageOptions, vendorList,
-  onUpdate, onRemove, onCreateColor, onCreateStorage, onAddVendorSave, duplicateItemId,
+  row, index, total, stockItems, itemOptions, colors, storageOptions, ramOptions, vendorList,
+  onUpdate, onRemove, onCreateColor, onCreateStorage, onCreateRam, onAddVendorSave, duplicateItemId,
 }: {
   row: PurchaseRow; index: number; total: number;
   stockItems: any[]; itemOptions: any[];
-  colors: any[]; storageOptions: any[]; vendorList: any[];
+  colors: any[]; storageOptions: any[]; ramOptions: any[]; vendorList: any[];
   onUpdate: (id: string, field: keyof PurchaseRow, val: string) => void;
   onRemove: (id: string) => void;
   onCreateColor: (name: string) => Promise<void>;
   onCreateStorage: (name: string) => Promise<void>;
+  onCreateRam: (name: string) => Promise<void>;
   onAddVendorSave: (rowId: string, vendor: any) => void;
   duplicateItemId?: boolean;
 }) {
@@ -481,7 +486,7 @@ function UnitCard({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <p className="text-sm font-medium mb-1.5">Color</p>
             <SearchableSelect
@@ -494,6 +499,21 @@ function UnitCard({
                 const fresh = await api.get<any[]>("/colors");
                 const found = (fresh as any[]).find((c: any) => c.name === name);
                 if (found) onUpdate(row.id, "color", found.name);
+              }}
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-1.5">RAM</p>
+            <SearchableSelect
+              options={ramOptions}
+              value={row.ram ? String(ramOptions.find(r => r.name === row.ram)?.id ?? "") : ""}
+              onChange={v => { const r = ramOptions.find(r => String(r.id) === v); onUpdate(row.id, "ram", r?.name ?? ""); }}
+              placeholder="Select RAM…"
+              onCreate={async name => {
+                await onCreateRam(name);
+                const fresh = await api.get<any[]>("/ram-options");
+                const found = (fresh as any[]).find((r: any) => r.name === name);
+                if (found) onUpdate(row.id, "ram", found.name);
               }}
             />
           </div>
@@ -580,6 +600,17 @@ function UnitCard({
             value={row.unitCost}
             onChange={e => onUpdate(row.id, "unitCost", e.target.value)}
             placeholder="0"
+          />
+        </div>
+
+        <div>
+          <p className="text-sm font-medium mb-1.5">Additional Information <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <textarea
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            rows={2}
+            value={row.additionalInfo}
+            onChange={e => onUpdate(row.id, "additionalInfo", e.target.value)}
+            placeholder="Any extra details about this unit…"
           />
         </div>
       </div>
@@ -684,6 +715,17 @@ function SimpleCard({
             placeholder="0"
           />
         </div>
+
+        <div>
+          <p className="text-sm font-medium mb-1.5">Additional Information <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <textarea
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            rows={2}
+            value={form.additionalInfo}
+            onChange={e => onChange("additionalInfo", e.target.value)}
+            placeholder="Any extra details about this purchase…"
+          />
+        </div>
       </div>
     </div>
   );
@@ -708,6 +750,7 @@ export default function PurchasesPage() {
   const [simple, setSimple] = useState<SimpleForm>({
     itemId: "", quantity: "", unitCost: "",
     vendorId: "", paymentMethod: "cash", condition: "Brand New",
+    additionalInfo: "",
   });
 
   const [isSerial, setIsSerial] = useState(false);
@@ -728,12 +771,17 @@ export default function PurchasesPage() {
     queryKey: ["storage-options"],
     queryFn: () => api.get<any[]>("/storage-options"),
   });
+  const { data: ramData, refetch: refetchRam } = useQuery({
+    queryKey: ["ram-options"],
+    queryFn: () => api.get<any[]>("/ram-options"),
+  });
 
   const purchases: any[] = (data as any) ?? [];
   const vendorList: any[] = (vendors as any) ?? [];
   const stockItems: any[] = (stock as any) ?? [];
   const colors: any[] = colorsData ?? [];
   const storageOptions: any[] = storageData ?? [];
+  const ramOptions: any[] = ramData ?? [];
 
   const filtered = purchases.filter(p =>
     !search || (p.itemName ?? "").toLowerCase().includes(search.toLowerCase())
@@ -864,6 +912,8 @@ export default function PurchasesPage() {
           imeiOrSerial: r.imeiOrSerial,
           color: r.color,
           storage: r.storage,
+          ram: r.ram,
+          additionalInfo: r.additionalInfo,
           condition: r.condition,
           vendorId: r.vendorId ? Number(r.vendorId) : null,
           costPrice: r.unitCost,
@@ -889,7 +939,7 @@ export default function PurchasesPage() {
 
   const resetForm = () => {
     setRows([emptyRow()]);
-    setSimple({ itemId: "", quantity: "", unitCost: "", vendorId: "", paymentMethod: "cash", condition: "Brand New" });
+    setSimple({ itemId: "", quantity: "", unitCost: "", vendorId: "", paymentMethod: "cash", condition: "Brand New", additionalInfo: "" });
     setIsSerial(false);
     setSelectedItemId("");
     setVerified(false);
@@ -943,6 +993,11 @@ export default function PurchasesPage() {
   const createStorage = async (name: string) => {
     await api.post("/storage-options", { name });
     refetchStorage();
+  };
+
+  const createRam = async (name: string) => {
+    await api.post("/ram-options", { name });
+    refetchRam();
   };
 
   const handleVendorSaveForRow = async (rowId: string, vendor: any) => {
@@ -1107,11 +1162,13 @@ export default function PurchasesPage() {
                     itemOptions={itemOptions}
                     colors={colors}
                     storageOptions={storageOptions}
+                    ramOptions={ramOptions}
                     vendorList={vendorList}
                     onUpdate={updateRow}
                     onRemove={removeRow}
                     onCreateColor={createColor}
                     onCreateStorage={createStorage}
+                    onCreateRam={createRam}
                     onAddVendorSave={handleVendorSaveForRow}
                     duplicateItemId={!!row.itemId && (itemCounts[row.itemId] ?? 0) > 1}
                   />

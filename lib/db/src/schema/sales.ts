@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, numeric, varchar, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, numeric, varchar, boolean, timestamp, text } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
@@ -31,6 +31,7 @@ export const saleItemsTable = pgTable("sale_items", {
   unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
   lineTotal: numeric("line_total", { precision: 12, scale: 2 }).notNull(),
   serializedUnitId: integer("serialized_unit_id"),
+  additionalInfo: text("additional_info"),
 });
 
 export const insertSaleSchema = createInsertSchema(salesTable).omit({ id: true, createdAt: true });

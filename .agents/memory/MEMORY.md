@@ -3,5 +3,6 @@
 - [Analytics routes](analytics-routes.md) — all analytics endpoints at /api/analytics/* registered in routes/index.ts; colors/storage routes in routes/colors.ts
 - [Staff & permissions model](staff-permissions.md) — 4 roles: owner/manager/cashier/stock_manager; logActivity() helper in staff.ts; activity_log table; lastLogin tracked on auth login
 - [Credit module](credit-module.md) — credit_accounts + credit_payments + installment_plans tables; /credit routes; urgency computed server-side (overdue/due_soon/ok/paid)
-- [DB migration strategy](db-migration-strategy.md) — drizzle-kit push hangs in non-TTY when new tables cause schema conflict prompts; use lib/db/src/migrate.ts (raw SQL CREATE TABLE IF NOT EXISTS) instead
+- [DB migration strategy](db-migration-strategy.md) — drizzle-kit push hangs in non-TTY when new tables cause schema conflict prompts; use lib/db/src/migrate.ts (raw SQL CREATE TABLE IF NOT EXISTS) instead; dev script now skips push entirely
+- [Admin router routing bug](admin-router-routing.md) — router.use(middleware) without path prefix in a sub-router intercepts ALL requests; always apply auth middleware inline per route in admin.ts
 - [Category separation](category-separation.md) — SuperCat filter: all/Phones/Computers/Accessories; CategoryTabs component + useCategoryTab hook; backend getCategoriesForSuper(); api.get() supports 2nd params arg

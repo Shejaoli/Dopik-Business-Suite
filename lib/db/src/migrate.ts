@@ -61,6 +61,16 @@ const migrations = [
   )`,
 
   `ALTER TABLE customers ADD COLUMN IF NOT EXISTS referred_by INTEGER`,
+
+  `CREATE TABLE IF NOT EXISTS ram_options (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+
+  `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS ram VARCHAR(50)`,
+  `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS additional_info TEXT`,
+  `ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS additional_info TEXT`,
 ];
 
 async function run() {

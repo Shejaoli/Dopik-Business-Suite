@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import bcryptjs from "bcryptjs";
 import * as schema from "./schema";
-import { usersTable, balancesTable, colorsTable, storageOptionsTable } from "./schema";
+import { usersTable, balancesTable, colorsTable, storageOptionsTable, ramOptionsTable } from "./schema";
 import { eq } from "drizzle-orm";
 
 const { Pool } = pg;
@@ -92,6 +92,19 @@ async function seed() {
       .onConflictDoNothing();
   }
   console.log(`✅ Colors seeded (${DEFAULT_COLORS.length} entries)`);
+
+  // ── RAM options ─────────────────────────────────────────────────────────────
+  const DEFAULT_RAM = [
+    "2GB", "3GB", "4GB", "6GB", "8GB", "12GB", "16GB", "32GB", "64GB",
+  ];
+
+  for (const name of DEFAULT_RAM) {
+    await db
+      .insert(ramOptionsTable)
+      .values({ name })
+      .onConflictDoNothing();
+  }
+  console.log(`✅ RAM options seeded (${DEFAULT_RAM.length} entries)`);
 
   console.log("🎉 Seeding complete.");
   await pool.end();

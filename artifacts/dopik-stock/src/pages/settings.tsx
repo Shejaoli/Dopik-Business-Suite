@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive, Activity, Search } from "lucide-react";
+import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive, Activity, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { useGetBalances } from "@workspace/api-client-react";
 
 type ActivityLog = {
@@ -167,6 +167,39 @@ export default function SettingsPage() {
   };
 
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "manager";
+  const isOwner = user?.role === "owner";
+
+  // Danger Zone state
+  const [resetStep, setResetStep] = useState<0 | 1 | 2 | 3 | 4>(0);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+
+  const RESET_PHRASE = "DELETE ALL DATA";
+
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      await api.post<any>("/admin/reset-data", { password: resetPassword });
+      setResetDone(true);
+      setResetStep(4);
+      toast({ title: "Data reset complete", description: "All transaction data has been wiped. Balances and stock are now at zero." });
+    } catch (e: any) {
+      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+      setResetStep(3);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const resetDangerState = () => {
+    setResetStep(0);
+    setResetConfirmText("");
+    setResetPassword("");
+    setResetting(false);
+    setResetDone(false);
+  };
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -184,6 +217,11 @@ export default function SettingsPage() {
           {isAdmin && <TabsTrigger value="backup-cloud">Cloud Backup</TabsTrigger>}
           {isAdmin && <TabsTrigger value="activity-log">Activity Log</TabsTrigger>}
           <TabsTrigger value="system">System</TabsTrigger>
+          {isOwner && (
+            <TabsTrigger value="danger-zone" className="text-red-600 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
+              Danger Zone
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── Profile ─────────────────────── */}
@@ -582,6 +620,176 @@ export default function SettingsPage() {
             </div>
           </div>
         </TabsContent>
+
+        {/* ── Danger Zone (Owner only) ─────── */}
+        {isOwner && (
+          <TabsContent value="danger-zone" className="mt-4 space-y-4">
+            <div className="border-2 border-red-200 rounded-xl overflow-hidden">
+              <div className="bg-red-600 px-6 py-4 flex items-center gap-3">
+                <ShieldAlert className="h-5 w-5 text-white flex-shrink-0" />
+                <div>
+                  <h2 className="font-bold text-white font-sora">Danger Zone — Data Reset</h2>
+                  <p className="text-red-100 text-xs mt-0.5">Owner access only · Irreversible action</p>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-5 bg-white">
+                {/* Step 0 — info */}
+                {resetStep === 0 && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 space-y-2">
+                      <p className="font-semibold">This will permanently delete all of the following:</p>
+                      <ul className="list-disc pl-5 space-y-1 text-red-700">
+                        <li>All sales and sale items</li>
+                        <li>All purchases and serialized units</li>
+                        <li>All customers' credit accounts and payments</li>
+                        <li>All expenses, loans, payables and receivables</li>
+                        <li>All repairs, activity logs and audit trails</li>
+                        <li>All stock count sessions</li>
+                        <li>Stock quantities will be reset to zero</li>
+                        <li>Cash, bank and mobile money balances reset to zero</li>
+                      </ul>
+                      <p className="font-semibold pt-1">Items, customers, vendors, users and settings are kept.</p>
+                    </div>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                      <strong>Recommendation:</strong> Download a full backup first from the Backup tab before proceeding.
+                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setResetStep(1)}
+                      className="gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      I understand — Begin Data Reset
+                    </Button>
+                  </div>
+                )}
+
+                {/* Step 1 — type confirmation phrase */}
+                {resetStep === 1 && (
+                  <div className="space-y-4">
+                    <div className="text-center space-y-2">
+                      <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                        <AlertTriangle className="h-7 w-7 text-red-600" />
+                      </div>
+                      <h3 className="font-bold text-lg">Step 1 of 3 — Confirm Your Intent</h3>
+                      <p className="text-sm text-muted-foreground">
+                        To continue, type the phrase below exactly as shown:
+                      </p>
+                      <div className="inline-block bg-red-50 border-2 border-red-200 rounded-xl px-6 py-3">
+                        <span className="font-mono font-black text-red-700 tracking-wider text-base">{RESET_PHRASE}</span>
+                      </div>
+                    </div>
+                    <Input
+                      value={resetConfirmText}
+                      onChange={e => setResetConfirmText(e.target.value)}
+                      placeholder="Type the phrase exactly…"
+                      className="text-center font-mono tracking-wide"
+                    />
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1" onClick={resetDangerState}>Cancel</Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1"
+                        disabled={resetConfirmText !== RESET_PHRASE}
+                        onClick={() => setResetStep(2)}
+                      >
+                        Continue →
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2 — enter owner password */}
+                {resetStep === 2 && (
+                  <div className="space-y-4">
+                    <div className="text-center space-y-2">
+                      <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                        <Lock className="h-7 w-7 text-red-600" />
+                      </div>
+                      <h3 className="font-bold text-lg">Step 2 of 3 — Verify Your Identity</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Enter your owner account password to authorise this action.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Your Password</Label>
+                      <Input
+                        type="password"
+                        value={resetPassword}
+                        onChange={e => setResetPassword(e.target.value)}
+                        placeholder="Enter your password…"
+                        onKeyDown={e => { if (e.key === "Enter" && resetPassword) setResetStep(3); }}
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1" onClick={() => setResetStep(1)}>← Back</Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1"
+                        disabled={!resetPassword}
+                        onClick={() => setResetStep(3)}
+                      >
+                        Continue →
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3 — final confirmation */}
+                {resetStep === 3 && !resetDone && (
+                  <div className="space-y-4">
+                    <div className="text-center space-y-2">
+                      <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center mx-auto">
+                        <ShieldAlert className="h-7 w-7 text-white" />
+                      </div>
+                      <h3 className="font-bold text-lg text-red-700">Step 3 of 3 — Final Confirmation</h3>
+                      <p className="text-sm text-muted-foreground">
+                        This is the last step. Clicking <strong>Delete All Data</strong> below will permanently wipe all transaction data. This cannot be undone.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-center text-sm font-semibold text-red-800">
+                      ⚠️ All sales, purchases, credits, expenses, loans and logs will be deleted.
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1" onClick={resetDangerState} disabled={resetting}>Cancel</Button>
+                      <Button
+                        variant="destructive"
+                        className="flex-1 gap-2"
+                        onClick={handleReset}
+                        disabled={resetting}
+                      >
+                        {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        {resetting ? "Deleting all data…" : "Delete All Data"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 4 — done */}
+                {resetStep === 4 && resetDone && (
+                  <div className="space-y-4 text-center">
+                    <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="h-7 w-7 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-green-700">Data Reset Complete</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        All transaction data has been permanently deleted. Stock quantities and balances have been reset to zero.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+                      You may now start fresh. Items, customers, vendors and users remain intact.
+                    </div>
+                    <Button onClick={resetDangerState} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
+                      Done
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

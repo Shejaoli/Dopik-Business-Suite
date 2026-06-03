@@ -23,3 +23,4 @@ export * from "./announcements";
 export * from "./notifications";
 export * from "./stock-counts";
 export * from "./usage-events";
+export * from "./ram-options";

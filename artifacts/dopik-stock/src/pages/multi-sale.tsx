@@ -150,14 +150,14 @@ function LineItemCard({
                   const uid = e.target.value;
                   const unit = availableUnits.find((u: any) => String(u.id) === uid);
                   const desc = unit
-                    ? [unit.color, unit.storage, unit.imeiOrSerial ? `IMEI: ${unit.imeiOrSerial}` : null, unit.condition].filter(Boolean).join(" / ")
+                    ? [unit.color, unit.ram, unit.storage, unit.imeiOrSerial ? `IMEI: ${unit.imeiOrSerial}` : null, unit.condition].filter(Boolean).join(" / ")
                     : "";
                   onUpdate(line.key, { serializedUnitId: uid, unitDescription: desc });
                 }}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20">
                 <option value="">Select unit...</option>
                 {availableUnits.map((u: any) => {
-                  const label = [u.color, u.storage, u.imeiOrSerial ? `IMEI: ${u.imeiOrSerial}` : null, u.condition]
+                  const label = [u.color, u.ram, u.storage, u.imeiOrSerial ? `IMEI: ${u.imeiOrSerial}` : null, u.condition]
                     .filter(Boolean).join(" / ");
                   return <option key={u.id} value={u.id}>{label || `Unit #${u.id}`}</option>;
                 })}
@@ -170,6 +170,7 @@ function LineItemCard({
               return (
                 <div className="flex gap-1.5 flex-wrap mt-1">
                   {unit.color && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">{unit.color}</span>}
+                  {unit.ram && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-cyan-50 text-cyan-700">{unit.ram} RAM</span>}
                   {unit.storage && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700">{unit.storage}</span>}
                   {unit.condition && <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${badge.cls}`}>{badge.label}</span>}
                 </div>

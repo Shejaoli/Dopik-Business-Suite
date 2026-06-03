@@ -15,6 +15,8 @@ export const serializedUnitsTable = pgTable("serialized_units", {
   purchaseId: integer("purchase_id").references(() => purchasesTable.id),
   costPrice: numeric("cost_price", { precision: 12, scale: 2 }),
   paymentMethod: varchar("payment_method", { length: 30 }),
+  ram: varchar("ram", { length: 50 }),
+  additionalInfo: text("additional_info"),
   status: varchar("status", { length: 30 }).default("in_stock"),
   notes: text("notes"),
   dateReceived: timestamp("date_received", { withTimezone: true }).defaultNow(),

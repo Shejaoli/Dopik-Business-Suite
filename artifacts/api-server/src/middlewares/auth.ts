@@ -16,7 +16,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     return;
   }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId));
-  if (!user || user.role !== "admin") {
+  if (!user || (user.role !== "admin" && user.role !== "owner")) {
     res.status(403).json({ error: "Admin access required" });
     return;
   }
