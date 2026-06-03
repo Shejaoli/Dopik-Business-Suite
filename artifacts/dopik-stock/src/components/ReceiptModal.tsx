@@ -66,7 +66,13 @@ function getItemImei(item: ReceiptDetail["items"][0]): string | null {
 function getItemDescription(item: ReceiptDetail["items"][0]): string | null {
   if (item.serializedUnit) {
     const { color, ram, storage, condition, imeiOrSerial } = item.serializedUnit;
-    const parts = [color, ram ? `${ram} RAM` : null, storage, condition, imeiOrSerial ? `IMEI: ${imeiOrSerial}` : null].filter(Boolean);
+    const parts = [
+      color,
+      ram ? `${ram} RAM` : null,
+      storage,
+      imeiOrSerial ? `IMEI: ${imeiOrSerial}` : null,
+      condition,
+    ].filter(Boolean);
     return parts.join(" / ") || null;
   }
   if (item.serialNumbers.length > 0) return `IMEI: ${item.serialNumbers.join(", ")}`;
@@ -139,7 +145,7 @@ function buildReceiptHTML(receipt: ReceiptDetail): string {
     <div style="font-size:18px;font-weight:900;color:#1A6DB5">${store.name}</div>
     <div style="font-size:11px;color:#777">${store.address}</div>
     <div style="font-size:11px;color:#777">${store.phone} | ${store.email}</div>
-    <div style="font-size:13px;font-weight:700;margin-top:6px;letter-spacing:1px">SALES RECEIPT</div>
+    <div style="font-size:13px;font-weight:700;margin-top:6px;letter-spacing:1px">WARRANTY RECEIPT</div>
   </div>
 
   <div class="dashed">
@@ -293,7 +299,7 @@ export function ReceiptModal({ saleId, open, onClose }: { saleId: number; open: 
                   <h2 className="text-lg font-extrabold text-[#1A6DB5]">{receipt.store.name}</h2>
                   <p className="text-xs text-gray-500">{receipt.store.address}</p>
                   <p className="text-xs text-gray-500">{receipt.store.phone} | {receipt.store.email}</p>
-                  <p className="text-xs font-bold tracking-widest mt-1">SALES RECEIPT</p>
+                  <p className="text-xs font-bold tracking-widest mt-1">WARRANTY RECEIPT</p>
                 </div>
 
                 <div className="border-t border-b border-dashed border-gray-300 py-3 mb-4 space-y-1.5">

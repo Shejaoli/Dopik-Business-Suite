@@ -121,8 +121,9 @@ async function searchItemsByName(name: string) {
   if (!name || name.trim().length < 2) return [];
   const normalized = name.trim().replace(/[-\s]+/g, "%");
   return db
-    .select({ id: itemsTable.id, name: itemsTable.name, category: itemsTable.category })
+    .select({ id: itemsTable.id, name: itemsTable.name, category: itemsTable.category, stockQuantity: stockTable.quantity })
     .from(itemsTable)
+    .leftJoin(stockTable, eq(itemsTable.id, stockTable.itemId))
     .where(ilike(itemsTable.name, `%${normalized}%`))
     .limit(8);
 }

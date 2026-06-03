@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListCustomers, getListCustomersQueryKey } from "@workspace/api-client-react";
-import { api, fmtRWF } from "@/lib/api";
+import { api, fmtRWF, fmtDate } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   ShoppingCart, Plus, Trash2, Loader2, UserPlus, X, Eye, CheckCircle2,
@@ -149,9 +149,10 @@ function LineItemCard({
               <select value={line.serializedUnitId} onChange={e => {
                   const uid = e.target.value;
                   const unit = availableUnits.find((u: any) => String(u.id) === uid);
-                  const desc = unit
-                    ? [unit.color, unit.ram, unit.storage, unit.imeiOrSerial ? `IMEI: ${unit.imeiOrSerial}` : null, unit.condition].filter(Boolean).join(" / ")
-                    : "";
+                  const parts = unit
+                    ? [unit.color, unit.ram ? `${unit.ram} RAM` : null, unit.storage, unit.imeiOrSerial ? `IMEI: ${unit.imeiOrSerial}` : null, unit.condition].filter(Boolean)
+                    : [];
+                  const desc = parts.length > 0 ? parts.join(" / ") : (uid ? `Unit #${uid}` : "");
                   onUpdate(line.key, { serializedUnitId: uid, unitDescription: desc });
                 }}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20">
@@ -324,7 +325,7 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
 
           <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-xl p-4 text-sm">
             <div><span className="text-gray-500">Customer:</span> <span className="font-medium ml-1">{customer ? `${customer.name}${customer.phone ? ` · ${customer.phone}` : ""}` : "Walk-in Customer"}</span></div>
-            <div><span className="text-gray-500">Date:</span> <span className="font-medium ml-1">{data.saleDate}</span></div>
+            <div><span className="text-gray-500">Date:</span> <span className="font-medium ml-1">{fmtDate(data.saleDate)}</span></div>
             <div><span className="text-gray-500">Payment:</span> <span className="font-medium ml-1">
               {data.paymentMethod === "split"
                 ? `Split — ${paymentLabel(data.paymentMethod)}: ${fmtRWF(data.splitAmount1)} + ${paymentLabel(data.splitMethod2)}: ${fmtRWF(data.splitAmount2)}`

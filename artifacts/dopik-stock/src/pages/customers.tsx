@@ -79,8 +79,8 @@ export default function CustomersPage() {
   const handleCreate = async (form: any) => {
     setSaving(true);
     try {
-      await api.post("/customers", form);
-      toast({ title: "Customer added" });
+      const customer = await api.post<any>("/customers", form);
+      toast({ title: `Customer "${customer.name}" added successfully` });
       setShowCreate(false);
       invalidate();
     } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }

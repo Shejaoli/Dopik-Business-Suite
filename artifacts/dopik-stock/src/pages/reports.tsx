@@ -10,27 +10,99 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { BarChart3, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-function DateRange({ start, end, onStart, onEnd }: {
-  start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void
-}) {
-  return (
-    <div className="flex gap-3 flex-wrap">
-      <div className="flex items-center gap-2">
-        <Label className="text-xs whitespace-nowrap">From</Label>
-        <Input type="date" className="h-8 text-sm w-36" value={start} onChange={e => onStart(e.target.value)} />
-      </div>
-      <div className="flex items-center gap-2">
-        <Label className="text-xs whitespace-nowrap">To</Label>
-        <Input type="date" className="h-8 text-sm w-36" value={end} onChange={e => onEnd(e.target.value)} />
-      </div>
-    </div>
-  );
+type Period = "today" | "yesterday" | "week" | "month" | "year" | "custom";
+
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "week", label: "This Week" },
+  { key: "month", label: "This Month" },
+  { key: "year", label: "This Year" },
+  { key: "custom", label: "Custom" },
+];
+
+function pad(n: number) { return String(n).padStart(2, "0"); }
+function fmt(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function today() { return fmt(new Date()); }
+function firstOfMonth() { const d = new Date(); d.setDate(1); return fmt(d); }
+
+function getPeriodRange(period: Period, customStart: string, customEnd: string): { start: string; end: string } {
+  const now = new Date();
+  const todayStr = fmt(now);
+  if (period === "today") return { start: todayStr, end: todayStr };
+  if (period === "yesterday") { const y = new Date(now); y.setDate(y.getDate() - 1); const s = fmt(y); return { start: s, end: s }; }
+  if (period === "week") {
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((day + 6) % 7));
+    return { start: fmt(monday), end: todayStr };
+  }
+  if (period === "month") return { start: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), end: todayStr };
+  if (period === "year") return { start: fmt(new Date(now.getFullYear(), 0, 1)), end: todayStr };
+  return { start: customStart, end: customEnd };
 }
 
-function today() { return new Date().toISOString().split("T")[0]; }
-function firstOfMonth() {
-  const d = new Date(); d.setDate(1);
-  return d.toISOString().split("T")[0];
+function getPeriodLabel(period: Period, start: string, end: string): string {
+  const now = new Date();
+  const loc = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-GB", opts);
+  if (period === "today") return `Showing: ${loc(now, { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`;
+  if (period === "yesterday") {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    return `Showing: ${loc(y, { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`;
+  }
+  if (period === "week") {
+    const day = now.getDay();
+    const monday = new Date(now); monday.setDate(now.getDate() - ((day + 6) % 7));
+    return `Showing: ${loc(monday, { day: "2-digit", month: "short" })} – ${loc(now, { day: "2-digit", month: "short", year: "numeric" })}`;
+  }
+  if (period === "month") return `Showing: ${loc(now, { month: "long", year: "numeric" })}`;
+  if (period === "year") return `Showing: Full year ${now.getFullYear()}`;
+  if (start && end) {
+    const s = new Date(start + "T00:00:00"), e = new Date(end + "T00:00:00");
+    const days = Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
+    return `${loc(s, { day: "2-digit", month: "short", year: "numeric" })} – ${loc(e, { day: "2-digit", month: "short", year: "numeric" })} (${days} day${days !== 1 ? "s" : ""})`;
+  }
+  return "";
+}
+
+function PeriodFilter({
+  period, onPeriod, customStart, customEnd, onStart, onEnd,
+}: {
+  period: Period; onPeriod: (p: Period) => void;
+  customStart: string; customEnd: string;
+  onStart: (v: string) => void; onEnd: (v: string) => void;
+}) {
+  const label = getPeriodLabel(period, customStart, customEnd);
+  return (
+    <div className="space-y-2 no-print">
+      <div className="flex flex-wrap gap-1.5">
+        {PERIODS.map(p => (
+          <button key={p.key} type="button" onClick={() => onPeriod(p.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+              period === p.key
+                ? "bg-[#1A6DB5] text-white border-[#1A6DB5]"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {period === "custom" && (
+        <div className="flex gap-3 flex-wrap items-center">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">From</Label>
+            <Input type="date" className="h-8 text-sm w-36" value={customStart} onChange={e => onStart(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">To</Label>
+            <Input type="date" className="h-8 text-sm w-36" value={customEnd} onChange={e => onEnd(e.target.value)} />
+          </div>
+        </div>
+      )}
+      {label && <p className="text-xs text-gray-400">{label}</p>}
+    </div>
+  );
 }
 
 export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: string }) {
@@ -40,17 +112,24 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
     setActiveTab(defaultTab);
   }, [defaultTab]);
 
-  const [salesStart, setSalesStart] = useState(firstOfMonth());
-  const [salesEnd, setSalesEnd] = useState(today());
-  const [purchStart, setPurchStart] = useState(firstOfMonth());
-  const [purchEnd, setPurchEnd] = useState(today());
-  const [expStart, setExpStart] = useState(firstOfMonth());
-  const [expEnd, setExpEnd] = useState(today());
+  const [salesPeriod, setSalesPeriod] = useState<Period>("month");
+  const [salesCustomStart, setSalesCustomStart] = useState(firstOfMonth());
+  const [salesCustomEnd, setSalesCustomEnd] = useState(today());
+  const [purchPeriod, setPurchPeriod] = useState<Period>("month");
+  const [purchCustomStart, setPurchCustomStart] = useState(firstOfMonth());
+  const [purchCustomEnd, setPurchCustomEnd] = useState(today());
+  const [expPeriod, setExpPeriod] = useState<Period>("month");
+  const [expCustomStart, setExpCustomStart] = useState(firstOfMonth());
+  const [expCustomEnd, setExpCustomEnd] = useState(today());
   const [summaryYear, setSummaryYear] = useState(new Date().getFullYear());
 
-  const { data: salesData, isLoading: salesLoading } = useGetSalesReport({ start: salesStart, end: salesEnd });
-  const { data: purchData, isLoading: purchLoading } = useGetPurchasesReport({ start: purchStart, end: purchEnd });
-  const { data: expData, isLoading: expLoading } = useGetExpensesReport({ start: expStart, end: expEnd });
+  const salesRange = getPeriodRange(salesPeriod, salesCustomStart, salesCustomEnd);
+  const purchRange = getPeriodRange(purchPeriod, purchCustomStart, purchCustomEnd);
+  const expRange = getPeriodRange(expPeriod, expCustomStart, expCustomEnd);
+
+  const { data: salesData, isLoading: salesLoading } = useGetSalesReport({ start: salesRange.start, end: salesRange.end });
+  const { data: purchData, isLoading: purchLoading } = useGetPurchasesReport({ start: purchRange.start, end: purchRange.end });
+  const { data: expData, isLoading: expLoading } = useGetExpensesReport({ start: expRange.start, end: expRange.end });
   const { data: summaryData, isLoading: summaryLoading } = useGetSummaryReport({ year: summaryYear });
 
   const salesRows: any[] = (salesData as any)?.rows ?? [];
@@ -160,7 +239,7 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
 
         {/* Sales Report */}
         <TabsContent value="sales" className="mt-4 space-y-4">
-          <DateRange start={salesStart} end={salesEnd} onStart={setSalesStart} onEnd={setSalesEnd} />
+          <PeriodFilter period={salesPeriod} onPeriod={setSalesPeriod} customStart={salesCustomStart} customEnd={salesCustomEnd} onStart={setSalesCustomStart} onEnd={setSalesCustomEnd} />
           <div className="glass-panel p-3 flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Total Sales Revenue</span>
             <span className="text-lg font-bold text-green-600">{fmtRWF((salesData as any)?.totalSales)}</span>
@@ -197,7 +276,7 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
 
         {/* Purchases Report */}
         <TabsContent value="purchases" className="mt-4 space-y-4">
-          <DateRange start={purchStart} end={purchEnd} onStart={setPurchStart} onEnd={setPurchEnd} />
+          <PeriodFilter period={purchPeriod} onPeriod={setPurchPeriod} customStart={purchCustomStart} customEnd={purchCustomEnd} onStart={setPurchCustomStart} onEnd={setPurchCustomEnd} />
           <div className="glass-panel p-3 flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Total Purchase Cost</span>
             <span className="text-lg font-bold text-blue-600">{fmtRWF((purchData as any)?.totalCost)}</span>
@@ -235,7 +314,7 @@ export default function ReportsPage({ defaultTab = "summary" }: { defaultTab?: s
 
         {/* Expenses Report */}
         <TabsContent value="expenses" className="mt-4 space-y-4">
-          <DateRange start={expStart} end={expEnd} onStart={setExpStart} onEnd={setExpEnd} />
+          <PeriodFilter period={expPeriod} onPeriod={setExpPeriod} customStart={expCustomStart} customEnd={expCustomEnd} onStart={setExpCustomStart} onEnd={setExpCustomEnd} />
           <div className="glass-panel p-3 flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Total Expenses</span>
             <span className="text-lg font-bold text-red-600">{fmtRWF((expData as any)?.totalExpenses)}</span>

@@ -182,7 +182,7 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
     purchasePrice: "", salePrice: "", minStock: "", alternativeItemId: "",
   });
   const [saving, setSaving] = useState(false);
-  const [similarItems, setSimilarItems] = useState<{ id: number; name: string; category: string }[]>([]);
+  const [similarItems, setSimilarItems] = useState<{ id: number; name: string; category: string; stockQuantity?: string | null }[]>([]);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
@@ -258,18 +258,24 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
                   Similar items already exist — avoid duplicates:
                 </p>
                 <ul className="space-y-1">
-                  {similarItems.map(i => (
-                    <li key={i.id} className="text-xs text-amber-800 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium">{i.name}</span>
-                        <span className="text-amber-500">({i.category})</span>
-                      </div>
-                      <button type="button" onClick={() => { onClose(); navigate(`/item-history?itemId=${i.id}`); }}
-                        className="flex items-center gap-0.5 text-[#1A6DB5] hover:underline shrink-0">
-                        <Eye className="h-3 w-3" /> View
-                      </button>
-                    </li>
-                  ))}
+                  {similarItems.map(i => {
+                    const qty = parseFloat(i.stockQuantity ?? "0");
+                    return (
+                      <li key={i.id} className="text-xs text-amber-800 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-medium truncate">{i.name}</span>
+                          <span className="text-amber-500 shrink-0">({i.category})</span>
+                          <span className={`shrink-0 font-semibold ${qty > 0 ? "text-green-700" : "text-red-500"}`}>
+                            {qty > 0 ? `${qty} in stock` : "Out of stock"}
+                          </span>
+                        </div>
+                        <button type="button" onClick={() => { onClose(); navigate(`/item-history?itemId=${i.id}`); }}
+                          className="flex items-center gap-0.5 text-[#1A6DB5] hover:underline shrink-0">
+                          <Eye className="h-3 w-3" /> View
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <div className="flex gap-2 pt-1 border-t border-amber-200">
                   <button type="button" onClick={() => { onClose(); }}
