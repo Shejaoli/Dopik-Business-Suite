@@ -1,0 +1,216 @@
+Implement the following three improvements to the Dopik Electronics management system:
+
+---
+
+## PART 1 — ADD RAM FIELD TO PURCHASE & SALE FORMS
+
+Add RAM as a selectable specification alongside Storage for serialized items (phones and computers) throughout the entire system.
+
+**Purchase Form (Record New Purchase):**
+- In each serialized item card, add a **RAM** field between Color and Storage:
+  - Searchable dropdown just like Storage and Color
+  - Pulls from a new `ram_options` table
+  - Create-new option if the RAM value doesn't exist: admin types e.g. "6GB" and it gets saved
+  - Label shows "RAM" clearly
+- Seed `ram_options` table with default values: 2GB, 3GB, 4GB, 6GB, 8GB, 12GB, 16GB, 32GB, 64GB
+- For phones: RAM options are typical mobile RAM values
+- For computers: RAM options include all values above
+- RAM field is only shown for serialized items (phones and computers) — hidden for accessories
+
+**Sale Form (Multi-Item Sale / Quick Sale):**
+- In the Select Unit dropdown for serialized items, include RAM in the unit description:
+  - Format: `[Color] / [RAM] / [Storage] / IMEI: [number] / [Condition]`
+  - Example: *"Black / 8GB RAM / 128GB / IMEI: 353012341234567 / Brand New"*
+
+**serialized_units table:**
+- Add `ram` column (varchar, nullable) to store the RAM value per unit
+- Update all existing serialized unit records safely — set `ram = NULL` for existing records
+
+**Purchase Order Preview:**
+- Update the Description column in the PO document to include RAM:
+  - Format: Color / RAM / Storage / IMEI: [number]
+
+**Receipt:**
+- Update the Description column on all receipts to include RAM:
+  - Format: Color / RAM / Storage / IMEI: [number]
+
+**Stock page:**
+- When expanding a serialized product row to show individual units, include RAM in the unit details
+
+**Customer Warranty tab:**
+- Show RAM in the warranty record: *"Black / 8GB RAM / 128GB — IMEI: [number]"*
+
+**Warranty public page:**
+- Show RAM in the warranty result: *"iPhone 16 — Black / 8GB RAM / 128GB"*
+
+---
+
+## PART 2 — ADDITIONAL INFORMATION FIELD (ALL CATEGORIES)
+
+Add a free-text **Additional Information** field to both the Purchase form and Sale form for every item — serialized and non-serialized alike.
+
+**Purchase Form:**
+- At the bottom of every item card (both serialized and non-serialized), add:
+  - Label: **"Additional Information"** (optional)
+  - A textarea input, 2–3 lines tall, expandable
+  - Placeholder: *"Enter any extra details not covered above — e.g. accessories included, box condition, special notes, agreed terms with vendor..."*
+  - Character limit: 500 characters with a live counter shown below the field
+- This field is completely free text — no restrictions
+- Marked clearly as optional with *(optional)* next to the label
+
+**Sale Form:**
+- Same additional information textarea on every item card in the Multi-Item Sale form
+- Placeholder: *"Enter any extra details for this item — e.g. agreed discount reason, customer special request, bundled items..."*
+
+**Storage:**
+- Save the additional info text in:
+  - `serialized_units.additional_info` (varchar 500, nullable) — for serialized items
+  - `sale_items.additional_info` (varchar 500, nullable) — for sale line items
+  - `purchase_items.additional_info` (varchar 500, nullable) — for purchase line items
+
+**Display on Purchase Order (PO) Preview:**
+- If additional info was entered for a unit, show it below the main description row in the items table in smaller italic gray text
+- Example:
+  ```
+  1 | iPhone 16 | Black / 8GB / 128GB / IMEI: 353... | Brand New | ...
+              | ℹ️ Box included, original charger missing, agreed price includes case
+  ```
+
+**Display on Sales Receipt:**
+- Same as PO — show additional info as a small italic note below the item row if it exists
+
+**Display on Stock page:**
+- When expanding a serialized unit row, show additional info if it exists under a label: *"Notes:"*
+
+**Display on Customer Profile — Purchases tab:**
+- Show additional info per item in the purchase history
+
+**Display on Repair Job:**
+- When logging a repair, pre-fill the problem description field with the additional info from the original sale if available
+
+---
+
+## PART 3 — FULL DATA RESET IN SETTINGS
+
+Add a **"Reset System Data"** feature in Settings that allows the owner to completely wipe all business data and start fresh, while keeping the system configuration intact.
+
+**Location:**
+- In Settings page, add a new section at the very bottom titled **"Danger Zone"**
+- Style it with a red border, red background tint, and a ⚠️ warning icon
+- This section is only visible to the **Owner** role
+
+**What the reset does:**
+Deletes ALL of the following data permanently (hard delete, not soft delete):
+- All sales and sale items
+- All purchases and purchase items
+- All serialized units (IMEI records)
+- All customers
+- All credit accounts and credit payments
+- All installment plans
+- All repair jobs, parts, and status history
+- All expenses
+- All receipts
+- All activity logs
+- All notifications
+- All till sessions
+- All scheduled messages
+- All stock count records
+- All inquiries
+- All announcements
+- All price history
+- All stock adjustments
+- All draft purchases
+
+**What the reset KEEPS (never deleted):**
+- Admin and staff accounts
+- System settings and configuration
+- Product catalog (items/products)
+- Product categories
+- Vendors / suppliers
+- Colors, storage options, RAM options
+- Exchange rate settings
+- Backup settings
+- WhatsApp notification settings
+- Reorder thresholds
+
+**Reset stock levels:**
+After deleting all sales and purchases, automatically reset all product stock quantities to 0 (since all transaction history is gone, stock count would be inaccurate).
+
+**Safety flow — 4 steps before reset executes:**
+
+**Step 1 — Initial warning modal:**
+```
+⚠️ DANGER: Reset All Data
+
+This will permanently delete ALL business data including:
+• All sales, purchases, and receipts
+• All customers and credit accounts  
+• All repair jobs and expenses
+• All activity logs and notifications
+• Stock levels will be reset to zero
+
+This action CANNOT be undone. There is no recovery.
+
+Your products, staff accounts, and settings will be kept.
+
+[ Cancel ]  [ I understand, continue → ]
+```
+
+**Step 2 — Backup reminder:**
+```
+⚠️ Have you backed up your data?
+
+Before resetting, we strongly recommend downloading 
+a full backup of your current data.
+
+[ Download Backup Now ]  [ Skip, I don't need a backup ]
+```
+
+- "Download Backup Now" triggers the existing backup download feature
+- Both buttons proceed to Step 3
+
+**Step 3 — Final confirmation with typed code:**
+```
+⚠️ Final Confirmation Required
+
+To confirm you want to permanently delete all data,
+type the following code exactly as shown:
+
+[ RESET-DOPIK-[random 4 digit number] ]
+
+[ _________________________ ] ← input field
+
+[ Cancel ]  [ Confirm Reset ] ← disabled until code matches exactly
+```
+- Generate a new random code every time this step is shown
+- Code is case-sensitive
+- Confirm Reset button stays gray and disabled until the typed text matches exactly
+
+**Step 4 — Processing screen:**
+- Show a full-screen loading overlay: *"⏳ Resetting system data... Please do not close this page."*
+- Execute all deletions inside a single PostgreSQL transaction — if any deletion fails, rollback everything and show error
+- On success: show *"✅ System reset complete. All data has been cleared. You can now start fresh."*
+- Automatically log out all other active sessions (except the current owner session)
+- Redirect to dashboard after 3 seconds
+
+**Additional safety measures:**
+- Log the reset event in a separate `system_events` table that is NEVER deleted even by a reset: id, event_type, performed_by, performed_at, ip_address, details
+- Send a WhatsApp alert to the owner's phone immediately after reset:
+```
+⚠️ SYSTEM RESET — Dopik Electronics
+
+All business data has been permanently deleted.
+
+Performed by: [Staff Name]
+Time: [timestamp]
+IP Address: [IP]
+
+If you did not authorize this action, contact your system administrator immediately.
+```
+- The reset endpoint must require re-authentication — before executing the reset, verify the owner's password one more time server-side even if they are already logged in
+
+---
+
+Apply all three parts fully. Do not break any existing features. Run all database migrations safely without dropping existing columns or tables that are still in use.
+
+---

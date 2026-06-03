@@ -1,0 +1,186 @@
+---
+
+**What to implement:**
+
+**1. Separate those categories in all sections from items → stock, and so on at every side must contain their own data separately — section of Phone category and Computer category separately from Accessories category**
+
+---
+
+This is a great structural improvement. Here's the prompt:
+
+---
+
+**Prompt:**
+
+Implement category separation across the entire Dopik Electronics system. Every section that displays, manages, or reports on products and stock must separate items by their category — Phones, Computers, and Accessories must never be mixed in the same view unless specifically requested.
+
+---
+
+**PART 1 — NAVIGATION RESTRUCTURE**
+
+Add category-based sub-navigation throughout the system. In the sidebar under each major section, add category filter tabs or sub-links:
+
+- **Stock** section splits into:
+  - All Stock (default overview)
+  - 📱 Phones
+  - 💻 Computers
+  - 🎧 Accessories
+
+- **Purchases** section splits into:
+  - All Purchases
+  - 📱 Phone Purchases
+  - 💻 Computer Purchases
+  - 🎧 Accessory Purchases
+
+- **Sales** section splits into:
+  - All Sales
+  - 📱 Phone Sales
+  - 💻 Computer Sales
+  - 🎧 Accessory Sales
+
+- **Reports** section splits into:
+  - All Reports
+  - 📱 Phone Reports
+  - 💻 Computer Reports
+  - 🎧 Accessory Reports
+
+Each sub-section remembers the last selected category using localStorage so switching pages doesn't reset the filter.
+
+---
+
+**PART 2 — STOCK PAGE CATEGORY SEPARATION**
+
+On the main Stock / Inventory page:
+
+- Add **category tab pills** at the top: All | Phones | Computers | Accessories
+- Clicking a tab filters the product table to show only that category
+- Each category tab shows a count badge: e.g. *"Phones (24)"*
+- When **Phones** tab is selected:
+  - Table columns change to show phone-specific fields: Name, Brand, Storage Options, Color Options, Units In Stock, Units Sold, Reorder Level, Actions
+  - Each row is expandable to show individual IMEI units with their condition, color, storage, status
+  - Summary cards at top: Total Phone Units In Stock, Total Phone Units Sold, Low Stock Phones, Out of Stock Phones
+- When **Computers** tab is selected:
+  - Table columns: Name, Brand, Processor, Storage, RAM, Units In Stock, Units Sold, Reorder Level, Actions
+  - Expandable rows showing individual serial number units
+  - Summary cards: Total Computer Units In Stock, Total Sold, Low Stock, Out of Stock
+- When **Accessories** tab is selected:
+  - Table columns: Name, Category, SKU, Quantity In Stock, Quantity Sold, Reorder Level, Unit Price, Actions
+  - No individual unit tracking (non-serialized)
+  - Summary cards: Total Accessory Products, Total Units In Stock, Low Stock Items, Out of Stock Items
+- When **All** tab is selected:
+  - Show all products grouped by category with a visible category header divider between groups
+
+---
+
+**PART 3 — PRODUCTS / ITEMS PAGE CATEGORY SEPARATION**
+
+On the Items / Products management page:
+
+- Add the same category tabs: All | Phones | Computers | Accessories
+- **Add New Product** button changes behavior based on active tab:
+  - On Phones tab: opens Add Phone form with phone-specific fields: Brand, Model, Display Size, Processor, Battery, Camera, default storage options, default color options, IMEI tracking auto-enabled
+  - On Computers tab: opens Add Computer form with: Brand, Model, Processor, RAM options, Storage options, Display Size, OS, serial number tracking auto-enabled
+  - On Accessories tab: opens Add Accessory form with: Name, Sub-category (Case, Cable, Charger, Earphone, Screen Protector, Other), Compatible With, quantity-based tracking
+- Each category has its own set of relevant attributes — phones and computers show tech specs, accessories show compatibility info
+- Product cards/rows styled differently per category:
+  - Phones: blue left border
+  - Computers: purple left border
+  - Accessories: green left border
+
+---
+
+**PART 4 — PURCHASE HISTORY CATEGORY SEPARATION**
+
+On the Purchase History page:
+
+- Add category tabs: All | Phones | Computers | Accessories
+- Each tab shows only purchases containing items from that category
+- Summary cards change per category:
+  - Phones: Total Phone Units Purchased, Total Spent on Phones, Average Cost Per Phone Unit
+  - Computers: Total Computer Units Purchased, Total Spent on Computers, Average Cost Per Computer
+  - Accessories: Total Accessory Units Purchased, Total Spent on Accessories
+- Purchase rows for serialized categories (Phones/Computers) show expandable IMEI/serial list per purchase
+- Export button exports only the filtered category's purchases
+
+---
+
+**PART 5 — SALES HISTORY CATEGORY SEPARATION**
+
+On the Sales History page:
+
+- Add category tabs: All | Phones | Computers | Accessories
+- Each tab filters sales to show only sales containing items from that category
+- Summary cards per category:
+  - Phones: Total Phones Sold, Revenue from Phones, Average Phone Sale Price, Most Sold Phone Model
+  - Computers: Total Computers Sold, Revenue from Computers, Average Computer Sale Price
+  - Accessories: Total Accessory Units Sold, Revenue from Accessories, Best Selling Accessory
+- Phone and Computer sale rows show the IMEI/serial number sold in the items column
+
+---
+
+**PART 6 — DASHBOARD CATEGORY WIDGETS**
+
+On the main dashboard, update the stats and widgets to show category breakdowns:
+
+- **Stock Alerts** widget splits into: Phone Alerts | Computer Alerts | Accessory Alerts with separate out-of-stock and low-stock counts per category
+- **Recent Sales** feed shows a small category badge (📱 / 💻 / 🎧) on each sale row
+- **Top Selling Products** chart shows category color coding — phone bars blue, computer bars purple, accessory bars green
+- **Revenue by Category** — new donut chart on dashboard showing revenue split between Phones, Computers, Accessories
+
+---
+
+**PART 7 — ANALYTICS PAGE CATEGORY SEPARATION**
+
+On the Charts & Analytics page:
+
+- Add a **Category Filter** at the top: All Categories | Phones | Computers | Accessories
+- When a category is selected, ALL charts on the page filter to show only that category's data:
+  - Revenue Over Time: only shows revenue from selected category
+  - Top Selling Products: only shows products from selected category
+  - Profit margins: only for selected category
+  - Stock health: only for selected category
+- Add a new **Category Comparison** chart: side-by-side revenue, profit, and units sold for Phones vs Computers vs Accessories in one chart
+
+---
+
+**PART 8 — REPORTS CATEGORY SEPARATION**
+
+On all report pages (Sales Report, Purchase Report, Profit Report):
+
+- Add category filter at the top of every report
+- When generating or exporting a report, include a **"Category"** column in the output
+- Allow generating a report for a single category only: e.g. *"Phone Sales Report — May 2026"*
+- Profit per product report (Feature 5) already built — enhance it to show category subtotals: total profit from Phones, total profit from Computers, total profit from Accessories
+
+---
+
+**PART 9 — DATABASE & BACKEND**
+
+- Make sure all products have a `category_id` that correctly maps to Phones, Computers, or Accessories categories
+- Seed the categories table with at minimum: Phones (`requires_serial=true`), Computers (`requires_serial=true`), Accessories (`requires_serial=false`)
+- Add sub-categories for Accessories: Cases, Cables, Chargers, Earphones/Headphones, Screen Protectors, Power Banks, Other
+- All API endpoints that return products, sales, or purchases must support a `?category=phones|computers|accessories` query parameter for filtering
+- Update the following endpoints to support category filtering:
+  - `GET /api/products?category=`
+  - `GET /api/sales?category=`
+  - `GET /api/purchases?category=`
+  - `GET /api/reports/profitability?category=`
+  - `GET /api/analytics/revenue?category=`
+  - `GET /api/analytics/top-products?category=`
+  - `GET /api/stock/alerts?category=`
+
+---
+
+**PART 10 — QUICK SALE MODE CATEGORY SEPARATION**
+
+On the Quick Sale POS interface (Feature 4):
+
+- Category filter tabs at the top of the product grid: All | 📱 Phones | 💻 Computers | 🎧 Accessories
+- Each category tab shows only relevant products
+- Default tab when opening Quick Sale: All
+
+---
+
+Apply all parts without breaking any existing features. Migrate existing products to correct categories if they are not already categorized. Do not delete any existing product, sale, or purchase data.
+
+---
