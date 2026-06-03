@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db, salesTable, saleItemsTable, itemsTable, customersTable, serialNumbersTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
@@ -112,6 +112,13 @@ async function buildReceipt(saleId: number) {
     },
   };
 }
+
+router.get("/receipts/next-number", async (req, res): Promise<void> => {
+  const [row] = await db.select({ maxId: sql<number>`COALESCE(MAX(id), 0)` }).from(salesTable);
+  const nextId = (row?.maxId ?? 0) + 1;
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  res.json({ receiptNumber: `REC-${today}-${String(nextId).padStart(4, "0")}` });
+});
 
 router.get("/receipts/:saleId", async (req, res): Promise<void> => {
   const saleId = parseInt(req.params.saleId);

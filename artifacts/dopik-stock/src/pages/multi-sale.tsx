@@ -288,6 +288,13 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
   open: boolean; onClose: () => void; onConfirm: () => void; submitting: boolean;
   data: any; customers: any[];
 }) {
+  const { data: nextNumData } = useQuery<{ receiptNumber: string }>({
+    queryKey: ["receipts", "next-number"],
+    queryFn: () => api.get<{ receiptNumber: string }>("/receipts/next-number"),
+    enabled: open,
+    staleTime: 0,
+  });
+
   if (!data) return null;
   const customer = data.customerId ? customers.find((c: any) => String(c.id) === data.customerId) : null;
   const subtotal = data.lines.reduce((s: number, l: LineItem) => s + (parseFloat(l.quantity) || 1) * (parseFloat(l.unitPrice) || 0), 0);
@@ -305,12 +312,13 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Provisional receipt number */}
+          {/* Pre-generated receipt number */}
           <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 text-sm">
             <Receipt className="h-4 w-4 text-[#1A6DB5] flex-shrink-0" />
             <span className="text-gray-500">Receipt No.:</span>
-            <span className="font-mono font-semibold text-[#1A6DB5]">REC-{data.saleDate.replace(/-/g, "")}-****</span>
-            <span className="text-xs text-gray-400 ml-1">(assigned on confirmation)</span>
+            {nextNumData?.receiptNumber
+              ? <span className="font-mono font-semibold text-[#1A6DB5]">{nextNumData.receiptNumber}</span>
+              : <span className="font-mono text-gray-400">Loading…</span>}
           </div>
 
           <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-xl p-4 text-sm">
@@ -347,7 +355,7 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
                       <td className="px-3 py-2 font-medium">{line.itemName || "—"}</td>
                       <td className="px-3 py-2 text-gray-500 text-xs">
                         {line.isSerial && line.serializedUnitId ? (
-                          <span className="text-purple-700">{line.unitDescription || `Unit #${line.serializedUnitId}`}</span>
+                          <span className="text-purple-700">{line.unitDescription || "—"}</span>
                         ) : "—"}
                       </td>
                       <td className="px-3 py-2 text-right">{line.isSerial ? 1 : line.quantity}</td>
@@ -637,7 +645,14 @@ export default function MultiSalePage() {
                           </button>
                         ))}
                         {filteredCustomers.length === 0 && customerSearch && (
-                          <div className="px-3 py-2 text-sm text-gray-400">No customers found</div>
+                          <div className="px-3 py-2 flex flex-col gap-1">
+                            <span className="text-sm text-gray-400">No customers found</span>
+                            <button type="button"
+                              onClick={() => { setShowCustomerDropdown(false); setShowAddCustomer(true); }}
+                              className="flex items-center gap-1.5 text-sm text-[#1A6DB5] hover:underline font-medium">
+                              <UserPlus className="h-3.5 w-3.5" /> + Add New Customer
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

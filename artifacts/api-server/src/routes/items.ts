@@ -112,16 +112,24 @@ router.put("/items/:id", async (req, res): Promise<void> => {
   res.json({ ...item, alternativeItemName: null });
 });
 
-router.get("/items/search", async (req, res): Promise<void> => {
-  const raw = req.query.name as string | undefined;
-  if (!raw || raw.trim().length < 2) { res.json([]); return; }
-  const normalized = raw.trim().replace(/[-\s]+/g, "%");
-  const results = await db
+async function searchItemsByName(name: string) {
+  if (!name || name.trim().length < 2) return [];
+  const normalized = name.trim().replace(/[-\s]+/g, "%");
+  return db
     .select({ id: itemsTable.id, name: itemsTable.name, category: itemsTable.category })
     .from(itemsTable)
     .where(ilike(itemsTable.name, `%${normalized}%`))
     .limit(8);
-  res.json(results);
+}
+
+router.get("/items/search", async (req, res): Promise<void> => {
+  const raw = req.query.name as string | undefined;
+  res.json(await searchItemsByName(raw ?? ""));
+});
+
+router.get("/products/search", async (req, res): Promise<void> => {
+  const raw = req.query.name as string | undefined;
+  res.json(await searchItemsByName(raw ?? ""));
 });
 
 router.get("/items/:id/history", async (req, res): Promise<void> => {

@@ -63,8 +63,8 @@ function getItemImei(item: ReceiptDetail["items"][0]): string | null {
 
 function getItemDescription(item: ReceiptDetail["items"][0]): string | null {
   if (item.serializedUnit) {
-    const { color, storage, imeiOrSerial } = item.serializedUnit;
-    const parts = [color, storage, imeiOrSerial ? `IMEI: ${imeiOrSerial}` : null].filter(Boolean);
+    const { color, storage, condition, imeiOrSerial } = item.serializedUnit;
+    const parts = [color, storage, condition, imeiOrSerial ? `IMEI: ${imeiOrSerial}` : null].filter(Boolean);
     return parts.join(" / ") || null;
   }
   if (item.serialNumbers.length > 0) return `IMEI: ${item.serialNumbers.join(", ")}`;
