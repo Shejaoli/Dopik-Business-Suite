@@ -272,7 +272,7 @@ function exportCSV(logs: any[]) {
     l.action || "",
     `"${(l.description || "").replace(/"/g, '""')}"`,
     l.ipAddress || "",
-    l.createdAt ? new Date(l.createdAt).toISOString() : "",
+    l.createdAt ? fmtDateTime(l.createdAt) : "",
   ]);
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });

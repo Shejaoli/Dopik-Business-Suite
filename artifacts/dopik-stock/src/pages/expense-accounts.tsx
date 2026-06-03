@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useListExpenseAccounts } from "@workspace/api-client-react";
-import { api } from "@/lib/api";
+import { api, fmtDate } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { BookOpen, Plus, Loader2 } from "lucide-react";
 
@@ -127,7 +127,7 @@ export default function ExpenseAccountsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400">
-                    {acc.createdAt ? new Date(acc.createdAt).toLocaleDateString("en-GB") : "—"}
+                    {fmtDate(acc.createdAt)}
                   </td>
                 </tr>
               ))}

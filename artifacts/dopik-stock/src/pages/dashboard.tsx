@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 
 const PERIODS = [
   { key: "today", label: "TODAY" },
+  { key: "yesterday", label: "YESTERDAY" },
+  { key: "week", label: "THIS WEEK" },
   { key: "month", label: "THIS MONTH" },
   { key: "year", label: "THIS YEAR" },
 ];
@@ -570,7 +572,13 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <StatCard label="Total Items" value={String(data?.totalItems ?? 0)} icon={Package} color="bg-[#1A6DB5]/10 text-[#1A6DB5]" />
           <StatCard label="Stock Value" value={fmtRWF(data?.totalStockValue)} icon={ShoppingCart} color="bg-purple-100 text-purple-600" />
-          <StatCard label="Today's Sales" value={fmtRWF(data?.todaySales)} icon={TrendingUp} color="bg-green-100 text-green-600" />
+          <StatCard
+            label={{ today: "Today's Revenue", yesterday: "Yesterday's Revenue", week: "This Week's Revenue", month: "Month Revenue", year: "Year Revenue" }[period] ?? "Revenue"}
+            value={fmtRWF(data?.revenue)}
+            icon={TrendingUp}
+            color="bg-green-100 text-green-600"
+            sub={`Gross profit: ${fmtRWF(data?.grossProfit)}`}
+          />
           <StatCard label="Receivables" value={fmtRWF(data?.outstandingReceivables)} icon={Wallet} color="bg-orange-100 text-orange-600" sub="Outstanding" />
         </div>
       )}

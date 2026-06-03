@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { api, fmtRWF } from "@/lib/api";
+import { api, fmtRWF, fmtDateTime } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -556,7 +556,7 @@ export default function SettingsPage() {
                     const rows = activityLogs ?? [];
                     const header = "ID,User,Role,Action,Description,IP Address,Date/Time";
                     const lines = rows.map(log =>
-                      [log.id, `"${log.userName ?? ""}"`, log.userRole ?? "", log.action, `"${log.description.replace(/"/g, '""')}"`, log.ipAddress ?? "", new Date(log.createdAt).toLocaleString()].join(",")
+                      [log.id, `"${log.userName ?? ""}"`, log.userRole ?? "", log.action, `"${log.description.replace(/"/g, '""')}"`, log.ipAddress ?? "", fmtDateTime(log.createdAt)].join(",")
                     );
                     const csv = [header, ...lines].join("\n");
                     const blob = new Blob([csv], { type: "text/csv" });
@@ -594,7 +594,7 @@ export default function SettingsPage() {
                           {log.ipAddress && <p className="text-[10px] text-gray-400 mt-0.5">IP: {log.ipAddress}</p>}
                         </div>
                         <div className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0 mt-0.5">
-                          {new Date(log.createdAt).toLocaleString("en-RW", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {fmtDateTime(log.createdAt)}
                         </div>
                       </div>
                     ))}

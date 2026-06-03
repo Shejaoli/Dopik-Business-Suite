@@ -15,6 +15,14 @@ router.get("/dashboard", async (req, res): Promise<void> => {
   let periodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   if (period === "today") {
     periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  } else if (period === "yesterday") {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    periodStart = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
+    periodEnd = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
+  } else if (period === "week") {
+    const day = now.getDay();
+    const monday = new Date(now); monday.setDate(now.getDate() - ((day + 6) % 7));
+    periodStart = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate(), 0, 0, 0, 0);
   } else if (period === "year") {
     periodStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
     periodEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);

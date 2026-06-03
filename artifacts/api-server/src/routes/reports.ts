@@ -188,4 +188,50 @@ router.get("/reports/summary", async (req, res): Promise<void> => {
   res.json({ year, rows, totals });
 });
 
+router.get("/reports/pnl", async (req, res): Promise<void> => {
+  const { start, end } = req.query as { start?: string; end?: string };
+  const now = new Date();
+  const currentStart = start ? new Date(start + "T00:00:00") : new Date(now.getFullYear(), now.getMonth(), 1);
+  const currentEnd = end ? new Date(end + "T23:59:59") : now;
+  const durationMs = currentEnd.getTime() - currentStart.getTime();
+  const prevEnd = new Date(currentStart.getTime() - 1);
+  const prevStart = new Date(prevEnd.getTime() - durationMs);
+
+  async function calcPeriod(pStart: Date, pEnd: Date) {
+    const salesRows = await db.select({ total: salesTable.totalAmount, reverted: salesTable.reverted })
+      .from(salesTable).where(and(gte(salesTable.createdAt, pStart), lte(salesTable.createdAt, pEnd)));
+    const revenue = salesRows.filter(r => !r.reverted).reduce((s, r) => s + parseFloat(r.total), 0);
+
+    const cogsRows = await db
+      .select({ quantity: saleItemsTable.quantity, purchasePrice: itemsTable.purchasePrice, reverted: salesTable.reverted })
+      .from(saleItemsTable)
+      .innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
+      .leftJoin(itemsTable, eq(saleItemsTable.itemId, itemsTable.id))
+      .where(and(gte(salesTable.createdAt, pStart), lte(salesTable.createdAt, pEnd)));
+    const cogs = cogsRows.filter(r => !r.reverted).reduce((s, r) => s + parseFloat(r.quantity) * parseFloat(r.purchasePrice ?? "0"), 0);
+
+    const grossProfit = revenue - cogs;
+    const expRows = await db.select({ amount: expensesTable.amount })
+      .from(expensesTable).where(and(gte(expensesTable.createdAt, pStart), lte(expensesTable.createdAt, pEnd)));
+    const totalExpenses = expRows.reduce((s, e) => s + parseFloat(e.amount), 0);
+    const netProfit = grossProfit - totalExpenses;
+    const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+    const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+    return { revenue, cogs, grossProfit, grossMargin, totalExpenses, netProfit, netMargin };
+  }
+
+  const [cur, prev] = await Promise.all([calcPeriod(currentStart, currentEnd), calcPeriod(prevStart, prevEnd)]);
+  const pct = (c: number, p: number) => p === 0 ? null : parseFloat(((c - p) / Math.abs(p) * 100).toFixed(1));
+  const s = (n: number) => String(n.toFixed(2));
+
+  res.json({
+    revenue: s(cur.revenue), cogs: s(cur.cogs), grossProfit: s(cur.grossProfit),
+    grossMargin: s(cur.grossMargin), totalExpenses: s(cur.totalExpenses),
+    netProfit: s(cur.netProfit), netMargin: s(cur.netMargin),
+    prev: { revenue: s(prev.revenue), grossProfit: s(prev.grossProfit), netProfit: s(prev.netProfit) },
+    changes: { revenue: pct(cur.revenue, prev.revenue), grossProfit: pct(cur.grossProfit, prev.grossProfit), netProfit: pct(cur.netProfit, prev.netProfit) },
+    period: { start: currentStart.toISOString().split("T")[0], end: currentEnd.toISOString().split("T")[0] },
+  });
+});
+
 export default router;

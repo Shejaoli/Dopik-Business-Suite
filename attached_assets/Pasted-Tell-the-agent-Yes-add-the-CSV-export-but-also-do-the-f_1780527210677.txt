@@ -1,0 +1,56 @@
+Tell the agent:
+
+Yes add the CSV export but also do the following additional fixes and improvements at the same time:
+1. CSV / Excel Export on all Report tabs
+
+Add Export CSV and Export Excel buttons on all three report tabs: Sales, Purchases, and Expenses
+The export must respect the currently selected period filter — only export data from the selected date range
+CSV filename format: Dopik-Sales-Report-June-2026.csv, Dopik-Purchases-Report-June-2026.csv, Dopik-Expenses-Report-June-2026.csv
+Excel export uses SheetJS with bold headers, number formatting with commas, proper date formatting
+Excel file has two sheets: Summary sheet and Detail sheet
+
+2. Summary Report tab (add new tab)
+
+Add a 4th tab to the Reports page called "Summary (P&L)"
+It must show a full Profit & Loss statement for the selected period:
+
+Revenue (Total Sales):        X,XXX,XXX RWF
+Cost of Goods Sold:          -X,XXX,XXX RWF
+─────────────────────────────────────────────
+Gross Profit:                 X,XXX,XXX RWF
+Operating Expenses:          -X,XXX,XXX RWF
+─────────────────────────────────────────────
+NET PROFIT:                   X,XXX,XXX RWF
+Profit Margin:                        XX.X%
+
+Same period filter applies to this tab
+Show comparison with previous same period: "vs last month: +12% ↑" green or "-8% ↓" red
+Export to PDF and CSV
+
+3. Fix the "Unit #3" fallback in sale preview
+
+When a serialized unit has no color, RAM, or storage data, instead of showing "Unit #3" show the IMEI/serial number directly: "IMEI: 5CG8193Z8P"
+If even the IMEI is missing, show: "Unit details not recorded"
+Never show a raw database ID to the user
+
+4. Add Today and Yesterday to Dashboard stats
+
+On the dashboard, the existing stat cards (Total Revenue, Gross Profit, Net Profit, Expenses) must also respond to the period filter
+Add a small period selector on the dashboard: Today | Yesterday | This Week | This Month | This Year
+All dashboard numbers update when period changes
+The chart carousel also updates to show data for the selected period
+
+5. Fix date formatting everywhere it is still showing raw ISO format
+
+Search the entire codebase for any place that renders a date directly from the database (format: 2026-06-02 or 2026-06-02T10:32:00Z)
+Replace all with the friendly format using the existing fmtDate() function: 02 June 2026 or 02 June 2026 at 10:32
+Apply to: Sales History table, Purchase History table, Credit list, Repair board cards, Customer profile tabs, Activity log, Notification list, Stock count records
+
+6. Reports page — add Summary cards at top of each tab
+
+Sales tab: Total Sales Count, Total Revenue, Average Sale Value, Largest Single Sale — all for the selected period
+Purchases tab: Total Purchases, Total Spent, Total Units Received, Average Purchase Value
+Expenses tab: Total Expenses, Largest Category, Budget Used %
+Summary P&L tab: Gross Profit, Net Profit, Profit Margin %, comparison vs previous period
+
+After completing all of the above, give me a full status report of what was built and what still needs work before we move on.

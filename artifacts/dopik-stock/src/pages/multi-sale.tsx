@@ -152,7 +152,7 @@ function LineItemCard({
                   const parts = unit
                     ? [unit.color, unit.ram ? `${unit.ram} RAM` : null, unit.storage, unit.imeiOrSerial ? `IMEI: ${unit.imeiOrSerial}` : null, unit.condition].filter(Boolean)
                     : [];
-                  const desc = parts.length > 0 ? parts.join(" / ") : (uid ? `Unit #${uid}` : "");
+                  const desc = parts.length > 0 ? parts.join(" / ") : (uid ? "Unit details not recorded" : "");
                   onUpdate(line.key, { serializedUnitId: uid, unitDescription: desc });
                 }}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20">
@@ -160,7 +160,7 @@ function LineItemCard({
                 {availableUnits.map((u: any) => {
                   const label = [u.color, u.ram, u.storage, u.imeiOrSerial ? `IMEI: ${u.imeiOrSerial}` : null, u.condition]
                     .filter(Boolean).join(" / ");
-                  return <option key={u.id} value={u.id}>{label || `Unit #${u.id}`}</option>;
+                  return <option key={u.id} value={u.id}>{label || "Unit details not recorded"}</option>;
                 })}
               </select>
             )}

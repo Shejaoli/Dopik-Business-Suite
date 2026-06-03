@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListStock, useGetStockAlerts, useListStockAdjustments, getListStockQueryKey } from "@workspace/api-client-react";
-import { api, fmtRWF, fmtDateTime, statusBadgeColor } from "@/lib/api";
+import { api, fmtRWF, fmtDate, fmtDateTime, statusBadgeColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -210,7 +210,7 @@ export default function StockPage() {
                                       <td className="px-2 py-1.5 max-w-[180px]">
                                         {u.additionalInfo ? <span className="italic text-gray-500 truncate block">{u.additionalInfo}</span> : <span className="text-muted-foreground">—</span>}
                                       </td>
-                                      <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{u.dateReceived ? new Date(u.dateReceived).toLocaleDateString("en-GB") : "—"}</td>
+                                      <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDate(u.dateReceived)}</td>
                                     </tr>
                                   ))}
                                 </tbody>

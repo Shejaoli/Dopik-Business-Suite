@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useListItems, useListStockAdjustments } from "@workspace/api-client-react";
-import { api } from "@/lib/api";
+import { api, fmtDate } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { SlidersHorizontal, Plus, Loader2, Barcode } from "lucide-react";
 
@@ -212,7 +212,7 @@ export default function StockAdjustmentPage() {
               {adjustments?.map(adj => (
                 <tr key={adj.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 py-3 text-xs text-gray-500">
-                    {adj.createdAt ? new Date(adj.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                    {fmtDate(adj.createdAt)}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-800">{adj.itemName || `Item #${adj.itemId}`}</td>
                   <td className="px-4 py-3">

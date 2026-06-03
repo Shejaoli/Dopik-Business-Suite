@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useListPurchases } from "@workspace/api-client-react";
 import { ShoppingBag } from "lucide-react";
-import { fmtRWF } from "@/lib/api";
+import { fmtRWF, fmtDate } from "@/lib/api";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { useCategoryTab, matchesSuperCat, SUPER_CATS, type SuperCat } from "@/lib/categories";
 
@@ -73,7 +73,7 @@ export default function PurchaseHistoryPage() {
               {filtered.map((p: any) => (
                 <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 py-3 text-xs text-gray-500">
-                    {p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                    {fmtDate(p.createdAt)}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.itemName || `Item #${p.itemId}`}</td>
                   <td className="px-4 py-3">
