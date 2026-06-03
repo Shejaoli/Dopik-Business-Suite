@@ -1,0 +1,107 @@
+Fix two critical issues in the Dopik Electronics system:
+
+---
+
+## FIX 1 — CUSTOMERS NOT BEING SAVED
+
+Fully debug and fix the customer creation flow everywhere in the system:
+
+**Diagnose the problem:**
+- Check the `POST /api/customers` endpoint — add full error logging and return the actual error message if it fails
+- Check the customers database table exists and has all required columns: id, name, phone, email, location, date_of_birth, referred_by, created_at, deleted_at
+- Check if there are any NOT NULL constraints causing silent failures when optional fields are empty
+- Check the frontend Add New Customer form — verify it is sending the correct request body to the correct endpoint
+- Log the exact request body and server response in the browser console for every customer save attempt
+
+**Fix the inline Add New Customer form (inside Sale form):**
+- When admin clicks "+ New Customer" and fills name + phone and submits:
+  - Send `POST /api/customers` with at minimum: name and phone
+  - All other fields (email, location, date_of_birth) must be nullable — never fail because they are empty
+  - On success: immediately add the new customer to the customer dropdown and auto-select them
+  - Show success toast: *"Customer [Name] added successfully"*
+  - On failure: show the actual error message, not a generic red box
+
+**Fix the full Add Customer form (on Customers page):**
+- Same fix — make all fields except name nullable
+- After saving, redirect to the new customer's profile page or back to customer list
+- Show success message
+
+**Fix customer appearing in dropdown after creation:**
+
+- After a new customer is created anywhere in the system, refresh the customers dropdown without reloading the entire page
+- The newly created customer must be immediately selectable in the current sale form
+
+**Fix customer search:**
+- Searching by name must work (case-insensitive, partial match)
+- Searching by phone number must work (partial match — typing "078" should show all customers whose phone starts with 078)
+- If no customers match search, show: *"No customers found. + Add New Customer"*
+
+**Fix customer list page:**
+- All saved customers must appear in the customers list
+- Stats per customer (total orders, total spent, credit balance) must calculate from real data
+- If customer list is empty even though customers exist in database, check the query for `deleted_at IS NULL` filter — make sure soft delete is not hiding all records incorrectly
+
+**Fix customer profile page:**
+- Purchases tab must load all sales linked to that customer
+- Credit tab must load all credit accounts linked to that customer
+- Warranties tab must load all serialized units sold to that customer
+
+---
+
+## FIX 2 — ITEM DUPLICATE DETECTION (SMART ITEM SUGGESTION)
+
+When adding a new product/item anywhere in the system, detect if a similar item already exists and alert the admin before creating a duplicate.
+
+**Where this applies:**
+- Add New Product form (Items/Products page)
+- Add Item inline (if available in purchase form)
+
+**How it works:**
+
+**Real-time duplicate detection while typing:**
+- As the admin types the product name in the Name field, after 3 or more characters, automatically search the existing products database for matches
+- Search must be: case-insensitive, partial match, and also catch common variations e.g. "iPhone16" matches "iPhone 16", "iphone 16", "Apple iPhone 16"
+- Show a dropdown suggestion panel below the name field showing matching existing products:
+
+```
+⚠️ Similar items already exist:
+
+📱 Apple iPhone 16 — 44 units in stock — [View] [Use This Instead]
+📱 iPhone 16 Pro — 12 units in stock — [View] [Use This Instead]
+
+[ Continue creating new item anyway ]
+```
+
+**Suggestion panel behavior:**
+- **View** button — opens the existing product in a new tab so admin can check if it is the same item
+- **Use This Instead** button — closes the Add New Product form and navigates to the existing product's edit/stock page instead
+- **Continue creating new item anyway** link — dismisses the suggestions and lets admin proceed with creating a new product
+- If no similar items found — no suggestion panel shown, form works normally
+
+**Matching logic:**
+- Strip spaces, hyphens, and capitalize before comparing
+- Match on: exact name, name contains search term, search term contains name
+- Also match on brand + model combination if those fields exist
+- Examples that should match:
+  - "iPhone 16" → matches "Apple iPhone 16", "iphone16", "iPhone16 Pro" (partial)
+  - "Samsung A55" → matches "Samsung Galaxy A55", "Galaxy A55"
+  - "AirPods Pro" → matches "Apple AirPods Pro 3", "Airpods pro"
+
+**In Purchase Form — item card dropdown:**
+- When admin selects an item from the dropdown in a purchase card, if they have already added the same product in another card in the same purchase, show a warning badge on the card:
+  - *"⚠️ You already have [Product Name] in another row of this purchase. Make sure these are different units."*
+  - This is a warning only — not a blocker, since buying multiple units of the same product is valid
+
+**In Sale Form — item card dropdown:**
+- Same warning if the same product is added twice in one sale
+- For serialized items this is already handled (same IMEI can't be selected twice) but for non-serialized accessories, show: *"ℹ️ You already have [Product] in this sale. Consider increasing the quantity instead."*
+- Show a **"Merge"** button that combines the two rows into one with combined quantity
+
+**API endpoint for duplicate check:**
+- `GET /api/products/search?name=[query]` — returns matching products with name, category, stock count
+- Must respond within 300ms for good UX — add database index on product name column if not already present
+- Rate limit: maximum 1 request per 500ms (debounce on frontend)
+
+**Apply all fixes without breaking any existing product, sale, customer, or purchase data.**
+
+---

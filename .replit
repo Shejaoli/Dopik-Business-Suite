@@ -29,7 +29,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pnpm --filter @workspace/api-server run dev & pnpm --filter @workspace/dopik-stock run dev"
+args = "cd artifacts/api-server && pnpm run dev & cd artifacts/dopik-stock && pnpm run dev"
 waitForPort = 5000
 
 [agent]
