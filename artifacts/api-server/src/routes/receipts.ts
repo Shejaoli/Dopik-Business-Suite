@@ -81,9 +81,11 @@ async function buildReceipt(saleId: number) {
   }));
 
   const receiptNumber = generateReceiptNumber(sale.id, new Date(sale.createdAt!));
+  const siteUrl = process.env.SITE_URL || "https://dopikelectronics.com";
 
   return {
     receiptNumber,
+    siteUrl,
     sale: {
       id: sale.id,
       customerName: sale.customerName || "Walk-in Customer",

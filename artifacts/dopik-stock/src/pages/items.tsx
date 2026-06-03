@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListItems, getListItemsQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Search, History, Plus, X, Barcode } from "lucide-react";
+import { Loader2, Package, Search, History, Plus, X, Barcode, AlertTriangle } from "lucide-react";
 
 const ITEM_CATEGORIES = [
   "Smartphone",
@@ -179,10 +179,25 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
     purchasePrice: "", salePrice: "", minStock: "", alternativeItemId: "",
   });
   const [saving, setSaving] = useState(false);
+  const [similarItems, setSimilarItems] = useState<{ id: number; name: string; category: string }[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const q = form.name.trim();
+    if (q.length < 2) { setSimilarItems([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await api.get<{ id: number; name: string; category: string }[]>(`/items/search?name=${encodeURIComponent(q)}`);
+        setSimilarItems(results);
+      } catch { setSimilarItems([]); }
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [form.name]);
 
   const handleSave = async () => {
     if (!form.name || !form.purchasePrice || !form.salePrice) return;
@@ -228,6 +243,22 @@ function AddItemModal({ items, onClose }: { items: Item[]; onClose: () => void }
               placeholder="e.g. Samsung Galaxy S25"
               onChange={e => set("name", e.target.value)}
             />
+            {similarItems.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1.5">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Similar items already exist — avoid duplicates:
+                </p>
+                <ul className="space-y-0.5">
+                  {similarItems.map(i => (
+                    <li key={i.id} className="text-xs text-amber-800 flex items-center gap-1.5">
+                      <span className="font-medium">{i.name}</span>
+                      <span className="text-amber-500">({i.category})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">Category:</label>

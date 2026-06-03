@@ -425,7 +425,7 @@ function AddVendorInline({ onSave, onClose }: { onSave: (v: any) => void; onClos
 // ── Unit Card (Serialized) ─────────────────────────────────────────────────────
 function UnitCard({
   row, index, total, stockItems, itemOptions, colors, storageOptions, vendorList,
-  onUpdate, onRemove, onCreateColor, onCreateStorage, onAddVendorSave,
+  onUpdate, onRemove, onCreateColor, onCreateStorage, onAddVendorSave, duplicateItemId,
 }: {
   row: PurchaseRow; index: number; total: number;
   stockItems: any[]; itemOptions: any[];
@@ -435,6 +435,7 @@ function UnitCard({
   onCreateColor: (name: string) => Promise<void>;
   onCreateStorage: (name: string) => Promise<void>;
   onAddVendorSave: (rowId: string, vendor: any) => void;
+  duplicateItemId?: boolean;
 }) {
   const [showAddVendor, setShowAddVendor] = useState(false);
 
@@ -442,9 +443,16 @@ function UnitCard({
   const requiresSerial = selectedItem?.trackSerial === true;
 
   return (
-    <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+    <div className={`bg-white border rounded-xl shadow-sm overflow-hidden ${duplicateItemId ? "border-amber-300" : "border-border"}`}>
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-border">
-        <span className="font-semibold text-sm">Unit #{index + 1}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm">Unit #{index + 1}</span>
+          {duplicateItemId && (
+            <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+              <AlertTriangle className="h-3 w-3" />Same item in another unit
+            </span>
+          )}
+        </div>
         {total > 1 && (
           <button
             type="button"
@@ -1086,7 +1094,10 @@ export default function PurchasesPage() {
           <div className="space-y-4">
             {isSerial ? (
               <>
-                {rows.map((row, idx) => (
+                {(() => {
+                  const itemCounts: Record<string, number> = {};
+                  rows.forEach(r => { if (r.itemId) itemCounts[r.itemId] = (itemCounts[r.itemId] ?? 0) + 1; });
+                  return rows.map((row, idx) => (
                   <UnitCard
                     key={row.id}
                     row={row}
@@ -1102,8 +1113,10 @@ export default function PurchasesPage() {
                     onCreateColor={createColor}
                     onCreateStorage={createStorage}
                     onAddVendorSave={handleVendorSaveForRow}
+                    duplicateItemId={!!row.itemId && (itemCounts[row.itemId] ?? 0) > 1}
                   />
-                ))}
+                  ));
+                })()}
                 <button
                   type="button"
                   onClick={addRow}

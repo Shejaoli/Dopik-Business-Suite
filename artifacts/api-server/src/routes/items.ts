@@ -112,6 +112,17 @@ router.put("/items/:id", async (req, res): Promise<void> => {
   res.json({ ...item, alternativeItemName: null });
 });
 
+router.get("/items/search", async (req, res): Promise<void> => {
+  const name = req.query.name as string | undefined;
+  if (!name || name.trim().length < 2) { res.json([]); return; }
+  const results = await db
+    .select({ id: itemsTable.id, name: itemsTable.name, category: itemsTable.category })
+    .from(itemsTable)
+    .where(ilike(itemsTable.name, `%${name.trim()}%`))
+    .limit(8);
+  res.json(results);
+});
+
 router.get("/items/:id/history", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);

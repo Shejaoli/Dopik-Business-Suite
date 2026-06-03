@@ -37,13 +37,14 @@ interface LineItem {
   itemName: string;
   isSerial: boolean;
   serializedUnitId: string;
+  unitDescription: string;
   quantity: string;
   unitPrice: string;
   availableStock: number;
 }
 
 function emptyLine(): LineItem {
-  return { key: newLineKey(), itemId: "", itemName: "", isSerial: false, serializedUnitId: "", quantity: "1", unitPrice: "", availableStock: 0 };
+  return { key: newLineKey(), itemId: "", itemName: "", isSerial: false, serializedUnitId: "", unitDescription: "", quantity: "1", unitPrice: "", availableStock: 0 };
 }
 
 function conditionBadge(condition: string | null) {
@@ -95,13 +96,14 @@ function LineItemCard({
 
   const handleItemChange = (itemId: string) => {
     const item = itemList.find((i: any) => String(i.id) === itemId);
-    if (!item) { onUpdate(line.key, { itemId: "", itemName: "", isSerial: false, serializedUnitId: "", unitPrice: "", availableStock: 0 }); return; }
+    if (!item) { onUpdate(line.key, { itemId: "", itemName: "", isSerial: false, serializedUnitId: "", unitDescription: "", unitPrice: "", availableStock: 0 }); return; }
     const isSerial = item.trackSerial === true;
     onUpdate(line.key, {
       itemId: String(item.id),
       itemName: item.name,
       isSerial,
       serializedUnitId: "",
+      unitDescription: "",
       unitPrice: String(item.salePrice || ""),
       quantity: isSerial ? "1" : "1",
       availableStock: parseFloat(item.stockQuantity ?? "0"),
@@ -143,11 +145,17 @@ function LineItemCard({
                 No units in stock for this product
               </div>
             ) : (
-              <select value={line.serializedUnitId} onChange={e => onUpdate(line.key, { serializedUnitId: e.target.value })}
+              <select value={line.serializedUnitId} onChange={e => {
+                  const uid = e.target.value;
+                  const unit = availableUnits.find((u: any) => String(u.id) === uid);
+                  const desc = unit
+                    ? [unit.color, unit.storage, unit.imeiOrSerial ? `IMEI: ${unit.imeiOrSerial}` : null, unit.condition].filter(Boolean).join(" / ")
+                    : "";
+                  onUpdate(line.key, { serializedUnitId: uid, unitDescription: desc });
+                }}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20">
                 <option value="">Select unit...</option>
                 {availableUnits.map((u: any) => {
-                  const badge = conditionBadge(u.condition);
                   const label = [u.color, u.storage, u.imeiOrSerial ? `IMEI: ${u.imeiOrSerial}` : null, u.condition]
                     .filter(Boolean).join(" / ");
                   return <option key={u.id} value={u.id}>{label || `Unit #${u.id}`}</option>;
@@ -186,6 +194,14 @@ function LineItemCard({
             className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm font-mono outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20" />
         </div>
       </div>
+
+      {/* Duplicate non-serial item warning */}
+      {!line.isSerial && line.itemId && allLines.some(l => l.key !== line.key && l.itemId === line.itemId && !l.isSerial) && (
+        <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+          This item is already in another line — consider merging the quantities into one row.
+        </div>
+      )}
 
       {line.itemId && line.unitPrice && (
         <div className="flex justify-end">
@@ -278,6 +294,14 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Provisional receipt number */}
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 text-sm">
+            <Receipt className="h-4 w-4 text-[#1A6DB5] flex-shrink-0" />
+            <span className="text-gray-500">Receipt No.:</span>
+            <span className="font-mono font-semibold text-[#1A6DB5]">REC-{data.saleDate.replace(/-/g, "")}-****</span>
+            <span className="text-xs text-gray-400 ml-1">(assigned on confirmation)</span>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-xl p-4 text-sm">
             <div><span className="text-gray-500">Customer:</span> <span className="font-medium ml-1">{customer ? `${customer.name}${customer.phone ? ` · ${customer.phone}` : ""}` : "Walk-in Customer"}</span></div>
             <div><span className="text-gray-500">Date:</span> <span className="font-medium ml-1">{data.saleDate}</span></div>
@@ -312,7 +336,7 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
                       <td className="px-3 py-2 font-medium">{line.itemName || "—"}</td>
                       <td className="px-3 py-2 text-gray-500 text-xs">
                         {line.isSerial && line.serializedUnitId ? (
-                          <span className="text-purple-700 font-mono">Unit #{line.serializedUnitId}</span>
+                          <span className="text-purple-700">{line.unitDescription || `Unit #${line.serializedUnitId}`}</span>
                         ) : "—"}
                       </td>
                       <td className="px-3 py-2 text-right">{line.isSerial ? 1 : line.quantity}</td>

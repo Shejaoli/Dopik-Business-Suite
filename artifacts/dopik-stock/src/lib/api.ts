@@ -40,7 +40,7 @@ export function fmtRWF(v: string | number | null | undefined): string {
 
 export function fmtDate(v: string | null | undefined): string {
   if (!v) return "—";
-  return new Date(v).toLocaleDateString("en-RW", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 export function fmtDateTime(v: string | null | undefined): string {

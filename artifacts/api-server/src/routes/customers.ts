@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, ilike, or } from "drizzle-orm";
 import { db, customersTable, salesTable, saleItemsTable, itemsTable, creditAccountsTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
@@ -7,7 +7,11 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/customers", async (req, res): Promise<void> => {
-  const rows = await db.select().from(customersTable).orderBy(customersTable.name);
+  const search = req.query.search as string | undefined;
+  const baseQuery = db.select().from(customersTable);
+  const rows = await (search
+    ? baseQuery.where(or(ilike(customersTable.name, `%${search}%`), ilike(customersTable.phone, `%${search}%`))).orderBy(customersTable.name)
+    : baseQuery.orderBy(customersTable.name));
 
   const enriched = await Promise.all(rows.map(async (c) => {
     const [stats] = await db.select({
@@ -69,11 +73,12 @@ router.get("/customers/:id", async (req, res): Promise<void> => {
     imeiOrSerial: serializedUnitsTable.imeiOrSerial,
     color: serializedUnitsTable.color,
     storage: serializedUnitsTable.storage,
-    dateReceived: serializedUnitsTable.dateReceived,
+    dateReceived: serializedUnitsTable.soldAt,
     status: serializedUnitsTable.status,
     itemName: itemsTable.name,
   }).from(serializedUnitsTable)
-    .leftJoin(itemsTable, eq(serializedUnitsTable.itemId, itemsTable.id));
+    .leftJoin(itemsTable, eq(serializedUnitsTable.itemId, itemsTable.id))
+    .where(eq(serializedUnitsTable.soldToCustomerId, id));
 
   const totalSpent = sales.filter(s => !s.reverted).reduce((sum, s) => sum + parseFloat(s.totalAmount), 0);
   const totalOrders = sales.filter(s => !s.reverted).length;

@@ -6,6 +6,7 @@ import { Printer, MessageSquare, Download, Receipt, X } from "lucide-react";
 
 export type ReceiptDetail = {
   receiptNumber: string;
+  siteUrl?: string;
   sale: {
     id: number;
     customerName: string;
@@ -166,7 +167,7 @@ function buildReceiptHTML(receipt: ReceiptDetail): string {
   <div class="warranty-box">
     <div style="font-weight:700;margin-bottom:6px;font-size:11px">🔧 Warranty Information</div>
     ${warrantyRows}
-    <div style="font-size:10px;color:#888;margin-top:6px">Check warranty at: ${typeof window !== "undefined" ? window.location.origin : ""}/warranty</div>
+    <div style="font-size:10px;color:#888;margin-top:6px">Check warranty at: ${receipt.siteUrl || "https://dopikelectronics.com"}/warranty</div>
   </div>
   ` : ""}
 
@@ -218,7 +219,7 @@ function buildWhatsAppMessage(r: ReceiptDetail) {
   if (discount > 0) msg += `🏷 Discount applied: -${discount.toLocaleString()} RWF\n`;
   if (warrantyItems) {
     msg += `\n🔧 Warranty:\n${warrantyItems}\n`;
-    msg += `\nCheck your warranty: ${window.location.origin}/warranty\n`;
+    msg += `\nCheck your warranty: ${r.siteUrl || "https://dopikelectronics.com"}/warranty\n`;
   }
   msg += `\nFor support contact us: ${store.phone}\n\nThank you for choosing ${store.name}! 🙏`;
   return encodeURIComponent(msg);
@@ -383,7 +384,7 @@ export function ReceiptModal({ saleId, open, onClose }: { saleId: number; open: 
                           </div>
                         );
                       })}
-                    <div className="text-[10px] mt-2 text-gray-400">Check warranty at: {window.location.origin}/warranty</div>
+                    <div className="text-[10px] mt-2 text-gray-400">Check warranty at: {receipt.siteUrl || "https://dopikelectronics.com"}/warranty</div>
                   </div>
                 )}
 
