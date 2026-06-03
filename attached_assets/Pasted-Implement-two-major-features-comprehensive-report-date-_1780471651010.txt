@@ -1,0 +1,330 @@
+Implement two major features: comprehensive report date filtering across all financial reports, and a smart backup trigger system connected to Google Drive or OneDrive.
+
+---
+
+## PART 1 — COMPLETE REPORT DATE FILTERING
+
+Add the following date filtering options to EVERY page and section in the system that involves money, sales, purchases, expenses, profits, or any financial data. This includes: Dashboard, Sales Report, Purchase Report, Expense Report, Summary Report, Profitability Report, Credit Report, Charts & Analytics page, and any other financial section.
+
+**Date Filter Bar (add to top of every financial page/section):**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  📅 Period:                                                  │
+│  [Today] [Yesterday] [This Week] [This Month] [This Year]  │
+│  [Custom Range]                                             │
+│                                                             │
+│  Custom: From [DD/MM/YYYY] To [DD/MM/YYYY] [Apply]        │
+│                                                             │
+│  Showing: 02 June 2026 (Today)                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Period buttons — exact behavior:**
+
+- **Today** — from 00:00 to 23:59 of today only. Shows hourly breakdown
+- **Yesterday** — from 00:00 to 23:59 of yesterday. Shows hourly breakdown
+- **This Week** — Monday 00:00 to today 23:59 of current week. Shows daily breakdown (Mon, Tue, Wed...)
+- **This Month** — 1st of current month 00:00 to today 23:59. Shows weekly breakdown (Week 1, Week 2...)
+- **This Year** — 1st January 00:00 to today 23:59. Shows monthly breakdown (Jan, Feb, Mar...)
+- **Custom Range** — admin picks exact From and To dates using date pickers. To date cannot be before From date. Shows daily breakdown if range ≤ 31 days, weekly if ≤ 90 days, monthly if longer
+
+**Default period on page load:** This Month
+
+**Selected period button:** highlighted in Dopik blue (#1A6DB5) with white text
+
+**Period label below buttons:** always shows exactly what period is being viewed:
+- Today: *"Showing: Tuesday 02 June 2026"*
+- Yesterday: *"Showing: Monday 01 June 2026"*
+- This Week: *"Showing: 26 May – 02 June 2026"*
+- This Month: *"Showing: June 2026 (01–02 June)"*
+- This Year: *"Showing: January – June 2026"*
+- Custom: *"Showing: 15 May – 02 June 2026 (18 days)"*
+
+**Today's Report breakdown:**
+- Sales by hour: 08:00 (2 sales, 850,000 RWF), 09:00 (1 sale, 425,000 RWF) etc.
+- Bar chart with hours on X-axis
+- Summary cards: Total Sales Today, Total Revenue Today, Cash Today, MoMo Today, Credit Today, Expenses Today, Net Today
+
+**Yesterday's Report breakdown:**
+- Same as Today but for yesterday's data
+- Comparison line: *"vs today so far: -15%"* or *"+23%"*
+
+**Weekly Report breakdown:**
+- Group by day of week
+- Bar chart: Mon, Tue, Wed, Thu, Fri, Sat, Sun on X-axis
+- Each bar shows total revenue for that day
+- Table below: Day | Sales Count | Revenue | Cash | MoMo | Credit | Expenses | Net
+
+**Monthly Report breakdown:**
+- Group by week: Week 1 (1–7), Week 2 (8–14), Week 3 (15–21), Week 4 (22–30/31)
+- Line chart showing daily revenue across the month
+- Table: Week | Sales Count | Revenue | Expenses | Net Profit
+
+**Annual Report breakdown:**
+- Group by month: Jan, Feb, Mar... Dec
+- Bar chart with months on X-axis
+- Table: Month | Sales | Revenue | Purchases | Expenses | Net Profit | Margin %
+- Year-to-date totals at the bottom
+
+**Custom Range breakdown:**
+- If ≤ 31 days: show daily breakdown like monthly
+- If 32–90 days: show weekly breakdown
+- If 90+ days: show monthly breakdown
+
+**Apply this filter to every financial section:**
+
+**Dashboard:**
+- Add the period filter at the top of the dashboard
+- All stat cards (Total Revenue, Gross Profit, Expenses, Net Profit) update based on selected period
+- All charts on dashboard update based on selected period
+- The filter selection persists while admin is on the dashboard (localStorage)
+
+**Sales Report page:**
+- Full period filter
+- Summary cards: Total Sales, Total Revenue, Average Sale Value, Largest Sale
+- Breakdown by payment method (Cash/MoMo/Bank/Credit)
+- Top 5 customers in period
+- Top 5 products in period
+- Hourly/daily/weekly/monthly chart depending on period
+- Detailed transactions table (all sales in period)
+- Export PDF and Excel buttons
+
+**Purchase Report page:**
+- Full period filter
+- Summary cards: Total Purchases, Total Spent, Total Units Received, Average Purchase Value
+- Breakdown by supplier
+- Breakdown by category (Phones/Computers/Accessories)
+- Detailed purchases table
+- Export PDF and Excel buttons
+
+**Expense Report page:**
+- Full period filter
+- Summary cards: Total Expenses, Largest Expense Category, Budget Used %
+- Breakdown by category with budget vs actual
+- Detailed expense table
+- Export PDF and Excel buttons
+
+**Summary Report (P&L) page:**
+- Full period filter
+- Profit & Loss statement:
+  ```
+  Revenue (Sales):          X,XXX,XXX RWF
+  Cost of Goods Sold:      -X,XXX,XXX RWF
+  ─────────────────────────────────────────
+  Gross Profit:             X,XXX,XXX RWF
+  Operating Expenses:      -X,XXX,XXX RWF
+  ─────────────────────────────────────────
+  NET PROFIT:               X,XXX,XXX RWF
+  Profit Margin:                    XX.X%
+  ```
+- Comparison with previous same period:
+  - If This Month selected: compare with last month
+  - If This Year: compare with last year
+  - If This Week: compare with last week
+  - Shows: *"vs previous period: +12% ↑"* in green or *"-8% ↓"* in red
+- Trend chart
+
+**Credit Report page:**
+- Full period filter
+- Shows credit issued in the period, credit collected in the period, net outstanding
+- Aging breakdown: 0–30 days, 31–60 days, 61–90 days, 90+ days
+
+**Charts & Analytics page:**
+- Single period filter at the top that controls ALL charts on the page simultaneously
+- Every chart title shows the current period: *"Revenue Over Time — June 2026"*
+
+**API endpoints — all must support date parameters:**
+```
+GET /api/reports/sales?from=DATE&to=DATE&period=today|yesterday|week|month|year
+GET /api/reports/purchases?from=DATE&to=DATE&period=
+GET /api/reports/expenses?from=DATE&to=DATE&period=
+GET /api/reports/summary?from=DATE&to=DATE&period=
+GET /api/reports/credit?from=DATE&to=DATE&period=
+GET /api/analytics/revenue?from=DATE&to=DATE
+GET /api/analytics/top-products?from=DATE&to=DATE
+GET /api/dashboard/stats?from=DATE&to=DATE
+```
+
+All endpoints return data grouped appropriately based on the date range length (hourly/daily/weekly/monthly).
+
+---
+
+## PART 2 — SMART BACKUP SYSTEM WITH GOOGLE DRIVE & ONEDRIVE
+
+Implement a smart backup trigger system that prompts the admin to back up data at key moments and automatically syncs to their connected cloud storage.
+
+**SECTION A — Cloud Storage Connection Setup**
+
+In Settings, add a **"Cloud Backup"** section with two connection options:
+
+**Google Drive connection:**
+- Button: **"Connect Google Drive"**
+- Uses Google OAuth2 — clicking opens Google's OAuth consent screen
+- Admin selects their Google account and grants Drive access
+- After successful connection: show connected account email, green checkmark, and "Disconnect" button
+- Store OAuth tokens securely in the database (encrypted)
+- Backup folder created automatically: `Dopik Electronics Backups` in the root of their Google Drive
+
+**Microsoft OneDrive connection:**
+- Button: **"Connect OneDrive"**
+- Uses Microsoft OAuth2 — clicking opens Microsoft login
+- Same flow as Google Drive
+- Backup folder: `Dopik Electronics Backups` in OneDrive root
+
+**Connection status display:**
+```
+┌──────────────────────────────────────────────────┐
+│  ☁️ Cloud Backup                                  │
+│                                                  │
+│  Google Drive: ✅ Connected (sheja@gmail.com)    │
+│  Last backup: 02 June 2026 at 10:45              │
+│  [Backup Now] [Disconnect]                       │
+│                                                  │
+│  OneDrive: ⬜ Not connected                      │
+│  [Connect OneDrive]                              │
+│                                                  │
+│  Automatic backup: ✅ Enabled                    │
+│  Backup frequency: [Every login / Hourly / Daily]│
+└──────────────────────────────────────────────────┘
+```
+
+Admin can connect both simultaneously — backup goes to both.
+
+**SECTION B — Login Backup Prompt**
+
+When any admin or staff logs in successfully, immediately show a backup prompt popup:
+
+```
+┌──────────────────────────────────────────────────┐
+│  ☁️ Cloud Backup                                  │
+│                                                  │
+│  Last backup: 2 days ago (31 May 2026)           │
+│  New data since last backup:                     │
+│  • 8 new sales (3,200,000 RWF)                   │
+│  • 3 new purchases                               │
+│  • 2 new customers                               │
+│  • 1 repair completed                            │
+│                                                  │
+│  Backup destination: Google Drive ✅             │
+│                                                  │
+│  [⏭ Skip for now]  [☁️ Backup Now]              │
+│                                                  │
+│  □ Don't ask me again today                      │
+└──────────────────────────────────────────────────┘
+```
+
+**Popup behavior:**
+- Only shows if last backup was more than 6 hours ago
+- If last backup was within 6 hours: skip the popup silently
+- **"Backup Now"** button triggers immediate backup upload to connected cloud storage
+- **"Skip for now"** dismisses the popup — will show again next login
+- **"Don't ask me again today"** — dismisses and suppresses for the rest of the calendar day (resets at midnight)
+- If no cloud storage is connected: show a different message:
+```
+│  ⚠️ No cloud backup configured                   │
+│  Connect Google Drive or OneDrive to enable      │
+│  automatic backups and protect your data.        │
+│                                                  │
+│  [⏭ Skip]  [⚙️ Set Up Backup]                   │
+```
+- "Set Up Backup" navigates to Settings > Cloud Backup section
+
+**SECTION C — Logout Backup Prompt**
+
+When admin clicks Log Out, before logging out show:
+
+```
+┌──────────────────────────────────────────────────┐
+│  Before you go...                                │
+│                                                  │
+│  Last backup: 3 hours ago                        │
+│  [X] Back up to Google Drive before logging out  │
+│                                                  │
+│  [Log Out Without Backup]  [Backup & Log Out]    │
+└──────────────────────────────────────────────────┘
+```
+
+- Checkbox is checked by default if last backup > 2 hours ago
+- Checkbox unchecked by default if last backup < 2 hours ago
+- **"Backup & Log Out"** — runs backup, shows progress bar, then logs out when complete
+- **"Log Out Without Backup"** — logs out immediately
+- If no cloud storage connected: skip this popup entirely and log out normally
+
+**SECTION D — Automatic Scheduled Backup**
+
+In Settings, admin can configure automatic backup frequency:
+- Every login (triggers on each successful login — separate from the popup, runs silently in background)
+- Every 6 hours (server-side cron)
+- Every 12 hours (server-side cron)
+- Daily at a set time (server-side cron, time picker)
+- Weekly (every Monday at set time)
+
+Silent background backup — no popup, just updates the "Last backup" timestamp and logs it in the activity log.
+
+**SECTION E — What Gets Backed Up**
+
+Each backup is a compressed JSON file containing all business data:
+- All sales and sale items
+- All purchases and purchase items
+- All serialized units (with IMEI records)
+- All customers
+- All credit accounts and payments
+- All expenses
+- All repair jobs
+- All products and categories
+- All vendors
+- All receipts metadata
+- Settings and configuration
+
+Backup file naming: `Dopik-Backup-[ShopName]-[YYYY-MM-DD-HH-MM].json.gz`
+
+**SECTION F — Backup History in Settings**
+
+Under Settings > Cloud Backup, show a backup history table:
+```
+Date & Time          | Destination    | Size    | Status  | Records
+─────────────────────┼────────────────┼─────────┼─────────┼────────
+02 Jun 2026 10:45    | Google Drive   | 2.3 MB  | ✅ Done | 1,247
+01 Jun 2026 08:12    | Google Drive   | 2.1 MB  | ✅ Done | 1,189
+30 May 2026 22:00    | OneDrive       | 2.0 MB  | ✅ Done | 1,150
+29 May 2026 14:33    | Google Drive   | 1.9 MB  | ❌ Failed| —
+```
+- Last 30 backups shown
+- Failed backups show error reason on hover
+- **"Download"** button on each row to re-download that backup locally
+- **"Restore from this backup"** button (with the existing 2-step safety confirmation)
+
+**SECTION G — Backup Progress UI**
+
+When a backup is running (triggered manually or at login/logout):
+- Show a non-blocking progress bar at the bottom of the screen (like a toast):
+```
+☁️ Backing up to Google Drive... ████████░░ 80%  [Cancel]
+```
+- On success: *"✅ Backup complete — saved to Google Drive (2.3 MB)"* — dismisses after 5 seconds
+- On failure: *"❌ Backup failed: [error reason]. [Retry] [Dismiss]"* — stays until dismissed
+
+**Environment variables needed:**
+```
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+MICROSOFT_OAUTH_CLIENT_ID=
+MICROSOFT_OAUTH_CLIENT_SECRET=
+MICROSOFT_OAUTH_TENANT_ID=
+ENCRYPTION_KEY= (for encrypting stored OAuth tokens)
+```
+
+**OAuth callback routes needed:**
+- `GET /api/auth/google/callback` — handles Google OAuth redirect
+- `GET /api/auth/microsoft/callback` — handles Microsoft OAuth redirect
+
+**Backup API endpoints:**
+- `POST /api/backup/trigger` — trigger manual backup to all connected destinations
+- `GET /api/backup/status` — returns last backup time, destination, status
+- `GET /api/backup/history` — returns last 30 backup records
+- `GET /api/backup/download/:id` — download a specific backup file
+
+Apply all changes. Do not break any existing features. Test that backup files are correctly uploaded to Google Drive and OneDrive after OAuth connection.
+
+---

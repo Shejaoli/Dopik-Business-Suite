@@ -1,0 +1,59 @@
+is working correctly
+✅ Receipt is generating professionally with logo, receipt number, items, warranty info
+✅ HP Elitebook 830 G5 sale of 425,000 RWF recorded successfully
+
+**But I can see these issues to fix:**
+
+1. **Sale Preview** — Description column shows "Unit #3" instead of the full unit details (Color / RAM / Storage / IMEI)
+2. **Receipt** — Item description shows truncated: *"Silver / 512GB SSD / IMEI: 5CG8193Z8P"* — RAM is missing, and the IMEI appears cut off
+3. **Receipt warranty link** — Shows the Replit dev URL instead of the real domain `dopikelectronics.com`
+4. **Date format** — Preview shows `2026-06-02` instead of the friendly format `02 June 2026`
+
+Here's the fix prompt:
+
+---
+
+**Prompt:**
+
+Fix the following issues found in the Sale Preview and Receipt:
+
+**Fix 1 — Sale Preview Description column**
+In the Sale Preview modal, the Description column currently shows "Unit #3" which is meaningless. Replace it with the full unit description pulled from the `serialized_units` table:
+- Format: `[Color] / [RAM] / [Storage] / IMEI: [serial_number] / [Condition]`
+- Example: *"Silver / 8GB RAM / 512GB SSD / IMEI: 5CG8193Z8P / Brand New"*
+- If RAM is null, skip it: *"Silver / 512GB SSD / IMEI: 5CG8193Z8P / Brand New"*
+- If Color is null, skip it too
+- Never show "Unit #3" or any internal database ID to the user
+
+**Fix 2 — Receipt Description**
+On the generated receipt, the item description line must show the complete unit details on one clean line:
+- Format: `[Color] / [RAM] / [Storage] / IMEI: [full_imei_number]`
+- Make sure the IMEI is NOT truncated — show the full IMEI number
+- If RAM exists: include it between Color and Storage
+- If RAM is null: skip it cleanly
+
+**Fix 3 — Receipt warranty link**
+The warranty check URL on the receipt currently shows the Replit development URL. Replace it with the correct production URL:
+- Change from: `https://dopik-business-suite--[random].replit.app/warranty`
+- Change to: use the `SITE_URL` environment variable if it exists, otherwise fall back to the current domain detected from the request headers
+- Add `SITE_URL=https://dopikelectronics.com` to the environment variables list in Settings documentation
+- The warranty link on the receipt must always show: `https://dopikelectronics.com/warranty`
+
+**Fix 4 — Date formatting throughout**
+Everywhere a date is displayed to users (receipts, previews, sale history, purchase history, customer profiles), format dates in the friendly human-readable format:
+- Instead of: `2026-06-02`
+- Show: `02 June 2026`
+- Instead of: `2026-06-02T10:32:00Z`
+- Show: `02 June 2026 at 10:32`
+- Apply this formatting consistently across: Sale Preview modal, Receipt document, Sales History table, Purchase History table, Customer profile tabs, Repair job cards, Credit account list, Activity log
+
+**Fix 5 — Receipt number on preview**
+The Sale Preview modal does not currently show the receipt number. Add it to the preview header section:
+- Show: *"Receipt No: REC-20260602-0008"* (pre-generated before confirming so the admin sees it)
+- This same number must appear on the final receipt after confirming
+
+Apply all fixes without breaking the sale flow, receipt generation, or any existing data.
+
+---
+
+.
