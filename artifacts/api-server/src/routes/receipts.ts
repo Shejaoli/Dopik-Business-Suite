@@ -17,8 +17,8 @@ async function buildReceipt(saleId: number) {
     .select({
       id: salesTable.id,
       customerId: salesTable.customerId,
-      customerName: customersTable.name,
-      customerPhone: customersTable.phone,
+      customerName: sql<string | null>`COALESCE(${salesTable.customerName}, ${customersTable.name})`,
+      customerPhone: sql<string | null>`COALESCE(${salesTable.customerPhone}, ${customersTable.phone})`,
       paymentMethod: salesTable.paymentMethod,
       totalAmount: salesTable.totalAmount,
       discountAmount: salesTable.discountAmount,
@@ -137,7 +137,7 @@ router.get("/receipts", async (req, res): Promise<void> => {
   const sales = await db
     .select({
       id: salesTable.id,
-      customerName: customersTable.name,
+      customerName: sql<string | null>`COALESCE(${salesTable.customerName}, ${customersTable.name})`,
       paymentMethod: salesTable.paymentMethod,
       totalAmount: salesTable.totalAmount,
       createdAt: salesTable.createdAt,

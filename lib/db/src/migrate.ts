@@ -72,6 +72,9 @@ const migrations = [
   `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS additional_info TEXT`,
   `ALTER TABLE sale_items ADD COLUMN IF NOT EXISTS additional_info TEXT`,
 
+  `ALTER TABLE sales ADD COLUMN IF NOT EXISTS customer_name VARCHAR(200)`,
+  `ALTER TABLE sales ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(30)`,
+
   `CREATE TABLE IF NOT EXISTS system_events (
     id SERIAL PRIMARY KEY,
     event_type VARCHAR(100) NOT NULL,

@@ -1,11 +1,10 @@
 import { useState, useCallback } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useListCustomers, getListCustomersQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF, fmtDate } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   ShoppingCart, Plus, Trash2, Loader2, UserPlus, X, Eye, CheckCircle2,
-  AlertCircle, ArrowLeftRight, ChevronDown, Receipt,
+  AlertCircle, ArrowLeftRight, Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -240,7 +239,7 @@ function QuickAddCustomerDialog({ open, onClose, onAdded }: {
     try {
       const customer = await api.post<any>("/customers", { name: form.name.trim(), phone: form.phone || null });
       toast({ title: `Customer "${customer.name}" added` });
-      qc.invalidateQueries({ queryKey: getListCustomersQueryKey() });
+      qc.invalidateQueries({ queryKey: ["customers"] });
       setForm({ name: "", phone: "" });
       onAdded(customer);
       onClose();
@@ -286,9 +285,9 @@ function paymentLabel(m: string) {
   return map[m] || m;
 }
 
-function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customers }: {
+function SalePreviewModal({ open, onClose, onConfirm, submitting, data }: {
   open: boolean; onClose: () => void; onConfirm: () => void; submitting: boolean;
-  data: any; customers: any[];
+  data: any;
 }) {
   const { data: nextNumData } = useQuery<{ receiptNumber: string }>({
     queryKey: ["receipts", "next-number"],
@@ -298,7 +297,6 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
   });
 
   if (!data) return null;
-  const customer = data.customerId ? customers.find((c: any) => String(c.id) === data.customerId) : null;
   const subtotal = data.lines.reduce((s: number, l: LineItem) => s + (parseFloat(l.quantity) || 1) * (parseFloat(l.unitPrice) || 0), 0);
   const total = data.total;
 
@@ -324,7 +322,7 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
           </div>
 
           <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-xl p-4 text-sm">
-            <div><span className="text-gray-500">Customer:</span> <span className="font-medium ml-1">{customer ? `${customer.name}${customer.phone ? ` · ${customer.phone}` : ""}` : "Walk-in Customer"}</span></div>
+            <div><span className="text-gray-500">Customer:</span> <span className="font-medium ml-1">{data.customerName || "Walk-in Customer"}{data.customerPhone ? ` · ${data.customerPhone}` : ""}</span></div>
             <div><span className="text-gray-500">Date:</span> <span className="font-medium ml-1">{fmtDate(data.saleDate)}</span></div>
             <div><span className="text-gray-500">Payment:</span> <span className="font-medium ml-1">
               {data.paymentMethod === "split"
@@ -404,15 +402,19 @@ function SalePreviewModal({ open, onClose, onConfirm, submitting, data, customer
 }
 
 export default function MultiSalePage() {
-  const { data: customers = [] } = useListCustomers();
+  const { data: rawCustomers = [] } = useQuery<any[]>({
+    queryKey: ["customers"],
+    queryFn: () => api.get("/customers"),
+  });
   const { data: itemList = [] } = useItems();
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
-  const [customerId, setCustomerId] = useState("");
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [linkedCustomerId, setLinkedCustomerId] = useState<number | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentTermsDays, setPaymentTermsDays] = useState(30);
   const [splitMethod1, setSplitMethod1] = useState("cash");
@@ -431,7 +433,6 @@ export default function MultiSalePage() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
 
-  const customerList = (customers as any[]) ?? [];
   const items = Array.isArray(itemList) ? itemList : (itemList as any)?.items ?? [];
 
   const isCredit = paymentMethod === "credit";
@@ -481,17 +482,15 @@ export default function MultiSalePage() {
 
   const addLine = () => { setLines(prev => [...prev, emptyLine()]); markDirty(); };
 
-  const selectedCustomer = customerList.find((c: any) => String(c.id) === customerId);
-
-  const filteredCustomers = customerList.filter((c: any) =>
-    !customerSearch ||
-    c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.phone?.includes(customerSearch)
+  const filteredSuggestions = (rawCustomers as any[]).filter((c: any) =>
+    customerName.length >= 1 &&
+    (c.name?.toLowerCase().includes(customerName.toLowerCase()) ||
+     (c.phone || "").includes(customerName))
   );
 
   const resetForm = () => {
     setSaleDate(new Date().toISOString().split("T")[0]);
-    setCustomerId(""); setCustomerSearch("");
+    setCustomerName(""); setCustomerPhone(""); setLinkedCustomerId(null); setShowSuggestions(false);
     setPaymentMethod("cash"); setPaymentTermsDays(30);
     setSplitMethod1("cash"); setSplitMethod2("mobile_money");
     setSplitAmount1(""); setSplitAmount2("");
@@ -520,8 +519,8 @@ export default function MultiSalePage() {
       }
     }
 
-    if (isCredit && !customerId) {
-      toast({ title: "Customer required", description: "A customer is required for credit sales — walk-in customers cannot buy on credit", variant: "destructive" });
+    if (isCredit && !linkedCustomerId) {
+      toast({ title: "Customer required", description: "A linked customer account is required for credit sales — select an existing customer from the suggestions", variant: "destructive" });
       return false;
     }
 
@@ -555,7 +554,9 @@ export default function MultiSalePage() {
     const validLines = lines.filter(l => l.itemId && l.unitPrice);
     try {
       const sale = await api.post<any>("/sales", {
-        customerId: customerId ? Number(customerId) : null,
+        customerId: linkedCustomerId ?? null,
+        customerName: customerName.trim() || null,
+        customerPhone: customerPhone.trim() || null,
         paymentMethod: isSplit ? splitMethod1 : paymentMethod,
         totalAmount: String(total),
         discountAmount: discountAmount > 0 ? String(discountAmount) : undefined,
@@ -616,61 +617,60 @@ export default function MultiSalePage() {
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <div
-                    className={`w-full h-10 px-3 pr-8 rounded-xl border text-sm bg-white flex items-center cursor-pointer select-none ${isCredit && !customerId ? "border-red-400 ring-1 ring-red-300" : "border-gray-200"}`}
-                    onClick={() => setShowCustomerDropdown(v => !v)}
-                  >
-                    <span className={selectedCustomer ? "text-gray-800 font-medium" : "text-gray-400"}>
-                      {selectedCustomer ? `${selectedCustomer.name}${selectedCustomer.phone ? ` · ${selectedCustomer.phone}` : ""}` : "Walk-in Customer"}
-                    </span>
-                    <ChevronDown className="absolute right-2 top-3 h-4 w-4 text-gray-400" />
-                  </div>
-
-                  {showCustomerDropdown && (
-                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 flex flex-col">
-                      <div className="p-2 border-b border-gray-100">
-                        <input autoFocus value={customerSearch} onChange={e => setCustomerSearch(e.target.value)}
-                          placeholder="Search by name or phone..."
-                          className="w-full h-8 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1A6DB5]" />
-                      </div>
-                      <div className="overflow-y-auto">
-                        <button type="button" onClick={() => { setCustomerId(""); setCustomerSearch(""); setShowCustomerDropdown(false); markDirty(); }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-500 italic">
-                          Walk-in Customer
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={e => {
+                      setCustomerName(e.target.value);
+                      setLinkedCustomerId(null);
+                      setShowSuggestions(true);
+                      markDirty();
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    placeholder="Customer name (optional — leave blank for walk-in)"
+                    className={`w-full h-10 px-3 pr-8 rounded-xl border text-sm bg-white outline-none focus:border-[#1A6DB5] focus:ring-1 focus:ring-[#1A6DB5]/20 ${isCredit && !linkedCustomerId ? "border-red-300" : "border-gray-200"}`}
+                  />
+                  {linkedCustomerId && (
+                    <CheckCircle2 className="absolute right-2.5 top-3 h-4 w-4 text-green-500 pointer-events-none" />
+                  )}
+                  {showSuggestions && filteredSuggestions.length > 0 && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                      {filteredSuggestions.map((c: any) => (
+                        <button type="button" key={c.id}
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => {
+                            setCustomerName(c.name);
+                            setCustomerPhone(c.phone || "");
+                            setLinkedCustomerId(c.id);
+                            setShowSuggestions(false);
+                            markDirty();
+                          }}
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 flex flex-col border-b border-gray-50 last:border-0">
+                          <span className="font-medium text-gray-800">{c.name}</span>
+                          {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
                         </button>
-                        {filteredCustomers.map((c: any) => (
-                          <button type="button" key={c.id}
-                            onClick={() => { setCustomerId(String(c.id)); setCustomerSearch(""); setShowCustomerDropdown(false); markDirty(); }}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex flex-col">
-                            <span className="font-medium text-gray-800">{c.name}</span>
-                            {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
-                          </button>
-                        ))}
-                        {filteredCustomers.length === 0 && customerSearch && (
-                          <div className="px-3 py-2 flex flex-col gap-1">
-                            <span className="text-sm text-gray-400">No customers found</span>
-                            <button type="button"
-                              onClick={() => { setShowCustomerDropdown(false); setShowAddCustomer(true); }}
-                              className="flex items-center gap-1.5 text-sm text-[#1A6DB5] hover:underline font-medium">
-                              <UserPlus className="h-3.5 w-3.5" /> + Add New Customer
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      ))}
                     </div>
                   )}
                 </div>
-
                 <button type="button" onClick={() => setShowAddCustomer(true)}
                   className="h-10 w-10 flex-shrink-0 rounded-xl border border-dashed border-[#1A6DB5] text-[#1A6DB5] hover:bg-[#1A6DB5]/5 flex items-center justify-center transition"
                   title="Add new customer">
                   <UserPlus className="h-4 w-4" />
                 </button>
               </div>
-              {isCredit && !customerId && (
-                <p className="text-xs text-red-500 flex items-center gap-1">
+              <input
+                type="tel"
+                value={customerPhone}
+                onChange={e => { setCustomerPhone(e.target.value); markDirty(); }}
+                placeholder="Phone number (optional)"
+                className="w-full h-9 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-[#1A6DB5]"
+              />
+              {isCredit && !linkedCustomerId && (
+                <p className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
                   <AlertCircle className="h-3 w-3" />
-                  A customer is required for credit sales — walk-in customers cannot buy on credit
+                  {customerName ? "Select an existing customer from the list for credit sales" : "A customer is required for credit sales"}
                 </p>
               )}
             </div>
@@ -858,9 +858,8 @@ export default function MultiSalePage() {
         onClose={() => { setShowPreview(false); setPreviewDirty(false); }}
         onConfirm={handleSubmit}
         submitting={submitting}
-        customers={customerList}
         data={showPreview ? {
-          saleDate, customerId, paymentMethod,
+          saleDate, customerName, customerPhone, paymentMethod,
           paymentTermsDays, splitMethod2, splitAmount1, splitAmount2,
           lines: lines.filter(l => l.itemId && l.unitPrice),
           discountAmount: String(discountAmount), discountType, discountValue,
@@ -872,7 +871,7 @@ export default function MultiSalePage() {
       <QuickAddCustomerDialog
         open={showAddCustomer}
         onClose={() => setShowAddCustomer(false)}
-        onAdded={c => { setCustomerId(String(c.id)); markDirty(); }}
+        onAdded={c => { setCustomerName(c.name); setCustomerPhone(c.phone || ""); setLinkedCustomerId(c.id); markDirty(); }}
       />
 
       {/* RECEIPT */}
@@ -884,8 +883,8 @@ export default function MultiSalePage() {
         />
       )}
 
-      {showCustomerDropdown && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowCustomerDropdown(false)} />
+      {showSuggestions && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowSuggestions(false)} />
       )}
     </div>
   );

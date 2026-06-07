@@ -74,7 +74,8 @@ router.get("/sales", async (req, res): Promise<void> => {
 
 router.post("/sales", async (req, res): Promise<void> => {
   const {
-    customerId, paymentMethod, totalAmount, items,
+    customerId, customerName: bodyCustomerName, customerPhone: bodyCustomerPhone,
+    paymentMethod, totalAmount, items,
     paymentTermsDays, discountAmount, discountType,
     amountReceived, changeGiven,
     splitPaymentMethod2, splitPaymentAmount1, splitPaymentAmount2,
@@ -112,8 +113,21 @@ router.post("/sales", async (req, res): Promise<void> => {
     }
   }
 
+  let resolvedCustomerName: string | null = bodyCustomerName?.trim() || null;
+  let resolvedCustomerPhone: string | null = bodyCustomerPhone?.trim() || null;
+  if (customerId && !resolvedCustomerName) {
+    const [cust] = await db.select({ name: customersTable.name, phone: customersTable.phone })
+      .from(customersTable).where(eq(customersTable.id, Number(customerId)));
+    if (cust) {
+      resolvedCustomerName = cust.name;
+      resolvedCustomerPhone = resolvedCustomerPhone ?? cust.phone ?? null;
+    }
+  }
+
   const [sale] = await db.insert(salesTable).values({
     customerId: customerId || null,
+    customerName: resolvedCustomerName,
+    customerPhone: resolvedCustomerPhone,
     paymentMethod,
     totalAmount: String(totalAmount),
     discountAmount: discountAmount != null ? String(discountAmount) : "0",

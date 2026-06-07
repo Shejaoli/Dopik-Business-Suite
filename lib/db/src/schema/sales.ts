@@ -18,6 +18,8 @@ export const salesTable = pgTable("sales", {
   splitPaymentMethod2: varchar("split_payment_method_2", { length: 30 }),
   splitPaymentAmount1: numeric("split_payment_amount_1", { precision: 12, scale: 2 }),
   splitPaymentAmount2: numeric("split_payment_amount_2", { precision: 12, scale: 2 }),
+  customerName: varchar("customer_name", { length: 200 }),
+  customerPhone: varchar("customer_phone", { length: 30 }),
   recordedBy: integer("recorded_by").references(() => usersTable.id),
   reverted: boolean("reverted").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

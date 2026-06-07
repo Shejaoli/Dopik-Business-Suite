@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, sql, ilike, or } from "drizzle-orm";
+import { eq, desc, sql, ilike, or, and } from "drizzle-orm";
 import { db, customersTable, salesTable, saleItemsTable, itemsTable, creditAccountsTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
@@ -15,9 +15,9 @@ router.get("/customers", async (req, res): Promise<void> => {
 
   const enriched = await Promise.all(rows.map(async (c) => {
     const [stats] = await db.select({
-      totalOrders: sql<number>`COUNT(DISTINCT s.id)`,
-      totalSpent: sql<string>`COALESCE(SUM(s.total_amount),0)`,
-    }).from(salesTable.as("s")).where(sql`s.customer_id = ${c.id} AND s.reverted = false`);
+      totalOrders: sql<number>`COUNT(DISTINCT ${salesTable.id})`,
+      totalSpent: sql<string>`COALESCE(SUM(${salesTable.totalAmount}),0)`,
+    }).from(salesTable).where(and(eq(salesTable.customerId, c.id), eq(salesTable.reverted, false)));
 
     const [creditStats] = await db.select({
       creditBalance: sql<string>`COALESCE(SUM(balance),0)`,
