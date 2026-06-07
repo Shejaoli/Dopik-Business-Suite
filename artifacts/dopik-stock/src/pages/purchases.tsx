@@ -902,7 +902,17 @@ export default function PurchasesPage() {
       };
 
       if (draftId) {
-        await api.patch<any>(`/purchases/${draftId}`, payload);
+        try {
+          await api.patch<any>(`/purchases/${draftId}`, payload);
+        } catch (patchErr: any) {
+          if (patchErr.message?.includes("404") || patchErr.message?.includes("Not found")) {
+            // Draft no longer exists — create fresh
+            setDraftId(null);
+            await api.post<any>("/purchases", payload);
+          } else {
+            throw patchErr;
+          }
+        }
       } else {
         await api.post<any>("/purchases", payload);
       }
