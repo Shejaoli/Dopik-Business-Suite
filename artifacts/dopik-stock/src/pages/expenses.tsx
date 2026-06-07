@@ -17,6 +17,7 @@ export default function ExpensesPage() {
   const [showExpense, setShowExpense] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [editAccount, setEditAccount] = useState<any>(null);
+  const [detailAccount, setDetailAccount] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ accountId: "", paymentMethod: "cash", amount: "", description: "" });
   const [accountForm, setAccountForm] = useState({ name: "", accountType: "expense" });
@@ -155,12 +156,12 @@ export default function ExpensesPage() {
                 <Receipt className="h-8 w-8 mx-auto mb-2 opacity-30" />No accounts yet — click "+ Account" to create one
               </div>
             ) : accounts.map(a => (
-              <div key={a.id} className="glass-panel p-4">
+              <div key={a.id} className="glass-panel p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDetailAccount(a)}>
                 <div className="flex items-start justify-between mb-2">
                   <div className="w-8 h-8 rounded-lg bg-[#1A6DB5]/10 flex items-center justify-center flex-shrink-0">
                     <Receipt className="h-4 w-4 text-[#1A6DB5]" />
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" onClick={() => setEditAccount({ ...a })}><Edit className="h-3.5 w-3.5" /></Button>
                     <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" onClick={() => handleDeleteAccount(a.id, a.name)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
@@ -172,6 +173,7 @@ export default function ExpensesPage() {
                   <span className="text-sm font-semibold text-red-600">{fmtRWF(a.totalSpent ?? "0")}</span>
                   <span className="text-xs text-muted-foreground">spent ({a.count ?? 0} transactions)</span>
                 </div>
+                <p className="text-[10px] text-muted-foreground mt-2">Click to view transactions →</p>
               </div>
             ))}
           </div>
@@ -244,6 +246,68 @@ export default function ExpensesPage() {
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save Changes
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Account Detail Dialog */}
+      <Dialog open={!!detailAccount} onOpenChange={open => !open && setDetailAccount(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-[#1A6DB5]" />
+              {detailAccount?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {detailAccount && (() => {
+            const accountExpenses = expenses.filter((e: any) => e.accountId === detailAccount.id || e.accountName === detailAccount.name);
+            const totalSpent = accountExpenses.reduce((s: number, e: any) => s + parseFloat(e.amount || "0"), 0);
+            return (
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-red-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500">Total Spent</p>
+                    <p className="font-bold text-red-600 text-lg">{fmtRWF(String(totalSpent))}</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500">Transactions</p>
+                    <p className="font-bold text-[#1A6DB5] text-lg">{accountExpenses.length}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500">Type</p>
+                    <p className="font-bold text-gray-700 capitalize">{detailAccount.accountType}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Transaction History</p>
+                  {accountExpenses.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">No expenses recorded for this account yet</div>
+                  ) : (
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {accountExpenses.map((e: any) => (
+                        <div key={e.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 text-sm">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{e.description || "—"}</p>
+                            <p className="text-xs text-muted-foreground">{fmtDateTime(e.createdAt)}</p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                            <Badge className={`text-xs ${paymentBadgeColor(e.paymentMethod)}`}>{e.paymentMethod?.replace(/_/g, " ")}</Badge>
+                            <span className="font-bold text-red-600">{fmtRWF(e.amount)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setDetailAccount(null); setExpenseForm(f => ({ ...f, accountId: String(detailAccount.id) })); setShowExpense(true); }}
+                    className="text-[#1A6DB5] border-[#1A6DB5]/30">
+                    <Plus className="h-4 w-4 mr-1" /> Add Expense
+                  </Button>
+                  <Button variant="outline" onClick={() => setDetailAccount(null)}>Close</Button>
+                </DialogFooter>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

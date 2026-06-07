@@ -127,6 +127,8 @@ router.post("/purchases", async (req, res): Promise<void> => {
           vendorId: u.vendorId ? Number(u.vendorId) : (vendorId || null),
           purchaseId: purchase.id,
           costPrice: u.costPrice ? String(u.costPrice) : null,
+          sellingPrice: req.body.salePrice ? String(req.body.salePrice) : null,
+          minSellingPrice: req.body.minSalePrice ? String(req.body.minSalePrice) : null,
           paymentMethod: u.paymentMethod || paymentMethod,
           status: "in_stock",
         }))
@@ -237,6 +239,8 @@ router.patch("/purchases/:id", async (req, res): Promise<void> => {
           vendorId: u.vendorId ? Number(u.vendorId) : (finalVendorId || null),
           purchaseId: id,
           costPrice: u.costPrice ? String(u.costPrice) : null,
+          sellingPrice: req.body.salePrice ? String(req.body.salePrice) : null,
+          minSellingPrice: req.body.minSalePrice ? String(req.body.minSalePrice) : null,
           paymentMethod: u.paymentMethod || finalPayment,
           status: "in_stock",
         }))

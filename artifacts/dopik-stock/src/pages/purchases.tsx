@@ -767,7 +767,7 @@ export default function PurchasesPage() {
       if (item) {
         if (item.salePrice && parseFloat(item.salePrice) > 0) setFormSalePrice(item.salePrice);
         if (item.minSalePrice && parseFloat(item.minSalePrice) > 0) setFormMinSalePrice(item.minSalePrice);
-        if (item.minStock && parseFloat(item.minStock) > 0) setFormMinStock(item.minStock);
+        if (item.minStock !== undefined && item.minStock !== null) setFormMinStock(String(item.minStock));
       }
     }
   }, [formModelItemId]);
@@ -1357,6 +1357,21 @@ export default function PurchasesPage() {
                 <span className="text-muted-foreground">Total Units</span>
                 <span className="font-bold">{totalQty}</span>
               </div>
+              {isSerial && (() => {
+                const filled = rows.filter(r => r.imeiOrSerial?.trim() || r.unitCost?.trim()).length;
+                const empty = rows.length - filled;
+                return empty > 0 ? (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Filled Rows</span>
+                    <span className="font-medium text-amber-600">{filled} of {rows.length} <span className="text-xs">({empty} empty will be skipped)</span></span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Filled Rows</span>
+                    <span className="font-medium text-green-600">{filled} of {rows.length} ✓</span>
+                  </div>
+                );
+              })()}
               <div>
                 <button
                   type="button"

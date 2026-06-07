@@ -18,6 +18,7 @@ export const repairJobsTable = pgTable("repair_jobs", {
   estimatedCost: numeric("estimated_cost", { precision: 12, scale: 2 }),
   depositPaid: numeric("deposit_paid", { precision: 12, scale: 2 }).default("0"),
   laborCost: numeric("labor_cost", { precision: 12, scale: 2 }).default("0"),
+  technicianCost: numeric("technician_cost", { precision: 12, scale: 2 }).default("0"),
   totalCost: numeric("total_cost", { precision: 12, scale: 2 }).default("0"),
   workDone: text("work_done"),
   warrantyDays: integer("warranty_days").default(30),

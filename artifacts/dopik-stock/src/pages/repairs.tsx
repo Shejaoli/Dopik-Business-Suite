@@ -87,6 +87,7 @@ type RepairJob = {
   estimatedCost?: string;
   depositPaid?: string;
   laborCost?: string;
+  technicianCost?: string;
   totalCost?: string;
   workDone?: string;
   warrantyDays?: number;
@@ -204,7 +205,7 @@ function NewRepairModal({ open, onClose, staff }: { open: boolean; onClose: () =
               <Select value={form.technicianId} onValueChange={v => set("technicianId", v)}>
                 <SelectTrigger><SelectValue placeholder="Assign technician" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="none">Unassigned</SelectItem>
                   {staff.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -250,6 +251,7 @@ function RepairDetailModal({ repair, open, onClose, staff }: { repair: RepairJob
   const [addingPart, setAddingPart] = useState(false);
   const [partForm, setPartForm] = useState({ partName: "", partCost: "", quantity: "1" });
   const [editLabor, setEditLabor] = useState(String(repair.laborCost || "0"));
+  const [editTechnicianCost, setEditTechnicianCost] = useState(String(repair.technicianCost || "0"));
   const [editWorkDone, setEditWorkDone] = useState(repair.workDone || "");
   const [savingDetails, setSavingDetails] = useState(false);
   const { toast } = useToast();
@@ -291,7 +293,11 @@ function RepairDetailModal({ repair, open, onClose, staff }: { repair: RepairJob
   const saveDetails = async () => {
     setSavingDetails(true);
     try {
-      await api.patch(`/repairs/${repair.id}`, { laborCost: parseFloat(editLabor) || 0, workDone: editWorkDone });
+      await api.patch(`/repairs/${repair.id}`, {
+        laborCost: parseFloat(editLabor) || 0,
+        technicianCost: parseFloat(editTechnicianCost) || 0,
+        workDone: editWorkDone,
+      });
       qc.invalidateQueries({ queryKey: ["repairs"] });
       toast({ title: "Details saved" });
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
@@ -400,14 +406,29 @@ function RepairDetailModal({ repair, open, onClose, staff }: { repair: RepairJob
 
           {/* Labor & Work Done */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Labor Cost (RWF)</Label>
-              <Input type="number" value={editLabor} onChange={e => setEditLabor(e.target.value)} className="h-8" />
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Our Labor Income (RWF)</Label>
+                <Input type="number" value={editLabor} onChange={e => setEditLabor(e.target.value)} className="h-8" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-amber-700">Outside Technician Cost (RWF)</Label>
+                <Input type="number" value={editTechnicianCost} onChange={e => setEditTechnicianCost(e.target.value)} className="h-8 border-amber-200 focus:border-amber-400" placeholder="0" />
+              </div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3 text-sm">
-              <p className="text-xs text-gray-500">Total Cost</p>
-              <p className="font-bold text-lg text-[#0F1A2E]">{fmtRWF(repair.totalCost)}</p>
-              <p className="text-xs text-gray-400">Parts: {fmtRWF(String(repair.partsCost))} + Labor: {fmtRWF(editLabor)}</p>
+            <div className="space-y-2">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <p className="text-xs text-gray-500">Total Cost (Customer Pays)</p>
+                <p className="font-bold text-lg text-[#0F1A2E]">{fmtRWF(String(repair.partsCost + (parseFloat(editLabor) || 0)))}</p>
+                <p className="text-xs text-gray-400">Parts: {fmtRWF(String(repair.partsCost))} + Labor: {fmtRWF(editLabor)}</p>
+              </div>
+              <div className={`rounded-lg p-3 text-sm ${(parseFloat(editLabor) || 0) - (parseFloat(editTechnicianCost) || 0) - repair.partsCost >= 0 ? "bg-green-50" : "bg-red-50"}`}>
+                <p className="text-xs text-gray-500">Repair Profit</p>
+                <p className={`font-bold text-base ${(parseFloat(editLabor) || 0) - (parseFloat(editTechnicianCost) || 0) - repair.partsCost >= 0 ? "text-green-700" : "text-red-600"}`}>
+                  {fmtRWF(String((parseFloat(editLabor) || 0) - (parseFloat(editTechnicianCost) || 0) - repair.partsCost))}
+                </p>
+                <p className="text-xs text-gray-400">Labor − Tech − Parts</p>
+              </div>
             </div>
           </div>
           <div className="space-y-1.5">

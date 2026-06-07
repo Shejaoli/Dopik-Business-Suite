@@ -20,7 +20,7 @@ export function hasPermission(role: string, permission: string): boolean {
 }
 
 function safeUser(u: any) {
-  return { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, status: u.status, lastLogin: u.lastLogin, createdAt: u.createdAt };
+  return { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, status: u.status, lastLogin: u.lastLogin, categoryAccess: u.categoryAccess ?? "all", createdAt: u.createdAt };
 }
 
 router.get("/staff", async (req, res): Promise<void> => {
@@ -29,7 +29,7 @@ router.get("/staff", async (req, res): Promise<void> => {
 });
 
 router.post("/staff", async (req, res): Promise<void> => {
-  const { name, email, phone, role, password } = req.body;
+  const { name, email, phone, role, password, categoryAccess } = req.body;
   if (!name || !email || !password) {
     res.status(400).json({ error: "name, email, password required" });
     return;
@@ -47,6 +47,7 @@ router.post("/staff", async (req, res): Promise<void> => {
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db.insert(usersTable).values({
     name, email, phone: phone || null, passwordHash, role: role || "cashier", status: "active",
+    categoryAccess: categoryAccess || "all",
   }).returning();
   await logActivity(req, "create_staff", `Created staff account: ${name} (${role || "cashier"})`);
   res.status(201).json(safeUser(user));

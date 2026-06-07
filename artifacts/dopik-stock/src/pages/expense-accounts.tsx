@@ -16,7 +16,7 @@ export default function ExpenseAccountsPage() {
     if (!form.name) return;
     setSubmitting(true);
     try {
-      await api.post("/expenses/accounts", form);
+      await api.post("/expense-accounts", form);
       toast({ title: "Account created" });
       setForm({ name: "", accountType: "expense" });
       setShowForm(false);

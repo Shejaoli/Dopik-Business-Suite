@@ -107,6 +107,11 @@ const migrations = [
     sold_at TIMESTAMPTZ,
     recorded_by INTEGER
   )`,
+
+  `ALTER TABLE repair_jobs ADD COLUMN IF NOT EXISTS technician_cost NUMERIC(12,2) DEFAULT 0`,
+  `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2)`,
+  `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS min_selling_price NUMERIC(12,2)`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS category_access TEXT DEFAULT 'all'`,
 ];
 
 async function run() {

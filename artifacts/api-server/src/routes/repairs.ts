@@ -60,6 +60,7 @@ router.get("/repairs", async (req, res): Promise<void> => {
     estimatedCost: repairJobsTable.estimatedCost,
     depositPaid: repairJobsTable.depositPaid,
     laborCost: repairJobsTable.laborCost,
+    technicianCost: repairJobsTable.technicianCost,
     totalCost: repairJobsTable.totalCost,
     workDone: repairJobsTable.workDone,
     warrantyDays: repairJobsTable.warrantyDays,
@@ -94,6 +95,7 @@ router.get("/repairs/:id", async (req, res): Promise<void> => {
     estimatedCost: repairJobsTable.estimatedCost,
     depositPaid: repairJobsTable.depositPaid,
     laborCost: repairJobsTable.laborCost,
+    technicianCost: repairJobsTable.technicianCost,
     totalCost: repairJobsTable.totalCost,
     workDone: repairJobsTable.workDone,
     warrantyDays: repairJobsTable.warrantyDays,
@@ -181,7 +183,7 @@ router.patch("/repairs/:id/status", async (req, res): Promise<void> => {
 
 router.patch("/repairs/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { laborCost, workDone, warrantyDays, notes, technicianId, estimatedCost, depositPaid } = req.body;
+  const { laborCost, workDone, warrantyDays, notes, technicianId, estimatedCost, depositPaid, technicianCost } = req.body;
 
   const [existing] = await db.select().from(repairJobsTable).where(eq(repairJobsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Repair not found" }); return; }
@@ -193,6 +195,7 @@ router.patch("/repairs/:id", async (req, res): Promise<void> => {
 
   const [job] = await db.update(repairJobsTable).set({
     ...(laborCost !== undefined && { laborCost: String(laborCost) }),
+    ...(technicianCost !== undefined && { technicianCost: String(technicianCost) }),
     ...(workDone !== undefined && { workDone }),
     ...(warrantyDays !== undefined && { warrantyDays }),
     ...(notes !== undefined && { notes }),

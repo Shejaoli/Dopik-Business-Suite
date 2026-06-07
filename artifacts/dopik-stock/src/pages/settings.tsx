@@ -45,7 +45,8 @@ export default function SettingsPage() {
   const [savingBalance, setSavingBalance] = useState<string | null>(null);
   const qc = useQueryClient();
 
-  const [newUserForm, setNewUserForm] = useState({ name: "", email: "", password: "", role: "cashier" });
+  const CATEGORY_OPTIONS = ["Phones", "Computers", "Accessories", "TVs & Electronics", "Others"];
+  const [newUserForm, setNewUserForm] = useState({ name: "", email: "", password: "", role: "cashier", categoryAccess: "all" });
   const [savingUser, setSavingUser] = useState(false);
   const [showUserPw, setShowUserPw] = useState(false);
   const { data: staffData, refetch: refetchStaff } = useQuery({
@@ -187,7 +188,7 @@ export default function SettingsPage() {
     try {
       await api.post("/staff", newUserForm);
       toast({ title: "User created", description: `${newUserForm.name} (${newUserForm.role.replace(/_/g, " ")}) can now log in.` });
-      setNewUserForm({ name: "", email: "", password: "", role: "cashier" });
+      setNewUserForm({ name: "", email: "", password: "", role: "cashier", categoryAccess: "all" });
       refetchStaff();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -965,6 +966,20 @@ export default function SettingsPage() {
                       {isOwner && <option value="owner">Owner</option>}
                     </select>
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Category Access</Label>
+                  <select
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={newUserForm.categoryAccess}
+                    onChange={e => setNewUserForm(f => ({ ...f, categoryAccess: e.target.value }))}
+                  >
+                    <option value="all">All Categories</option>
+                    {CATEGORY_OPTIONS.map(c => (
+                      <option key={c} value={c}>{c} only</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">Limits which product categories this user can see</p>
                 </div>
                 <Button onClick={handleCreateUser} disabled={savingUser || !newUserForm.name || !newUserForm.email || !newUserForm.password} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
                   {savingUser && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

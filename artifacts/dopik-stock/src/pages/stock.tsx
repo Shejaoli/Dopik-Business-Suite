@@ -272,6 +272,38 @@ export default function StockPage() {
             <DialogTitle>Adjust Stock — {adjustItem?.itemName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Current stock: <strong>{parseFloat(adjustItem?.quantity ?? "0").toLocaleString()}</strong> &bull; Min: <strong>{parseFloat(adjustItem?.minStock ?? "0").toLocaleString()}</strong>
+            </p>
+
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Quick Reasons</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "📦 New stock received", type: "increase" },
+                  { label: "🔄 Stock count correction +", type: "increase" },
+                  { label: "↩️ Returned to supplier", type: "decrease" },
+                  { label: "💥 Damaged / Lost", type: "decrease" },
+                  { label: "🔧 Used internally", type: "decrease" },
+                  { label: "📊 Inventory count fix −", type: "decrease" },
+                ].map(opt => (
+                  <button
+                    key={opt.label}
+                    onClick={() => setForm(f => ({ ...f, adjustmentType: opt.type, reason: opt.label.replace(/^.{2}\s/, "") }))}
+                    className={`text-left px-3 py-2 rounded-xl border text-xs font-medium transition-all ${
+                      form.reason === opt.label.replace(/^.{2}\s/, "")
+                        ? opt.type === "increase"
+                          ? "border-green-500 bg-green-50 text-green-700"
+                          : "border-red-400 bg-red-50 text-red-700"
+                        : "border-border text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-3">
               {["increase", "decrease"].map(type => (
                 <button
@@ -289,13 +321,9 @@ export default function StockPage() {
                 </button>
               ))}
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-3">
-                Current stock: <strong>{parseFloat(adjustItem?.quantity ?? "0").toLocaleString()}</strong> &bull; Category: <strong>{adjustItem?.category}</strong>
-              </p>
-            </div>
+
             <div className="space-y-1.5">
-              <Label>Quantity to adjust *</Label>
+              <Label>Quantity *</Label>
               <Input
                 type="number" min={0.01} step={0.01}
                 value={form.quantity}
@@ -304,7 +332,7 @@ export default function StockPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Reason (optional)</Label>
+              <Label>Reason (optional — edit above or type below)</Label>
               <Input
                 value={form.reason}
                 onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}

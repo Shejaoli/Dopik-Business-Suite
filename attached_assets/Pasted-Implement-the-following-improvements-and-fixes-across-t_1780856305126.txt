@@ -1,0 +1,362 @@
+Implement the following improvements and fixes across the entire Dopik Electronics system. Work through them all systematically:
+
+FIX 1 — STOCK PAGE: SHOW PURCHASE PRICE & SELLING PRICE
+Purchase price on Stock page:
+
+In the Stock page, for every product and every individual serialized unit, show the purchase price (cost price) that was recorded when the purchase was made
+For serialized items: pull cost_price from the serialized_units table for each unit
+For non-serialized: show average purchase cost calculated from purchase history
+Add columns to the stock table: Purchase Price (RWF) and Selling Price (RWF)
+
+Selling price on Purchase form:
+
+When recording a new purchase, after entering the Unit Cost for each item card, add two additional fields:
+
+Selling Price (RWF) — the price at which this item will be sold to customers. Required field
+Minimum Selling Price (RWF) — the lowest price the shop is willing to accept for this item. Optional. Shows a warning during sale if admin tries to sell below this price
+
+
+Save both to serialized_units table: selling_price and min_selling_price columns
+For non-serialized items: save selling price and minimum selling price to the product record
+In the sale form, pre-fill the Unit Price from the product's selling price automatically
+If a sale price is entered below the minimum selling price, show warning: "⚠️ Selling price is below minimum of [X] RWF. Are you sure?"
+
+
+FIX 2 — VENDORS PAGE IMPROVEMENTS
+Make the Vendors/Suppliers page fully functional:
+
+Selectable: clicking a vendor row opens their full profile page showing all their details
+Editable: each vendor has an Edit button to update name, phone, email, address, notes
+Deletable: delete button with confirmation popup. If vendor has purchase history, show warning: "This vendor has [N] purchases totalling [X] RWF. Deleting will not remove purchase history but will unlink the vendor. Continue?"
+Purchase history per vendor: on the vendor profile page show:
+
+Total purchases from this vendor
+Total amount spent (RWF)
+List of all purchases with date, items, and amount
+Most purchased product from this vendor
+First and last purchase date
+
+
+Vendor stats cards: Total Vendors, Total Spent Across All Vendors, Most Used Vendor, Average Spend Per Vendor
+
+
+FIX 3 — SETTINGS: FEATURE TOGGLES
+Add a "Features" section in Settings (Owner only) where admin can enable or disable each major feature module:
+┌─────────────────────────────────────────────────┐
+│ ⚙️ Feature Management                           │
+│                                                 │
+│ Core Features (cannot be disabled):             │
+│ ✅ Sales Management                             │
+│ ✅ Purchase Management                          │
+│ ✅ Stock Management                             │
+│                                                 │
+│ Optional Features:                              │
+│ [✅ ON] Repair / Service Tracking               │
+│ [✅ ON] Credit & Installments                   │
+│ [✅ ON] Customer CRM                            │
+│ [✅ ON] Expense Tracking                        │
+│ [✅ ON] Staff & Permissions                     │
+│ [✅ ON] Charts & Analytics                      │
+│ [✅ ON] Reports                                 │
+│ [✅ ON] Warranty Public Page                    │
+│ [✅ ON] Quick Sale (POS Mode)                   │
+│ [✅ ON] Stock Count Mode                        │
+│ [✅ ON] Restock Intelligence                    │
+│ [✅ ON] Notification Center                     │
+│ [✅ ON] Announcements                           │
+│ [✅ ON] Referral System                         │
+│ [✅ ON] Public Product Catalog                  │
+│ [✅ ON] Daily WhatsApp Summary                  │
+│ [✅ ON] Cloud Backup (Google Drive/OneDrive)    │
+│ [✅ ON] Camera Receipt Scanner (AI)             │
+│ [✅ ON] Sales Hold / Queue                      │
+│ [✅ ON] Consignment / External Vendor Sales     │
+└─────────────────────────────────────────────────┘
+
+When a feature is toggled OFF: hide its navigation item from the sidebar, hide its page, and hide any related buttons throughout the system
+Changes take effect immediately without page reload
+Store feature toggle states in the database settings table as JSON
+Feature states are per-tenant (each shop configures their own)
+
+
+FIX 4 — SETTINGS: USER CREATION WITH CATEGORY ACCESS
+When creating a new staff user, add Category Access permissions:
+
+After selecting Role (Owner/Manager/Cashier/Stock Manager), add a section: "Product Category Access"
+Three checkboxes:
+
+☑ Phones
+☑ Computers
+☑ Accessories
+
+
+If a category is unchecked, that staff member cannot see, sell, or purchase items from that category
+Example: a cashier who only handles accessories can have Phones and Computers unchecked
+Apply category filter to: their sale form item dropdown, their stock view, their purchase form
+Save category access in the staff table as a JSON array: category_access: ['phones', 'computers', 'accessories']
+
+
+FIX 5 — PURCHASE FORM: ONLY 3 CATEGORIES
+When recording a new purchase, the Item dropdown must only show items from these 3 categories:
+
+📱 Phones — includes all smartphones
+💻 Computers — includes laptops, tablets, desktops
+🎧 Accessories — includes ALL other items: earphones, cables, cases, chargers, power banks, screen protectors, audio devices, anything else
+
+Map all existing categories:
+
+Smartphone → Phones
+Laptop, Tablet, Desktop, Gaming → Computers
+Everything else (earphones, audio, cables, cases, chargers, etc.) → Accessories
+
+Add category filter tabs at the top of the item dropdown in the purchase form: All | Phones | Computers | Accessories
+
+FIX 6 — SPLIT CREDIT SALE
+When recording a sale, add Split Credit payment option:
+
+In Payment Method dropdown, add: "Split (Part Now + Part Credit)"
+When selected, show:
+
+  Amount Paid Now:    [__________] RWF
+  Payment Method:     [Cash / MoMo / Bank ▼]
+  ─────────────────────────────────────────
+  Remaining (Credit): [auto-calculated] RWF
+  Due Date:           [date picker] (default: 30 days)
+
+Amount Paid Now + Remaining must equal the Grand Total
+Customer selection becomes required (walk-in cannot do split credit)
+After sale is confirmed:
+
+Record the paid portion as completed
+Automatically create a credit account for the remaining balance
+The credit account appears on the Credit page with status "Partially Paid"
+On the receipt, show: "Paid: [X] RWF ([method]) | Credit Balance: [Y] RWF | Due: [date]"
+
+
+The remaining credit balance shows on:
+
+Credit page under the customer's name
+Customer profile Credit tab
+Dashboard credit outstanding widget
+
+
+
+
+FIX 7 — EXPENSE ACCOUNTS: FIX VISIBILITY & FUNCTIONALITY
+Fix the expense accounts so they actually work:
+Bug fix: When an expense account/category is created, it must immediately appear in the expense list — fix whatever is preventing this from showing up
+Expense accounts improvements:
+
+Each expense account/category must be selectable — clicking opens its detail view
+Each must be editable — name, budget, color
+Each must show total spent on that account: sum of all expenses recorded under it
+Show a progress bar: amount spent vs monthly budget
+List of all individual expense transactions under that account
+Delete option with confirmation (only if no expense transactions exist, otherwise archive only)
+
+Expense recording fix:
+
+When recording a new expense, the account/category dropdown must show all created accounts
+After recording, the expense must immediately appear in the expense list without page refresh
+
+
+FIX 8 — SALES HOLD / QUEUE SYSTEM
+Allow multiple customers to be served simultaneously without losing data:
+Hold button:
+
+In the Multi-Item Sale form, add a "Hold Sale" button (pause icon) next to the Cancel button
+When clicked, save the current sale state as a "held sale" with a label (auto-label: "Customer 1", "Customer 2" or admin can type a name)
+The form clears immediately so admin can start a new sale for the next customer
+
+Held sales queue:
+
+A "Held Sales" button in the top navigation bar (or next to "New Sale") showing a badge with count of held sales
+Clicking opens a panel showing all held sales:
+
+  ┌─────────────────────────────────────────┐
+  │ 🔄 Held Sales (2)                       │
+  │                                         │
+  │ Customer 1 — iPhone 16 ×1 — 1,200,000  │
+  │ [Resume] [Cancel]                       │
+  │                                         │
+  │ Customer 2 — AirPods ×2 — 60,000       │
+  │ [Resume] [Cancel]                       │
+  └─────────────────────────────────────────┘
+
+Resume — loads that held sale back into the sale form exactly as it was
+Cancel — discards the held sale with confirmation
+Maximum 5 held sales at once
+Held sales are stored in localStorage — they do not persist after browser is closed
+Held sales are visible only to the staff member who created them (not shared across devices)
+If a held sale contains a serialized unit that gets sold to another customer while it is on hold, when resuming show: "⚠️ Unit [IMEI] was sold to another customer while this sale was on hold. Please select a different unit."
+
+
+FIX 9 — REPAIRS PAGE: DEBUG AND FIX ALL ERRORS
+
+Open the Repairs page and capture every error that appears (console errors, API errors, rendering errors)
+Fix every single error found — do not leave any unresolved
+After fixing errors, verify:
+
+Kanban board loads with correct columns
+Repair cards show correctly with customer name, device, days in shop
+New Repair form saves correctly
+Status updates (drag or button) work correctly
+Parts can be added to a repair
+WhatsApp notify button works
+Repair invoice can be generated
+
+
+
+Additional repair fields to add:
+
+Outside Technician Cost (RWF) — amount paid to an external technician for this repair (optional field)
+Our Labor Income (RWF) — what the customer pays for labor (already exists as labor cost)
+Repair Profit — auto-calculated: Our Labor Income − Outside Technician Cost − Parts Cost
+Show Repair Profit on the repair detail page and on the repair invoice
+On the Analytics/Reports page, add a "Repair Revenue" section showing:
+
+Total repair income (labor charged to customers)
+Total outside technician costs
+Total parts costs
+Net Repair Profit — shown separately from product sales profit, labeled as "Service Income"
+
+
+This repair profit is tracked separately and NOT mixed into the main product sales profit/loss
+
+
+FIX 10 — NOTIFICATIONS: ADD LOW STOCK WARNING
+Fix notifications to include stock warnings:
+Low stock notification (not just out of stock):
+
+When a product's stock drops to or below its minimum stock level (reorder threshold), create a notification:
+
+Type: ⚠️ Low Stock
+Title: "[Product Name] is running low"
+Message: "Only [X] units remaining. Minimum level: [Y] units. Consider reordering."
+
+
+When a product reaches zero stock, create a separate notification:
+
+Type: 🔴 Out of Stock
+Title: "[Product Name] is out of stock"
+Message: "No units remaining. Last sold: [date]. Reorder now."
+
+
+Both notification types must appear in the notification bell dropdown
+Add both to the Stock Alerts dashboard widget
+
+
+FIX 11 — MINIMUM STOCK LEVEL BEHAVIOR
+Fix how minimum stock levels work:
+
+When recording a purchase of an item for the first time and no minimum stock level has been set: show the minimum stock level field as 0 (not blank, not null — explicitly 0)
+When admin enters a minimum stock level during purchase: save it to the product record
+When the same item is purchased again later: pre-fill the minimum stock level field with the previously saved value for that product
+On the Stock page: add a "Min Stock" column showing the minimum stock level for each product
+If min stock is 0, show it as "0" in gray (not hidden)
+Admin can edit the min stock level directly from the Stock page inline (click to edit)
+
+
+FIX 12 — EMPTY ROW PREVENTION IN FORMS
+Prevent empty/unfilled rows from being counted or submitted:
+Purchase form:
+
+If an item card has no item selected and no data filled in, do NOT count it in Total Quantity
+When submitting/verifying, automatically remove any completely empty cards before processing
+Show validation: "Please fill in all required fields or remove empty rows before continuing"
+
+Sale form:
+
+Same behavior — empty item cards are ignored and not counted in totals
+If an item is selected but quantity is 0 or blank, show inline error: "Please enter a quantity"
+Empty cards are removed automatically when Preview is clicked
+
+
+FIX 13 — STOCK ADJUSTMENT: SMART INCREASE/DECREASE FLOW
+When admin clicks Stock Adjustment and chooses Increase or Decrease, add smart routing:
+When INCREASE is selected:
+Show a popup:
+┌────────────────────────────────────────┐
+│ Why are you increasing stock?          │
+│                                        │
+│ [📦 New Purchase]                      │
+│ [↩️ Return from Customer]              │
+│ [🔄 Transfer from Another Location]    │
+│ [✏️ Manual Correction]                 │
+└────────────────────────────────────────┘
+
+New Purchase → navigates to New Purchase form with the item pre-selected
+Return from Customer → opens a return form: customer name/phone, sale reference, item, IMEI/serial, condition on return, reason for return. Updates stock and creates a return record
+Transfer from Another Location → opens a transfer form: source location, item, IMEI/serial, color, storage, RAM, condition. Saves as a stock transfer record
+Manual Correction → simple quantity adjustment with mandatory reason field
+
+When DECREASE is selected:
+Show a popup:
+┌────────────────────────────────────────┐
+│ Why are you decreasing stock?          │
+│                                        │
+│ [🔴 Item Returned to Vendor]           │
+│ [💔 Damaged / Lost]                    │
+│ [🔄 Transfer to Another Location]      │
+│ [✏️ Manual Correction]                 │
+└────────────────────────────────────────┘
+
+Return to Vendor → opens a vendor return form: select vendor, select item by IMEI/serial, reason for return, refund amount expected. Decreases stock and creates a vendor return record
+Damaged / Lost → opens loss reporting form (already built in Feature 13)
+Transfer → same as increase transfer but in reverse
+Manual Correction → simple decrease with mandatory reason
+
+
+FIX 14 — CONSIGNMENT / EXTERNAL VENDOR SALES TAB
+Add a new "Consignment" tab or page for tracking items given to or taken by external vendors/resellers:
+Giving items to an external vendor (consignment out):
+
+Form to record items given to a vendor:
+
+Select vendor (from existing vendors list)
+Select items from current stock — for serialized items: select specific unit by IMEI
+For each item: condition, agreed commission %, or agreed sale price
+Date given, expected return/sale date
+Notes
+
+
+The item status in stock changes to: on_consignment
+On the Stock page, show consignment items separately or with a badge
+
+When the vendor returns the item:
+
+Click "Mark as Returned" on the consignment record
+Item status reverts to in_stock
+Condition on return can be updated
+
+When the vendor sells the item:
+
+Click "Mark as Sold" on the consignment record
+Opens a sale completion form:
+
+Price the vendor sold it for
+Amount the vendor paid us (our revenue)
+Our original purchase cost
+Our profit = Amount vendor paid us − Our purchase cost
+Vendor commission = Price sold − Amount paid to us
+
+
+Creates a sale record attributed to that vendor
+Shows profit in a separate "Consignment Income" section in reports (separate from direct sales)
+
+Consignment page shows:
+
+All active consignments (items currently with vendors)
+All completed consignments (sold or returned)
+Total consignment value currently out
+Total income from consignment sales
+Per vendor: items currently held, items sold, total paid to us
+
+Database tables:
+
+consignments: id, vendor_id, created_by, created_at, status (active/sold/returned), notes
+consignment_items: id, consignment_id, serialized_unit_id, product_id, agreed_price, sold_price, amount_paid_to_us, returned_condition, status
+
+
+Apply all 14 fixes and features. Work through them in order. Do not break any existing functionality. After completing all, give a full status report.
+
