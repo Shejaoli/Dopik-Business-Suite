@@ -1,13 +1,39 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { db, vendorsTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
+import { db, vendorsTable, purchasesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
 router.use(requireAuth);
 
 router.get("/vendors", async (req, res): Promise<void> => {
-  const rows = await db.select().from(vendorsTable).orderBy(vendorsTable.name);
+  const rows = await db
+    .select({
+      id: vendorsTable.id,
+      name: vendorsTable.name,
+      contactPerson: vendorsTable.contactPerson,
+      email: vendorsTable.email,
+      phone: vendorsTable.phone,
+      address: vendorsTable.address,
+      createdAt: vendorsTable.createdAt,
+      totalPurchases: sql<string>`COALESCE(SUM(CASE WHEN ${purchasesTable.status} = 'confirmed' THEN ${purchasesTable.totalCost}::numeric ELSE 0 END), 0)::text`,
+      purchaseCount: sql<number>`COUNT(CASE WHEN ${purchasesTable.status} = 'confirmed' THEN 1 END)::int`,
+    })
+    .from(vendorsTable)
+    .leftJoin(purchasesTable, eq(purchasesTable.vendorId, vendorsTable.id))
+    .groupBy(vendorsTable.id)
+    .orderBy(vendorsTable.name);
+  res.json(rows);
+});
+
+router.get("/vendors/:id/purchases", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const rows = await db
+    .select()
+    .from(purchasesTable)
+    .where(eq(purchasesTable.vendorId, id))
+    .orderBy(sql`${purchasesTable.createdAt} DESC`)
+    .limit(50);
   res.json(rows);
 });
 

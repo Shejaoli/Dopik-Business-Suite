@@ -155,6 +155,19 @@ router.post("/purchases", async (req, res): Promise<void> => {
       }
     }
 
+    // Update item prices from this purchase
+    const unitCost = parseFloat(String(totalCost)) / Math.max(1, parseFloat(String(quantity)));
+    const itemPriceUpdates: Record<string, string> = { purchasePrice: String(unitCost) };
+    if (req.body.salePrice !== undefined && req.body.salePrice !== "") itemPriceUpdates.salePrice = String(req.body.salePrice);
+    if (req.body.minSalePrice !== undefined && req.body.minSalePrice !== "") itemPriceUpdates.minSalePrice = String(req.body.minSalePrice);
+    await db.update(itemsTable).set(itemPriceUpdates).where(eq(itemsTable.id, itemId));
+
+    // Update minStock if provided
+    if (req.body.minStock !== undefined && req.body.minStock !== "") {
+      const [sr2] = await db.select().from(stockTable).where(eq(stockTable.itemId, itemId));
+      if (sr2) await db.update(stockTable).set({ minStock: String(req.body.minStock) }).where(eq(stockTable.id, sr2.id));
+    }
+
     await db.insert(auditLogsTable).values({
       userId: req.session.userId || null, action: "create_purchase",
       details: `Purchase of item ${itemId} qty ${quantity} cost ${totalCost} PO:${poNumber || 'N/A'}`,
@@ -243,6 +256,19 @@ router.patch("/purchases/:id", async (req, res): Promise<void> => {
         const newAmt = parseFloat(bal.amount) - parseFloat(String(finalCost));
         await db.update(balancesTable).set({ amount: String(newAmt), updatedAt: new Date() }).where(eq(balancesTable.id, bal.id));
       }
+    }
+
+    // Update item prices from confirmed purchase
+    const unitCost = parseFloat(String(finalCost)) / Math.max(1, parseFloat(String(finalQty)));
+    const itemPriceUpd: Record<string, string> = { purchasePrice: String(unitCost) };
+    if (req.body.salePrice !== undefined && req.body.salePrice !== "") itemPriceUpd.salePrice = String(req.body.salePrice);
+    if (req.body.minSalePrice !== undefined && req.body.minSalePrice !== "") itemPriceUpd.minSalePrice = String(req.body.minSalePrice);
+    await db.update(itemsTable).set(itemPriceUpd).where(eq(itemsTable.id, finalItemId));
+
+    // Update minStock if provided
+    if (req.body.minStock !== undefined && req.body.minStock !== "") {
+      const [sr3] = await db.select().from(stockTable).where(eq(stockTable.itemId, finalItemId));
+      if (sr3) await db.update(stockTable).set({ minStock: String(req.body.minStock) }).where(eq(stockTable.id, sr3.id));
     }
 
     await db.insert(auditLogsTable).values({

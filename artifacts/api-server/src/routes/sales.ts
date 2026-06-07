@@ -191,6 +191,12 @@ router.post("/sales", async (req, res): Promise<void> => {
   }
 
   if (method === "credit") {
+    const { creditUpfrontAmount, creditUpfrontMethod } = req.body;
+    const upfront = Math.min(
+      parseFloat(String(creditUpfrontAmount || 0)),
+      parseFloat(String(totalAmount))
+    );
+    const remaining = Math.max(0, parseFloat(String(totalAmount)) - upfront);
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + (Number(paymentTermsDays) || 30));
 
@@ -198,20 +204,24 @@ router.post("/sales", async (req, res): Promise<void> => {
       saleId: sale.id,
       customerId: customerId,
       totalAmount: String(totalAmount),
-      amountPaid: "0",
-      balance: String(totalAmount),
+      amountPaid: String(upfront),
+      balance: String(remaining),
       dueDate: dueDate,
-      status: "active",
+      status: remaining <= 0 ? "paid" : "active",
     });
 
     await db.insert(receivablesTable).values({
       saleId: sale.id,
       customerId: customerId || 1,
       totalAmount: String(totalAmount),
-      paidAmount: "0",
+      paidAmount: String(upfront),
       dueDate: dueDate.toISOString().split("T")[0],
-      status: "unpaid",
+      status: remaining <= 0 ? "paid" : "unpaid",
     });
+
+    if (upfront > 0 && creditUpfrontMethod) {
+      await updateBalance((creditUpfrontMethod as string).toLowerCase(), upfront);
+    }
   } else if (method === "split") {
     const amt1 = parseFloat(String(splitPaymentAmount1 ?? 0));
     const amt2 = parseFloat(String(splitPaymentAmount2 ?? 0));

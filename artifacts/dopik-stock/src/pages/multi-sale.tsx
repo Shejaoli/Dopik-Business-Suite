@@ -432,6 +432,15 @@ export default function MultiSalePage() {
   const [receiptSaleId, setReceiptSaleId] = useState<number | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [holds, setHolds] = useState<Array<{
+    id: number; customerName: string; customerPhone: string; linkedCustomerId: number | null;
+    paymentMethod: string; lines: LineItem[]; discountValue: string;
+    discountType: "rwf" | "percent"; saleDate: string; amountReceived: string;
+    splitMethod1: string; splitMethod2: string; splitAmount1: string; splitAmount2: string;
+    paymentTermsDays: number;
+  }>>([]);
+  const [creditUpfront, setCreditUpfront] = useState("");
+  const [creditUpfrontMethod, setCreditUpfrontMethod] = useState("cash");
 
   const items = Array.isArray(itemList) ? itemList : (itemList as any)?.items ?? [];
 
@@ -498,6 +507,41 @@ export default function MultiSalePage() {
     setDiscountValue(""); setDiscountType("rwf");
     setAmountReceived("");
     setHasPreviewedOnce(false); setPreviewDirty(false);
+    setCreditUpfront(""); setCreditUpfrontMethod("cash");
+  };
+
+  const holdCurrent = () => {
+    const validLines = lines.filter(l => l.itemId);
+    if (validLines.length === 0) {
+      toast({ title: "Nothing to hold", description: "Add at least one item first.", variant: "destructive" });
+      return;
+    }
+    setHolds(prev => [...prev, {
+      id: Date.now(),
+      customerName, customerPhone, linkedCustomerId,
+      paymentMethod, lines: [...lines], discountValue, discountType,
+      saleDate, amountReceived, splitMethod1, splitMethod2, splitAmount1, splitAmount2, paymentTermsDays,
+    }]);
+    resetForm();
+    toast({ title: `${customerName || "Customer"} put on hold`, description: "Start a new customer — resume from the hold bar above." });
+  };
+
+  const resumeHold = (hold: typeof holds[0]) => {
+    setCustomerName(hold.customerName);
+    setCustomerPhone(hold.customerPhone);
+    setLinkedCustomerId(hold.linkedCustomerId);
+    setPaymentMethod(hold.paymentMethod);
+    setLines(hold.lines);
+    setDiscountValue(hold.discountValue);
+    setDiscountType(hold.discountType);
+    setSaleDate(hold.saleDate);
+    setAmountReceived(hold.amountReceived);
+    setSplitMethod1(hold.splitMethod1);
+    setSplitMethod2(hold.splitMethod2);
+    setSplitAmount1(hold.splitAmount1);
+    setSplitAmount2(hold.splitAmount2);
+    setPaymentTermsDays(hold.paymentTermsDays);
+    setHolds(prev => prev.filter(h => h.id !== hold.id));
   };
 
   const validate = () => {
@@ -564,6 +608,8 @@ export default function MultiSalePage() {
         amountReceived: isCash && amountReceivedNum > 0 ? String(amountReceivedNum) : undefined,
         changeGiven: isCash && changeDue >= 0 ? String(changeDue) : undefined,
         paymentTermsDays: isCredit ? paymentTermsDays : undefined,
+        creditUpfrontAmount: isCredit && parseFloat(creditUpfront) > 0 ? String(parseFloat(creditUpfront)) : undefined,
+        creditUpfrontMethod: isCredit && parseFloat(creditUpfront) > 0 ? creditUpfrontMethod : undefined,
         splitPaymentMethod2: isSplit ? splitMethod2 : undefined,
         splitPaymentAmount1: isSplit ? String(parseFloat(splitAmount1) || 0) : undefined,
         splitPaymentAmount2: isSplit ? String(parseFloat(splitAmount2) || 0) : undefined,
@@ -600,6 +646,18 @@ export default function MultiSalePage() {
       </div>
 
       <div className="space-y-5">
+        {holds.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-amber-700 flex-shrink-0">⏸ On Hold:</span>
+            {holds.map(h => (
+              <button key={h.id} onClick={() => resumeHold(h)}
+                className="text-xs bg-white border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-50 transition font-medium text-amber-800">
+                👤 {h.customerName || "Walk-in"} — {h.lines.filter(l => l.itemId).length} item{h.lines.filter(l => l.itemId).length !== 1 ? "s" : ""}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* SALE DETAILS */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="font-semibold text-gray-700 mb-4 text-sm uppercase tracking-wide">Sale Details</h2>
@@ -693,6 +751,33 @@ export default function MultiSalePage() {
               </div>
             )}
           </div>
+
+          {isCredit && (
+            <div className="mt-4 p-4 bg-blue-50/60 border border-blue-100 rounded-xl space-y-3">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Partial Upfront Payment (optional)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Paid Now (RWF)</label>
+                  <input type="number" min="0" value={creditUpfront} onChange={e => { setCreditUpfront(e.target.value); markDirty(); }}
+                    placeholder="0 = fully on credit"
+                    className="w-full h-10 px-3 rounded-xl border border-blue-200 bg-white text-sm outline-none focus:border-[#1A6DB5]" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Payment Method</label>
+                  <select value={creditUpfrontMethod} onChange={e => { setCreditUpfrontMethod(e.target.value); markDirty(); }}
+                    className="w-full h-10 px-3 rounded-xl border border-blue-200 bg-white text-sm outline-none focus:border-[#1A6DB5]">
+                    {SPLIT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              {creditUpfront && parseFloat(creditUpfront) > 0 && (
+                <p className="text-xs text-blue-700">
+                  Credit balance: <strong>{fmtRWF(String(Math.max(0, total - (parseFloat(creditUpfront) || 0))))}</strong>
+                  {" "}({fmtRWF(creditUpfront)} paid now, rest goes on credit)
+                </p>
+              )}
+            </div>
+          )}
 
           {isSplit && (
             <div className="mt-4 p-4 bg-purple-50/60 border border-purple-100 rounded-xl space-y-3">
@@ -816,11 +901,15 @@ export default function MultiSalePage() {
             className="sm:order-1 order-3">
             <X className="h-4 w-4 mr-2" /> Cancel
           </Button>
+          <Button type="button" variant="outline" onClick={holdCurrent}
+            className="sm:order-2 order-4 border-amber-300 text-amber-700 hover:bg-amber-50">
+            ⏸ Hold
+          </Button>
           <Button type="button" onClick={openPreview}
-            className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90 sm:order-2 order-2">
+            className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90 sm:order-3 order-2">
             <Eye className="h-4 w-4 mr-2" /> Preview Sale
           </Button>
-          <div className="relative group sm:order-3 order-1">
+          <div className="relative group sm:order-4 order-1">
             <Button
               type="button"
               onClick={() => !confirmDisabled && handleSubmit()}

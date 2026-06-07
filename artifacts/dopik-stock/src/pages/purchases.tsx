@@ -30,17 +30,16 @@ const CONDITIONS = [
 ];
 
 const PURCHASE_CATEGORIES = [
-  { id: "Smartphone", label: "Smartphone", emoji: "📱", trackSerial: true, serialLabel: "IMEI Number" },
-  { id: "Laptop", label: "Laptop", emoji: "💻", trackSerial: true, serialLabel: "Serial Number" },
-  { id: "Tablet", label: "Tablet", emoji: "📟", trackSerial: true, serialLabel: "Serial Number" },
-  { id: "Smartwatches", label: "Smartwatch", emoji: "⌚", trackSerial: false, serialLabel: "" },
-  { id: "Audio", label: "Audio", emoji: "🎧", trackSerial: false, serialLabel: "" },
-  { id: "Phone Accessories", label: "Phone Accessories", emoji: "🔌", trackSerial: false, serialLabel: "" },
-  { id: "Laptop Accessories", label: "Laptop Accessories", emoji: "🖱️", trackSerial: false, serialLabel: "" },
-  { id: "Gaming", label: "Gaming", emoji: "🎮", trackSerial: false, serialLabel: "" },
-  { id: "Cameras", label: "Camera", emoji: "📷", trackSerial: false, serialLabel: "" },
-  { id: "Others", label: "Other", emoji: "📦", trackSerial: false, serialLabel: "" },
+  { id: "Smartphone", label: "Phones", emoji: "📱", trackSerial: true, serialLabel: "IMEI Number" },
+  { id: "Laptop", label: "Computers / Laptops", emoji: "💻", trackSerial: true, serialLabel: "Serial Number" },
+  { id: "Others", label: "Accessories", emoji: "🎧", trackSerial: false, serialLabel: "" },
 ];
+
+const PURCHASE_CAT_GROUPS: Record<string, string[]> = {
+  "Smartphone": ["Smartphone"],
+  "Laptop": ["Laptop", "Tablet", "Gaming", "Gaming Accessories", "Laptop Accessories"],
+  "Others": ["Phone Accessories", "Smartwatches", "Audio", "Cameras", "Camera Accessories", "Others"],
+};
 
 function generatePO() {
   const d = new Date();
@@ -722,6 +721,10 @@ export default function PurchasesPage() {
     additionalInfo: "",
   });
 
+  const [formSalePrice, setFormSalePrice] = useState("");
+  const [formMinSalePrice, setFormMinSalePrice] = useState("");
+  const [formMinStock, setFormMinStock] = useState("");
+
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -757,12 +760,25 @@ export default function PurchasesPage() {
     !search || (p.itemName ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
+  // Pre-fill pricing when existing item is selected
+  useEffect(() => {
+    if (formModelItemId) {
+      const item = stockItems.find((s: any) => String(s.itemId ?? s.id) === formModelItemId);
+      if (item) {
+        if (item.salePrice && parseFloat(item.salePrice) > 0) setFormSalePrice(item.salePrice);
+        if (item.minSalePrice && parseFloat(item.minSalePrice) > 0) setFormMinSalePrice(item.minSalePrice);
+        if (item.minStock && parseFloat(item.minStock) > 0) setFormMinStock(item.minStock);
+      }
+    }
+  }, [formModelItemId]);
+
   const modelSuggestions = useMemo(() => {
     if (!formCategory) return [];
     const q = formModelName.toLowerCase();
+    const allowedCats = PURCHASE_CAT_GROUPS[formCategory] ?? [formCategory];
 
     const existing = stockItems
-      .filter((s: any) => s.category === formCategory)
+      .filter((s: any) => allowedCats.includes(s.category))
       .map((s: any) => ({
         name: s.itemName ?? s.name ?? "",
         itemId: String(s.itemId ?? s.id),
@@ -882,17 +898,29 @@ export default function PurchasesPage() {
       const itemId = await resolveItemId();
       if (!itemId) { toast({ title: "Could not resolve item", variant: "destructive" }); return; }
 
+      // Filter empty serial rows (no IMEI and no cost entered)
+      const filledRows = isSerial
+        ? rows.filter(r => r.imeiOrSerial?.trim() || r.unitCost?.trim())
+        : rows;
+      const filledQty = isSerial ? (filledRows.length || 1) : parseFloat(simple.quantity || "0");
+      const filledCost = isSerial
+        ? filledRows.reduce((s, r) => s + parseFloat(r.unitCost || "0"), 0)
+        : parseFloat(simple.unitCost || "0") * parseFloat(simple.quantity || "0");
+
       const payload: any = {
         itemId,
-        quantity: String(totalQty),
-        totalCost: String(totalCost),
+        quantity: String(filledQty),
+        totalCost: String(filledCost),
         paymentMethod: isSerial ? Object.keys(byPayment)[0] || "cash" : simple.paymentMethod,
         vendorId: isSerial
-          ? (rows[0]?.vendorId ? Number(rows[0].vendorId) : null)
+          ? (filledRows[0]?.vendorId ? Number(filledRows[0].vendorId) : null)
           : (simple.vendorId ? Number(simple.vendorId) : null),
         status: "confirmed",
         poNumber,
-        units: isSerial ? rows.map(r => ({
+        salePrice: formSalePrice ? parseFloat(formSalePrice) : undefined,
+        minSalePrice: formMinSalePrice ? parseFloat(formMinSalePrice) : undefined,
+        minStock: formMinStock ? parseFloat(formMinStock) : undefined,
+        units: isSerial ? filledRows.map(r => ({
           imeiOrSerial: r.imeiOrSerial,
           color: r.color, storage: r.storage, ram: r.ram,
           additionalInfo: r.additionalInfo, condition: r.condition,
@@ -938,6 +966,9 @@ export default function PurchasesPage() {
     setPoNumber("");
     setDraftId(null);
     setShowBreakdown(false);
+    setFormSalePrice("");
+    setFormMinSalePrice("");
+    setFormMinStock("");
   };
 
   const handleCancelClick = () => {
@@ -1244,6 +1275,29 @@ export default function PurchasesPage() {
               </div>
             )}
           </div>
+
+          {/* Pricing & Stock (step 3) */}
+          {formModelName && (
+            <div className="bg-white border border-border rounded-xl shadow-sm p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-3">
+                3. Pricing &amp; Stock <span className="text-xs font-normal text-muted-foreground">(optional — updates item on confirm)</span>
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <p className="text-sm font-medium mb-1.5">Selling Price (RWF)</p>
+                  <Input type="number" min={0} value={formSalePrice} onChange={e => setFormSalePrice(e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-1.5">Min Selling Price (RWF)</p>
+                  <Input type="number" min={0} value={formMinSalePrice} onChange={e => setFormMinSalePrice(e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-1.5">Min Stock Level</p>
+                  <Input type="number" min={0} value={formMinStock} onChange={e => setFormMinStock(e.target.value)} placeholder="0" />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Unit Cards (only show after category + model selected) */}
           {formModelName && (

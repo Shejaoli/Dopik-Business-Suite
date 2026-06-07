@@ -26,6 +26,7 @@ export const itemsTable = pgTable("items", {
   trackSerial: boolean("track_serial").notNull().default(false),
   purchasePrice: numeric("purchase_price", { precision: 12, scale: 2 }).notNull().default("0"),
   salePrice: numeric("sale_price", { precision: 12, scale: 2 }).notNull().default("0"),
+  minSalePrice: numeric("min_sale_price", { precision: 12, scale: 2 }).notNull().default("0"),
   alternativeItemId: integer("alternative_item_id").references((): any => itemsTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });

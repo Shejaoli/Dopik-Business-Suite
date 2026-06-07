@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListExpenseAccounts, getListExpenseAccountsQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF, fmtDateTime, paymentBadgeColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -9,25 +9,30 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Receipt, Loader2 } from "lucide-react";
+import { Plus, Receipt, Loader2, Edit, Trash2, TrendingDown } from "lucide-react";
 
 const PAYMENT_METHODS = ["cash", "bank", "mobile_money"];
 
 export default function ExpensesPage() {
   const [showExpense, setShowExpense] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
+  const [editAccount, setEditAccount] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ accountId: "", paymentMethod: "cash", amount: "", description: "" });
   const [accountForm, setAccountForm] = useState({ name: "", accountType: "expense" });
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data, isLoading } = useListExpenseAccounts();
-  const accounts: any[] = (data as any) ?? [];
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListExpenseAccountsQueryKey() });
+  const { data: accountsRaw, isLoading: accountsLoading } = useListExpenseAccounts();
+  const accounts: any[] = (accountsRaw as any) ?? [];
+  const invalidateAccounts = () => qc.invalidateQueries({ queryKey: getListExpenseAccountsQueryKey() });
 
-  // We'll also track expenses locally since we don't have a listExpenses hook
-  const [localExpenses, setLocalExpenses] = useState<any[]>([]);
+  const { data: expensesRaw, isLoading: expensesLoading } = useQuery({
+    queryKey: ["expenses"],
+    queryFn: () => api.get<any[]>("/expenses"),
+  });
+  const expenses: any[] = expensesRaw ?? [];
+  const invalidateExpenses = () => qc.invalidateQueries({ queryKey: ["expenses"] });
 
   const setEF = (k: string, v: string) => setExpenseForm(f => ({ ...f, [k]: v }));
 
@@ -35,14 +40,15 @@ export default function ExpensesPage() {
     if (!expenseForm.accountId || !expenseForm.paymentMethod || !expenseForm.amount) return;
     setSaving(true);
     try {
-      const result = await api.post<any>("/expenses", {
+      await api.post<any>("/expenses", {
         accountId: Number(expenseForm.accountId),
         paymentMethod: expenseForm.paymentMethod,
         amount: parseFloat(expenseForm.amount),
         description: expenseForm.description,
       });
       toast({ title: "Expense recorded" });
-      setLocalExpenses(prev => [result, ...prev]);
+      invalidateExpenses();
+      invalidateAccounts();
       setShowExpense(false);
       setExpenseForm({ accountId: "", paymentMethod: "cash", amount: "", description: "" });
     } catch (e: any) {
@@ -58,10 +64,34 @@ export default function ExpensesPage() {
       toast({ title: "Account created" });
       setShowAccount(false);
       setAccountForm({ name: "", accountType: "expense" });
-      invalidate();
+      invalidateAccounts();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally { setSaving(false); }
+  };
+
+  const handleUpdateAccount = async () => {
+    if (!editAccount || !editAccount.name) return;
+    setSaving(true);
+    try {
+      await api.put(`/expense-accounts/${editAccount.id}`, { name: editAccount.name, accountType: editAccount.accountType });
+      toast({ title: "Account updated" });
+      setEditAccount(null);
+      invalidateAccounts();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteAccount = async (id: number, name: string) => {
+    if (!confirm(`Delete account "${name}"? This will not delete existing expense records.`)) return;
+    try {
+      await api.del(`/expense-accounts/${id}`);
+      toast({ title: "Account deleted" });
+      invalidateAccounts();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -89,12 +119,18 @@ export default function ExpensesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {localExpenses.length === 0 ? (
+                  {expensesLoading ? (
+                    [...Array(5)].map((_, i) => (
+                      <tr key={i} className="border-b border-border">
+                        {[...Array(5)].map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-muted animate-pulse rounded" /></td>)}
+                      </tr>
+                    ))
+                  ) : expenses.length === 0 ? (
                     <tr><td colSpan={5} className="text-center py-12 text-muted-foreground">
-                      <Receipt className="h-8 w-8 mx-auto mb-2 opacity-30" />No expenses recorded this session
+                      <Receipt className="h-8 w-8 mx-auto mb-2 opacity-30" />No expenses recorded yet
                     </td></tr>
-                  ) : localExpenses.map((e: any, i: number) => (
-                    <tr key={i} className="border-b border-border hover:bg-muted/30">
+                  ) : expenses.map((e: any) => (
+                    <tr key={e.id} className="border-b border-border hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium">{e.accountName ?? "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.description ?? "—"}</td>
                       <td className="px-4 py-3 font-bold text-red-600">{fmtRWF(e.amount)}</td>
@@ -112,14 +148,30 @@ export default function ExpensesPage() {
 
         <TabsContent value="accounts" className="mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {isLoading ? [...Array(6)].map((_, i) => (
+            {accountsLoading ? [...Array(6)].map((_, i) => (
               <div key={i} className="glass-panel p-4"><div className="h-4 bg-muted animate-pulse rounded" /></div>
-            )) : accounts.map(a => (
-              <div key={a.id} className="glass-panel p-4 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#1A6DB5]/10 flex items-center justify-center flex-shrink-0">
-                  <Receipt className="h-4 w-4 text-[#1A6DB5]" />
+            )) : accounts.length === 0 ? (
+              <div className="col-span-full glass-panel p-12 text-center text-muted-foreground">
+                <Receipt className="h-8 w-8 mx-auto mb-2 opacity-30" />No accounts yet — click "+ Account" to create one
+              </div>
+            ) : accounts.map(a => (
+              <div key={a.id} className="glass-panel p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#1A6DB5]/10 flex items-center justify-center flex-shrink-0">
+                    <Receipt className="h-4 w-4 text-[#1A6DB5]" />
+                  </div>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => setEditAccount({ ...a })}><Edit className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" onClick={() => handleDeleteAccount(a.id, a.name)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
                 </div>
-                <div><p className="font-medium text-sm">{a.name}</p><p className="text-xs text-muted-foreground capitalize">{a.accountType}</p></div>
+                <p className="font-medium text-sm">{a.name}</p>
+                <p className="text-xs text-muted-foreground capitalize mb-2">{a.accountType}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+                  <span className="text-sm font-semibold text-red-600">{fmtRWF(a.totalSpent ?? "0")}</span>
+                  <span className="text-xs text-muted-foreground">spent ({a.count ?? 0} transactions)</span>
+                </div>
               </div>
             ))}
           </div>
@@ -172,6 +224,24 @@ export default function ExpensesPage() {
             <Button variant="outline" onClick={() => setShowAccount(false)}>Cancel</Button>
             <Button onClick={handleCreateAccount} disabled={saving || !accountForm.name} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Create Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Account Dialog */}
+      <Dialog open={!!editAccount} onOpenChange={open => !open && setEditAccount(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Account</DialogTitle></DialogHeader>
+          {editAccount && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5"><Label>Account Name *</Label><Input value={editAccount.name} onChange={e => setEditAccount((a: any) => ({ ...a, name: e.target.value }))} /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditAccount(null)}>Cancel</Button>
+            <Button onClick={handleUpdateAccount} disabled={saving} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

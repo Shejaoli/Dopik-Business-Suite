@@ -83,6 +83,30 @@ const migrations = [
     ip_address VARCHAR(100),
     details JSONB
   )`,
+
+  `ALTER TABLE items ADD COLUMN IF NOT EXISTS min_sale_price NUMERIC(12,2) DEFAULT 0`,
+
+  `CREATE TABLE IF NOT EXISTS consignment_items (
+    id SERIAL PRIMARY KEY,
+    serialized_unit_id INTEGER,
+    item_id INTEGER NOT NULL,
+    seller_name VARCHAR(200) NOT NULL,
+    seller_phone VARCHAR(50),
+    imei_or_serial VARCHAR(200),
+    color VARCHAR(50),
+    storage VARCHAR(50),
+    ram VARCHAR(50),
+    condition VARCHAR(100),
+    cost_price NUMERIC(12,2) DEFAULT 0,
+    sale_price NUMERIC(12,2),
+    status VARCHAR(30) DEFAULT 'with_seller',
+    profit NUMERIC(12,2),
+    notes TEXT,
+    given_at TIMESTAMPTZ DEFAULT NOW(),
+    returned_at TIMESTAMPTZ,
+    sold_at TIMESTAMPTZ,
+    recorded_by INTEGER
+  )`,
 ];
 
 async function run() {

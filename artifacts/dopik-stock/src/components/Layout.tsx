@@ -10,7 +10,8 @@ import {
   BarChart2,
   LayoutDashboard, Settings, LogOut, Menu, X,
   UserCog, FileText, Landmark, Wrench,
-  Brain, ClipboardList, ScanLine, Megaphone, Activity
+  Brain, ClipboardList, ScanLine, Megaphone, Activity,
+  ArrowLeftRight
 } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,7 @@ const navSections: NavSection[] = [
       { href: "/purchase-history", label: "Purchase History", icon: ShoppingBag, minRole: ["owner", "manager", "admin", "stock_manager"] },
       { href: "/multi-sale", label: "New Sale", icon: ShoppingCart },
       { href: "/sales-history", label: "Sales History", icon: Scale },
+      { href: "/consignment", label: "Consignment", icon: ArrowLeftRight, minRole: ["owner", "manager", "admin"] },
     ],
   },
   {

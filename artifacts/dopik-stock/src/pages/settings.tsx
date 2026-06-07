@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api, fmtRWF, fmtDateTime } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive, Activity, Search, ShieldAlert, Trash2, Zap } from "lucide-react";
+import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive, Activity, Search, ShieldAlert, Trash2, Zap, Users, UserPlus, Eye, EyeOff } from "lucide-react";
 import { useGetBalances } from "@workspace/api-client-react";
 import { useFeatureFlags } from "@/lib/use-feature-flags";
 
@@ -43,6 +43,16 @@ export default function SettingsPage() {
 
   const [adjustForms, setAdjustForms] = useState<Record<string, string>>({});
   const [savingBalance, setSavingBalance] = useState<string | null>(null);
+  const qc = useQueryClient();
+
+  const [newUserForm, setNewUserForm] = useState({ name: "", email: "", password: "", role: "cashier" });
+  const [savingUser, setSavingUser] = useState(false);
+  const [showUserPw, setShowUserPw] = useState(false);
+  const { data: staffData, refetch: refetchStaff } = useQuery({
+    queryKey: ["staff"],
+    queryFn: () => api.get<any[]>("/staff"),
+  });
+  const staffList: any[] = (staffData as any) ?? [];
 
   const handleProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,6 +181,19 @@ export default function SettingsPage() {
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "manager";
   const isOwner = user?.role === "owner";
 
+  const handleCreateUser = async () => {
+    if (!newUserForm.name || !newUserForm.email || !newUserForm.password) return;
+    setSavingUser(true);
+    try {
+      await api.post("/staff", newUserForm);
+      toast({ title: "User created", description: `${newUserForm.name} (${newUserForm.role.replace(/_/g, " ")}) can now log in.` });
+      setNewUserForm({ name: "", email: "", password: "", role: "cashier" });
+      refetchStaff();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSavingUser(false); }
+  };
+
   // Danger Zone state
   const [resetStep, setResetStep] = useState<0 | 1 | 2 | 3 | 4 | 5>(0);
   const [resetConfirmText, setResetConfirmText] = useState("");
@@ -222,6 +245,7 @@ export default function SettingsPage() {
           {isAdmin && <TabsTrigger value="activity-log">Activity Log</TabsTrigger>}
           <TabsTrigger value="system">System</TabsTrigger>
           <TabsTrigger value="features">Features</TabsTrigger>
+          {isAdmin && <TabsTrigger value="users">Users</TabsTrigger>}
           {isOwner && (
             <TabsTrigger value="danger-zone" className="text-red-600 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
               Danger Zone
@@ -906,6 +930,72 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground mt-4">Changes take effect immediately and are saved per-device.</p>
           </div>
         </TabsContent>
+
+        {/* ── Users (Admin/Manager) ──────────── */}
+        {isAdmin && (
+          <TabsContent value="users" className="mt-4 space-y-4">
+            <div className="glass-panel p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-8 h-8 rounded-lg bg-[#1A6DB5]/10 flex items-center justify-center">
+                  <UserPlus className="h-4 w-4 text-[#1A6DB5]" />
+                </div>
+                <div><h2 className="font-semibold font-sora">Create Staff Account</h2><p className="text-xs text-muted-foreground">Add a new user who can log in to the system</p></div>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5"><Label>Full Name *</Label><Input value={newUserForm.name} onChange={e => setNewUserForm(f => ({ ...f, name: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label>Email *</Label><Input type="email" value={newUserForm.email} onChange={e => setNewUserForm(f => ({ ...f, email: e.target.value }))} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Password *</Label>
+                    <div className="relative">
+                      <Input type={showUserPw ? "text" : "password"} value={newUserForm.password} onChange={e => setNewUserForm(f => ({ ...f, password: e.target.value }))} />
+                      <button type="button" onClick={() => setShowUserPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        {showUserPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Role</Label>
+                    <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" value={newUserForm.role} onChange={e => setNewUserForm(f => ({ ...f, role: e.target.value }))}>
+                      <option value="cashier">Cashier</option>
+                      <option value="stock_manager">Stock Manager</option>
+                      <option value="manager">Manager</option>
+                      {isOwner && <option value="owner">Owner</option>}
+                    </select>
+                  </div>
+                </div>
+                <Button onClick={handleCreateUser} disabled={savingUser || !newUserForm.name || !newUserForm.email || !newUserForm.password} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
+                  {savingUser && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  <UserPlus className="h-4 w-4 mr-2" />Create Account
+                </Button>
+              </div>
+            </div>
+
+            <div className="glass-panel p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-[#1A6DB5]/10 flex items-center justify-center">
+                  <Users className="h-4 w-4 text-[#1A6DB5]" />
+                </div>
+                <h2 className="font-semibold font-sora">All Staff Accounts</h2>
+              </div>
+              <div className="space-y-0">
+                {staffList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No staff accounts found.</p>
+                ) : staffList.map((s: any) => (
+                  <div key={s.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                    <div>
+                      <p className="font-medium text-sm">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">{s.email}</p>
+                    </div>
+                    <Badge variant="outline" className="text-xs capitalize">{(s.role ?? "").replace(/_/g, " ")}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

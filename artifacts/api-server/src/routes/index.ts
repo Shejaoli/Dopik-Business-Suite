@@ -30,6 +30,7 @@ import notificationsRouter from "./notifications";
 import stockCountRouter from "./stock-count";
 import receiptScannerRouter from "./receipt-scanner";
 import usageAnalyticsRouter from "./usage-analytics";
+import consignmentRouter from "./consignment";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(notificationsRouter);
 router.use(stockCountRouter);
 router.use(receiptScannerRouter);
 router.use(usageAnalyticsRouter);
+router.use(consignmentRouter);
 
 export default router;

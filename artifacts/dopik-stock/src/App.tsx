@@ -41,6 +41,7 @@ import RestockIntelligencePage from "@/pages/restock-intelligence";
 import StockCountPage from "@/pages/stock-count";
 import ReceiptScannerPage from "@/pages/receipt-scanner";
 import UsageAnalyticsPage from "@/pages/usage-analytics";
+import ConsignmentPage from "@/pages/consignment";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -122,6 +123,7 @@ function AppRoutes() {
         <Route path="/stock-count" component={StockCountPage} />
         <Route path="/receipt-scanner" component={ReceiptScannerPage} />
         <Route path="/usage-analytics" component={UsageAnalyticsPage} />
+        <Route path="/consignment" component={ConsignmentPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
