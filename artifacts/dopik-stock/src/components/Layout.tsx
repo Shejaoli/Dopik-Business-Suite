@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
+import { useFeatureFlags } from "@/lib/use-feature-flags";
 import {
   Package, History, Archive, SlidersHorizontal, RotateCcw, AlertTriangle,
   ShoppingCart, ShoppingBag, Scale,
@@ -131,6 +132,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const { flags } = useFeatureFlags();
 
   const isActive = (href: string) => {
     if (href === "/") return location === "/";
@@ -190,7 +192,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-0">
           {navSections.map((section, si) => {
             if (!canSeeItem(userRole, section.minRole)) return null;
-            const visibleItems = section.items.filter(item => canSeeItem(userRole, item.minRole));
+            const visibleItems = section.items.filter(item =>
+              canSeeItem(userRole, item.minRole) &&
+              !(item.href === "/items" && !flags.showItemsPage)
+            );
             if (visibleItems.length === 0) return null;
             return (
               <div key={section.label}>

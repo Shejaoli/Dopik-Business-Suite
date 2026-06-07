@@ -254,12 +254,48 @@ router.patch("/purchases/:id", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
-// Delete a draft purchase
+// Edit purchase metadata (date, vendor, notes, payment — no stock/balance reversal)
+router.put("/purchases/:id/meta", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const [existing] = await db.select().from(purchasesTable).where(eq(purchasesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const { vendorId, paymentMethod, notes, poNumber, purchaseDate } = req.body;
+  const updates: any = {};
+  if (vendorId !== undefined) updates.vendorId = vendorId || null;
+  if (paymentMethod) updates.paymentMethod = paymentMethod;
+  if (notes !== undefined) updates.notes = notes;
+  if (poNumber !== undefined) updates.poNumber = poNumber;
+  if (purchaseDate) updates.createdAt = new Date(purchaseDate);
+
+  const [updated] = await db.update(purchasesTable).set(updates).where(eq(purchasesTable.id, id)).returning();
+  res.json(updated);
+});
+
+// Delete a purchase (draft or confirmed — reverses stock/balance for confirmed)
 router.delete("/purchases/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   const [existing] = await db.select().from(purchasesTable).where(eq(purchasesTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-  if (existing.status !== "draft") { res.status(400).json({ error: "Only draft purchases can be deleted" }); return; }
+
+  if (existing.status === "confirmed") {
+    // Reverse stock
+    const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, existing.itemId!));
+    if (stockRow) {
+      const newQty = Math.max(0, parseFloat(stockRow.quantity) - parseFloat(existing.quantity));
+      await db.update(stockTable).set({ quantity: String(newQty), updatedAt: new Date() }).where(eq(stockTable.id, stockRow.id));
+    }
+    // Restore balance
+    const method = (existing.paymentMethod || "cash").toLowerCase();
+    if (method !== "credit") {
+      const dbMethod = method === "mobile_money" ? "mobile_money" : method;
+      const [bal] = await db.select().from(balancesTable).where(eq(balancesTable.method, dbMethod));
+      if (bal) {
+        const newAmt = parseFloat(bal.amount) + parseFloat(existing.totalCost);
+        await db.update(balancesTable).set({ amount: String(newAmt), updatedAt: new Date() }).where(eq(balancesTable.id, bal.id));
+      }
+    }
+  }
 
   await db.delete(serializedUnitsTable).where(eq(serializedUnitsTable.purchaseId, id));
   await db.delete(purchasesTable).where(eq(purchasesTable.id, id));

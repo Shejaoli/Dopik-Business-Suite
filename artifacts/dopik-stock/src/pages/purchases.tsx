@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListPurchases, useListVendors, useListStock, getListPurchasesQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF, fmtDateTime, paymentBadgeColor } from "@/lib/api";
@@ -9,8 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Search, ShoppingCart, Loader2, Barcode, Trash2,
   ChevronDown, ChevronUp, AlertTriangle, X, Printer,
-  FileCheck, Save, ArrowLeft, CheckCircle2, Building2, Zap
+  FileCheck, Save, ArrowLeft, CheckCircle2, Building2, Tag,
 } from "lucide-react";
+import { getCatalogForCategory } from "@/lib/product-catalog";
+import { useFeatureFlags } from "@/lib/use-feature-flags";
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
   { value: "cash", label: "Cash" },
@@ -25,6 +27,19 @@ const CONDITIONS = [
   "Battery 70–80%",
   "Battery 80–90%",
   "Battery above 90%",
+];
+
+const PURCHASE_CATEGORIES = [
+  { id: "Smartphone", label: "Smartphone", emoji: "📱", trackSerial: true, serialLabel: "IMEI Number" },
+  { id: "Laptop", label: "Laptop", emoji: "💻", trackSerial: true, serialLabel: "Serial Number" },
+  { id: "Tablet", label: "Tablet", emoji: "📟", trackSerial: true, serialLabel: "Serial Number" },
+  { id: "Smartwatches", label: "Smartwatch", emoji: "⌚", trackSerial: false, serialLabel: "" },
+  { id: "Audio", label: "Audio", emoji: "🎧", trackSerial: false, serialLabel: "" },
+  { id: "Phone Accessories", label: "Phone Accessories", emoji: "🔌", trackSerial: false, serialLabel: "" },
+  { id: "Laptop Accessories", label: "Laptop Accessories", emoji: "🖱️", trackSerial: false, serialLabel: "" },
+  { id: "Gaming", label: "Gaming", emoji: "🎮", trackSerial: false, serialLabel: "" },
+  { id: "Cameras", label: "Camera", emoji: "📷", trackSerial: false, serialLabel: "" },
+  { id: "Others", label: "Other", emoji: "📦", trackSerial: false, serialLabel: "" },
 ];
 
 function generatePO() {
@@ -44,7 +59,6 @@ function pmLabel(val: string) {
   return PAYMENT_METHODS.find(m => m.value === val)?.label ?? val.replace(/_/g, " ");
 }
 
-// ── Searchable Dropdown with Create ──────────────────────────────────────────
 function SearchableSelect({
   options, value, onChange, placeholder, onCreate,
 }: {
@@ -85,13 +99,7 @@ function SearchableSelect({
       {open && (
         <div className="absolute z-50 left-0 top-full mt-1 w-full min-w-[200px] bg-white border border-border rounded-lg shadow-lg">
           <div className="p-2">
-            <Input
-              autoFocus
-              className="h-8 text-sm"
-              placeholder="Search…"
-              value={q}
-              onChange={e => setQ(e.target.value)}
-            />
+            <Input autoFocus className="h-8 text-sm" placeholder="Search…" value={q} onChange={e => setQ(e.target.value)} />
           </div>
           <div className="max-h-48 overflow-y-auto">
             {value && (
@@ -127,7 +135,6 @@ function SearchableSelect({
 
 type PurchaseRow = {
   id: string;
-  itemId: string;
   color: string;
   storage: string;
   ram: string;
@@ -140,7 +147,6 @@ type PurchaseRow = {
 };
 
 type SimpleForm = {
-  itemId: string;
   quantity: string;
   unitCost: string;
   vendorId: string;
@@ -152,20 +158,20 @@ type SimpleForm = {
 function emptyRow(): PurchaseRow {
   return {
     id: Math.random().toString(36).slice(2),
-    itemId: "", color: "", storage: "", ram: "",
+    color: "", storage: "", ram: "",
     imeiOrSerial: "", condition: "Brand New",
     vendorId: "", paymentMethod: "cash", unitCost: "",
     additionalInfo: "",
   };
 }
 
-// ── PO Preview ────────────────────────────────────────────────────────────────
 function POPreview({
-  rows, simpleForm, items, vendors, isSerial, poNumber, onConfirm, onBack, saving,
+  rows, simpleForm, modelName, vendors, isSerial, serialLabel, poNumber, onConfirm, onBack, saving,
 }: {
   rows: PurchaseRow[]; simpleForm: SimpleForm;
-  items: any[]; vendors: any[];
-  isSerial: boolean; poNumber: string;
+  modelName: string;
+  vendors: any[];
+  isSerial: boolean; serialLabel: string; poNumber: string;
   onConfirm: () => void; onBack: () => void; saving: boolean;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
@@ -193,10 +199,7 @@ function POPreview({
         .grand-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; padding-top: 8px; }
         .grand-total-amount { color: #1A6DB5; font-size: 18px; }
         .watermark { text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #9ca3af; }
-        @media print {
-          body { padding: 20px; }
-          .banner { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-        }
+        @media print { body { padding: 20px; } .banner { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
       </style>
     </head><body>${content}
     <div class="watermark">Printed from Dopik Electronics Management System</div>
@@ -205,19 +208,19 @@ function POPreview({
     w.print();
   };
 
-  const getItem = (id: string) => items.find(i => String(i.itemId ?? i.id) === id);
   const getVendor = (id: string) => vendors.find(v => String(v.id) === id);
 
   const lineItems = isSerial
-    ? rows.filter(r => r.itemId)
+    ? rows
     : [{
-        id: "1", itemId: simpleForm.itemId,
+        id: "1",
         description: `Qty: ${simpleForm.quantity}`,
         condition: simpleForm.condition,
         vendorId: simpleForm.vendorId,
         paymentMethod: simpleForm.paymentMethod,
         unitCost: simpleForm.unitCost,
-        imeiOrSerial: "", color: "", storage: "",
+        imeiOrSerial: "", color: "", storage: "", ram: "",
+        additionalInfo: simpleForm.additionalInfo,
       }];
 
   const totalQty = isSerial ? lineItems.length : parseFloat(simpleForm.quantity || "0");
@@ -289,22 +292,21 @@ function POPreview({
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-gray-50">
-                  {["#", "Item", "Description", "Condition", "Vendor", "Payment", "Unit Cost"].map(h => (
+                  {["#", "Model", "Description", "Condition", "Vendor", "Payment", "Unit Cost"].map(h => (
                     <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold text-xs">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {lineItems.map((row: any, i: number) => {
-                  const item = getItem(row.itemId);
                   const vendor = getVendor(row.vendorId);
                   const desc = isSerial
-                    ? [row.color, row.ram, row.storage, row.imeiOrSerial ? `IMEI/SN: ${row.imeiOrSerial}` : ""].filter(Boolean).join(" / ")
+                    ? [row.color, row.ram, row.storage, row.imeiOrSerial ? `${serialLabel || "IMEI/SN"}: ${row.imeiOrSerial}` : ""].filter(Boolean).join(" / ")
                     : row.description;
                   return (
                     <tr key={row.id} className="border-b border-gray-100">
                       <td className="border border-gray-200 px-3 py-2 text-xs">{i + 1}</td>
-                      <td className="border border-gray-200 px-3 py-2 text-xs font-medium">{item?.itemName ?? item?.name ?? "—"}</td>
+                      <td className="border border-gray-200 px-3 py-2 text-xs font-medium">{modelName || "—"}</td>
                       <td className="border border-gray-200 px-3 py-2 text-xs">
                         {desc || "—"}
                         {row.additionalInfo && <div className="text-gray-400 italic mt-0.5">ℹ️ {row.additionalInfo}</div>}
@@ -346,7 +348,6 @@ function POPreview({
   );
 }
 
-// ── Cancel Modals ─────────────────────────────────────────────────────────────
 function CancelModal1({ onBack, onProceed }: { onBack: () => void; onProceed: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -400,12 +401,10 @@ function CancelModal2({ code, onBack, onConfirm }: { code: string; onBack: () =>
   );
 }
 
-// ── Add Vendor Inline ─────────────────────────────────────────────────────────
 function AddVendorInline({ onSave, onClose }: { onSave: (v: any) => void; onClose: () => void }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
-
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
@@ -413,7 +412,6 @@ function AddVendorInline({ onSave, onClose }: { onSave: (v: any) => void; onClos
     onSave(v);
     setSaving(false);
   };
-
   return (
     <div className="border border-dashed border-purple-300 rounded-xl p-3 bg-purple-50 space-y-2 mt-2">
       <p className="text-xs font-semibold text-purple-700">New Vendor</p>
@@ -429,38 +427,28 @@ function AddVendorInline({ onSave, onClose }: { onSave: (v: any) => void; onClos
   );
 }
 
-// ── Unit Card (Serialized) ─────────────────────────────────────────────────────
 function UnitCard({
-  row, index, total, stockItems, itemOptions, colors, storageOptions, ramOptions, vendorList,
-  onUpdate, onRemove, onCreateColor, onCreateStorage, onCreateRam, onAddVendorSave, duplicateItemId,
+  row, index, total, colors, storageOptions, ramOptions, vendorList,
+  requiresSerial, serialLabel,
+  onUpdate, onRemove,
+  onCreateColor, onCreateStorage, onCreateRam, onAddVendorSave,
 }: {
   row: PurchaseRow; index: number; total: number;
-  stockItems: any[]; itemOptions: any[];
   colors: any[]; storageOptions: any[]; ramOptions: any[]; vendorList: any[];
+  requiresSerial: boolean; serialLabel: string;
   onUpdate: (id: string, field: keyof PurchaseRow, val: string) => void;
   onRemove: (id: string) => void;
   onCreateColor: (name: string) => Promise<void>;
   onCreateStorage: (name: string) => Promise<void>;
   onCreateRam: (name: string) => Promise<void>;
   onAddVendorSave: (rowId: string, vendor: any) => void;
-  duplicateItemId?: boolean;
 }) {
   const [showAddVendor, setShowAddVendor] = useState(false);
 
-  const selectedItem = row.itemId ? stockItems.find((s: any) => String(s.itemId ?? s.id) === row.itemId) : null;
-  const requiresSerial = selectedItem?.trackSerial === true;
-
   return (
-    <div className={`bg-white border rounded-xl shadow-sm overflow-hidden ${duplicateItemId ? "border-amber-300" : "border-border"}`}>
+    <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-border">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm">Unit #{index + 1}</span>
-          {duplicateItemId && (
-            <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-              <AlertTriangle className="h-3 w-3" />Same item in another unit
-            </span>
-          )}
-        </div>
+        <span className="font-semibold text-sm">Unit #{index + 1}</span>
         {total > 1 && (
           <button
             type="button"
@@ -474,21 +462,6 @@ function UnitCard({
       </div>
 
       <div className="p-4 space-y-4">
-        <div>
-          <p className="text-sm font-medium mb-1.5">Item</p>
-          <SearchableSelect
-            options={itemOptions}
-            value={row.itemId}
-            onChange={v => onUpdate(row.id, "itemId", v)}
-            placeholder="Select item…"
-          />
-          {requiresSerial && (
-            <p className="mt-1.5 text-xs text-purple-600 flex items-center gap-1">
-              <Zap className="h-3 w-3" />Requires IMEI/serial tracking
-            </p>
-          )}
-        </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <p className="text-sm font-medium mb-1.5">Color</p>
@@ -537,15 +510,17 @@ function UnitCard({
           </div>
         </div>
 
-        <div>
-          <p className="text-sm font-medium mb-1.5">IMEI / Serial Number</p>
-          <Input
-            className="font-mono"
-            value={row.imeiOrSerial}
-            onChange={e => onUpdate(row.id, "imeiOrSerial", e.target.value)}
-            placeholder="Enter IMEI or serial number…"
-          />
-        </div>
+        {requiresSerial && (
+          <div>
+            <p className="text-sm font-medium mb-1.5">{serialLabel || "IMEI / Serial Number"}</p>
+            <Input
+              className="font-mono"
+              value={row.imeiOrSerial}
+              onChange={e => onUpdate(row.id, "imeiOrSerial", e.target.value)}
+              placeholder={`Enter ${serialLabel || "IMEI / serial"}…`}
+            />
+          </div>
+        )}
 
         <div>
           <p className="text-sm font-medium mb-1.5">Condition</p>
@@ -598,8 +573,7 @@ function UnitCard({
         <div>
           <p className="text-sm font-medium mb-1.5">Unit Cost (RWF)</p>
           <Input
-            type="number"
-            min={0}
+            type="number" min={0}
             value={row.unitCost}
             onChange={e => onUpdate(row.id, "unitCost", e.target.value)}
             placeholder="0"
@@ -621,15 +595,12 @@ function UnitCard({
   );
 }
 
-// ── Simple Card (Non-Serialized) ──────────────────────────────────────────────
 function SimpleCard({
-  form, itemOptions, vendorList, stockItems,
+  form, vendorList,
   onChange, onAddVendorSave,
 }: {
   form: SimpleForm;
-  itemOptions: any[];
   vendorList: any[];
-  stockItems: any[];
   onChange: (field: keyof SimpleForm, val: string) => void;
   onAddVendorSave: (vendor: any) => void;
 }) {
@@ -638,19 +609,9 @@ function SimpleCard({
   return (
     <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
       <div className="px-4 py-3 bg-gray-50 border-b border-border">
-        <span className="font-semibold text-sm">Item Details</span>
+        <span className="font-semibold text-sm">Purchase Details</span>
       </div>
       <div className="p-4 space-y-4">
-        <div>
-          <p className="text-sm font-medium mb-1.5">Item</p>
-          <SearchableSelect
-            options={itemOptions}
-            value={form.itemId}
-            onChange={v => onChange("itemId", v)}
-            placeholder="Select item…"
-          />
-        </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <p className="text-sm font-medium mb-1.5">Quantity</p>
@@ -734,8 +695,9 @@ function SimpleCard({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PurchasesPage() {
+  const { flags } = useFeatureFlags();
+
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showPO, setShowPO] = useState(false);
@@ -746,18 +708,19 @@ export default function PurchasesPage() {
 
   const [cancelStep, setCancelStep] = useState<0 | 1 | 2>(0);
   const [activeCancelCode, setActiveCancelCode] = useState("");
-
   const [showBreakdown, setShowBreakdown] = useState(false);
+
+  const [formCategory, setFormCategory] = useState("");
+  const [formModelName, setFormModelName] = useState("");
+  const [formModelItemId, setFormModelItemId] = useState<string | null>(null);
+  const [showModelSuggestions, setShowModelSuggestions] = useState(false);
 
   const [rows, setRows] = useState<PurchaseRow[]>([emptyRow()]);
   const [simple, setSimple] = useState<SimpleForm>({
-    itemId: "", quantity: "", unitCost: "",
+    quantity: "", unitCost: "",
     vendorId: "", paymentMethod: "cash", condition: "Brand New",
     additionalInfo: "",
   });
-
-  const [isSerial, setIsSerial] = useState(false);
-  const [selectedItemId, setSelectedItemId] = useState("");
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -786,34 +749,39 @@ export default function PurchasesPage() {
   const storageOptions: any[] = storageData ?? [];
   const ramOptions: any[] = ramData ?? [];
 
+  const catConfig = PURCHASE_CATEGORIES.find(c => c.id === formCategory);
+  const isSerial = catConfig?.trackSerial ?? false;
+  const serialLabel = catConfig?.serialLabel ?? "IMEI / Serial";
+
   const filtered = purchases.filter(p =>
     !search || (p.itemName ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const itemOptions = stockItems.map((s: any) => {
-    const qty = parseFloat(s.quantity ?? "0");
-    const outOfStock = qty <= 0;
-    return {
-      id: s.itemId ?? s.id,
-      name: outOfStock
-        ? `${s.itemName} (out of stock)`
-        : `${s.itemName} (in stock: ${qty.toLocaleString()})`,
-      outOfStock,
-    };
-  });
+  const modelSuggestions = useMemo(() => {
+    if (!formCategory) return [];
+    const q = formModelName.toLowerCase();
 
-  const handleItemSelect = (itemId: string) => {
-    const item = stockItems.find((s: any) => String(s.itemId ?? s.id) === itemId);
-    const serial = item?.trackSerial === true;
-    setSelectedItemId(itemId);
-    setIsSerial(serial);
-    setVerified(false);
-  };
+    const existing = stockItems
+      .filter((s: any) => s.category === formCategory)
+      .map((s: any) => ({
+        name: s.itemName ?? s.name ?? "",
+        itemId: String(s.itemId ?? s.id),
+        isExisting: true,
+        stockQty: s.quantity ?? "0",
+      }))
+      .filter(s => !q || s.name.toLowerCase().includes(q));
+
+    const catalogItems = getCatalogForCategory(formCategory)
+      .filter(name => !q || name.toLowerCase().includes(q))
+      .filter(name => !existing.some(e => e.name.toLowerCase() === name.toLowerCase()))
+      .map(name => ({ name, itemId: null as string | null, isExisting: false, stockQty: null as string | null }));
+
+    return [...existing, ...catalogItems];
+  }, [formCategory, formModelName, stockItems]);
 
   const updateRow = (id: string, field: keyof PurchaseRow, val: string) => {
     setVerified(false);
     setRows(rs => rs.map(r => r.id === id ? { ...r, [field]: val } : r));
-    if (field === "itemId") handleItemSelect(val);
   };
 
   const addRow = () => {
@@ -828,12 +796,6 @@ export default function PurchasesPage() {
 
   const updateSimple = (field: keyof SimpleForm, val: string) => {
     setVerified(false);
-    if (field === "itemId") {
-      const item = stockItems.find((s: any) => String(s.itemId ?? s.id) === val);
-      const serial = item?.trackSerial === true;
-      setSelectedItemId(val);
-      setIsSerial(serial);
-    }
     setSimple(f => ({ ...f, [field]: val }));
   };
 
@@ -852,6 +814,18 @@ export default function PurchasesPage() {
     byPayment[simple.paymentMethod || "cash"] = totalCost;
   }
 
+  const resolveItemId = async (): Promise<number | null> => {
+    if (formModelItemId) return Number(formModelItemId);
+    if (!formModelName.trim()) return null;
+    const item = await api.post<any>("/items/find-or-create", {
+      name: formModelName.trim(),
+      category: formCategory || "Others",
+      trackSerial: catConfig?.trackSerial ?? false,
+    });
+    setFormModelItemId(String(item.id));
+    return item.id;
+  };
+
   const handleVerify = () => {
     const po = generatePO();
     setPoNumber(po);
@@ -860,14 +834,21 @@ export default function PurchasesPage() {
   };
 
   const handleSaveDraft = async () => {
-    const notes = JSON.stringify({ mode: isSerial ? "serial" : "simple", rows, simple });
-    const itemId = isSerial
-      ? (rows[0]?.itemId ? Number(rows[0].itemId) : null)
-      : (simple.itemId ? Number(simple.itemId) : null);
-    if (!itemId) { toast({ title: "Select an item first", variant: "destructive" }); return; }
-
+    if (!formModelName.trim()) {
+      toast({ title: "Please select a category and model first", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
+      const itemId = await resolveItemId();
+      if (!itemId) { toast({ title: "Could not resolve item", variant: "destructive" }); return; }
+
+      const notes = JSON.stringify({
+        mode: "v2",
+        formCategory, formModelName, formModelItemId: String(itemId),
+        isSerial, rows, simple,
+      });
+
       const payload = {
         itemId,
         quantity: String(totalQty || 1),
@@ -898,9 +879,9 @@ export default function PurchasesPage() {
   const handleConfirm = async () => {
     setSaving(true);
     try {
-      const itemId = isSerial
-        ? Number(rows[0]?.itemId || selectedItemId)
-        : Number(simple.itemId || selectedItemId);
+      const itemId = await resolveItemId();
+      if (!itemId) { toast({ title: "Could not resolve item", variant: "destructive" }); return; }
+
       const payload: any = {
         itemId,
         quantity: String(totalQty),
@@ -913,14 +894,10 @@ export default function PurchasesPage() {
         poNumber,
         units: isSerial ? rows.map(r => ({
           imeiOrSerial: r.imeiOrSerial,
-          color: r.color,
-          storage: r.storage,
-          ram: r.ram,
-          additionalInfo: r.additionalInfo,
-          condition: r.condition,
+          color: r.color, storage: r.storage, ram: r.ram,
+          additionalInfo: r.additionalInfo, condition: r.condition,
           vendorId: r.vendorId ? Number(r.vendorId) : null,
-          costPrice: r.unitCost,
-          paymentMethod: r.paymentMethod,
+          costPrice: r.unitCost, paymentMethod: r.paymentMethod,
         })) : undefined,
       };
 
@@ -942,9 +919,11 @@ export default function PurchasesPage() {
 
   const resetForm = () => {
     setRows([emptyRow()]);
-    setSimple({ itemId: "", quantity: "", unitCost: "", vendorId: "", paymentMethod: "cash", condition: "Brand New", additionalInfo: "" });
-    setIsSerial(false);
-    setSelectedItemId("");
+    setSimple({ quantity: "", unitCost: "", vendorId: "", paymentMethod: "cash", condition: "Brand New", additionalInfo: "" });
+    setFormCategory("");
+    setFormModelName("");
+    setFormModelItemId(null);
+    setShowModelSuggestions(false);
     setVerified(false);
     setPoNumber("");
     setDraftId(null);
@@ -971,14 +950,32 @@ export default function PurchasesPage() {
       const detail = await api.get<any>(`/purchases/${purchase.id}`);
       if (detail.notes) {
         const saved = JSON.parse(detail.notes);
-        if (saved.mode === "serial" && saved.rows) {
-          setRows(saved.rows);
-          setIsSerial(true);
-          setSelectedItemId(saved.rows[0]?.itemId || "");
+        if (saved.mode === "v2") {
+          setFormCategory(saved.formCategory || "");
+          setFormModelName(saved.formModelName || "");
+          setFormModelItemId(saved.formModelItemId || null);
+          if (saved.rows) setRows(saved.rows);
+          if (saved.simple) setSimple(saved.simple);
+        } else if (saved.mode === "serial" && saved.rows) {
+          setRows(saved.rows.map((r: any) => {
+            const { itemId: _, ...rest } = r;
+            return rest.id ? rest : emptyRow();
+          }));
+          const oldItemId = saved.rows[0]?.itemId;
+          if (oldItemId) {
+            setFormModelItemId(oldItemId);
+            const item = stockItems.find((s: any) => String(s.itemId ?? s.id) === oldItemId);
+            if (item) { setFormCategory(item.category || ""); setFormModelName(item.itemName || item.name || ""); }
+          }
         } else if (saved.mode === "simple" && saved.simple) {
-          setSimple(saved.simple);
-          setIsSerial(false);
-          setSelectedItemId(saved.simple.itemId || "");
+          const { itemId: _id, ...simpleRest } = saved.simple;
+          setSimple({ ...simple, ...simpleRest });
+          const oldItemId = saved.simple.itemId;
+          if (oldItemId) {
+            setFormModelItemId(oldItemId);
+            const item = stockItems.find((s: any) => String(s.itemId ?? s.id) === oldItemId);
+            if (item) { setFormCategory(item.category || ""); setFormModelName(item.itemName || item.name || ""); }
+          }
         }
       }
       setPoNumber(detail.poNumber || "");
@@ -988,20 +985,9 @@ export default function PurchasesPage() {
     }
   };
 
-  const createColor = async (name: string) => {
-    await api.post("/colors", { name });
-    refetchColors();
-  };
-
-  const createStorage = async (name: string) => {
-    await api.post("/storage-options", { name });
-    refetchStorage();
-  };
-
-  const createRam = async (name: string) => {
-    await api.post("/ram-options", { name });
-    refetchRam();
-  };
+  const createColor = async (name: string) => { await api.post("/colors", { name }); refetchColors(); };
+  const createStorage = async (name: string) => { await api.post("/storage-options", { name }); refetchStorage(); };
+  const createRam = async (name: string) => { await api.post("/ram-options", { name }); refetchRam(); };
 
   const handleVendorSaveForRow = async (rowId: string, vendor: any) => {
     await refetchVendors();
@@ -1015,9 +1001,9 @@ export default function PurchasesPage() {
     setVerified(false);
   };
 
-  const canVerify = isSerial
-    ? rows.some(r => r.itemId && r.unitCost)
-    : !!(simple.itemId && simple.quantity && simple.unitCost);
+  const canVerify = !!(formModelName.trim()) && (isSerial
+    ? rows.some(r => r.unitCost)
+    : !!(simple.quantity && simple.unitCost));
 
   return (
     <div className="space-y-5">
@@ -1031,15 +1017,16 @@ export default function PurchasesPage() {
       {showPO && (
         <POPreview
           rows={rows} simpleForm={simple}
-          items={stockItems} vendors={vendorList}
-          isSerial={isSerial} poNumber={poNumber}
+          modelName={formModelName}
+          vendors={vendorList}
+          isSerial={isSerial} serialLabel={serialLabel}
+          poNumber={poNumber}
           onConfirm={handleConfirm}
           onBack={() => setShowPO(false)}
           saving={saving}
         />
       )}
 
-      {/* List view */}
       {!showForm && (
         <>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1122,10 +1109,8 @@ export default function PurchasesPage() {
         </>
       )}
 
-      {/* Purchase Form */}
       {showForm && (
         <div className="space-y-5 max-w-3xl">
-          {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <button
@@ -1141,102 +1126,206 @@ export default function PurchasesPage() {
                 )}
               </div>
             </div>
-            {isSerial && (
+            {isSerial && formModelName && (
               <Badge className="bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1.5 px-3 py-1.5 mt-1 shrink-0">
-                <Barcode className="h-3.5 w-3.5" />Serialized Item
+                <Barcode className="h-3.5 w-3.5" />Serialized — {serialLabel}
               </Badge>
             )}
           </div>
 
-          {/* Item Cards */}
-          <div className="space-y-4">
-            {isSerial ? (
-              <>
-                {(() => {
-                  const itemCounts: Record<string, number> = {};
-                  rows.forEach(r => { if (r.itemId) itemCounts[r.itemId] = (itemCounts[r.itemId] ?? 0) + 1; });
-                  return rows.map((row, idx) => (
-                  <UnitCard
-                    key={row.id}
-                    row={row}
-                    index={idx}
-                    total={rows.length}
-                    stockItems={stockItems}
-                    itemOptions={itemOptions}
-                    colors={colors}
-                    storageOptions={storageOptions}
-                    ramOptions={ramOptions}
-                    vendorList={vendorList}
-                    onUpdate={updateRow}
-                    onRemove={removeRow}
-                    onCreateColor={createColor}
-                    onCreateStorage={createStorage}
-                    onCreateRam={createRam}
-                    onAddVendorSave={handleVendorSaveForRow}
-                    duplicateItemId={!!row.itemId && (itemCounts[row.itemId] ?? 0) > 1}
+          {/* Category + Model Picker */}
+          <div className="bg-white border border-border rounded-xl shadow-sm p-5 space-y-5">
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-3">
+                1. Select Category <span className="text-red-500">*</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {PURCHASE_CATEGORIES.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setFormCategory(cat.id);
+                      setFormModelName("");
+                      setFormModelItemId(null);
+                      setVerified(false);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+                      formCategory === cat.id
+                        ? "bg-[#1A6DB5] text-white border-[#1A6DB5]"
+                        : "bg-gray-50 text-gray-700 border-gray-200 hover:border-[#1A6DB5] hover:text-[#1A6DB5]"
+                    }`}
+                  >
+                    {cat.emoji} {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {formCategory && (
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-1.5">
+                  2. Select Model <span className="text-red-500">*</span>
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formModelName}
+                    onChange={e => { setFormModelName(e.target.value); setFormModelItemId(null); setShowModelSuggestions(true); setVerified(false); }}
+                    onFocus={() => setShowModelSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowModelSuggestions(false), 150)}
+                    placeholder={`Search ${PURCHASE_CATEGORIES.find(c => c.id === formCategory)?.label} models…`}
+                    className="w-full h-10 px-3 pr-10 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#1A6DB5] focus:ring-2 focus:ring-[#1A6DB5]/20 bg-white"
                   />
-                  ));
-                })()}
-                <button
-                  type="button"
-                  onClick={addRow}
-                  className="w-full py-3 border-2 border-dashed border-border rounded-xl text-muted-foreground hover:border-[#1A6DB5] hover:text-[#1A6DB5] transition-colors flex items-center justify-center gap-2 text-sm font-medium"
-                >
-                  <Plus className="h-4 w-4" />Add Item
-                </button>
-              </>
-            ) : (
-              <SimpleCard
-                form={simple}
-                itemOptions={itemOptions}
-                vendorList={vendorList}
-                stockItems={stockItems}
-                onChange={updateSimple}
-                onAddVendorSave={handleVendorSaveSimple}
-              />
+                  {formModelName && formModelItemId && (
+                    <CheckCircle2 className="absolute right-3 top-2.5 h-5 w-5 text-green-500" />
+                  )}
+                  {formModelName && !formModelItemId && (
+                    <Tag className="absolute right-3 top-2.5 h-5 w-5 text-blue-400" />
+                  )}
+                  {showModelSuggestions && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                      {modelSuggestions.length === 0 && formModelName && (
+                        <div className="px-4 py-3 text-sm text-gray-500">
+                          <span className="font-medium text-blue-600">"{formModelName}"</span> will be added as a new item on confirm
+                        </div>
+                      )}
+                      {modelSuggestions.length === 0 && !formModelName && (
+                        <div className="px-4 py-3 text-sm text-gray-400">Type to search…</div>
+                      )}
+                      {modelSuggestions.slice(0, 60).map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => {
+                            setFormModelName(s.name);
+                            setFormModelItemId(s.itemId);
+                            setShowModelSuggestions(false);
+                            setVerified(false);
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0 transition-colors"
+                        >
+                          <span className="font-medium text-gray-800 truncate mr-3">{s.name}</span>
+                          {s.isExisting ? (
+                            <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                              in stock: {parseFloat(s.stockQty || "0").toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">catalog</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {formModelName && !formModelItemId && (
+                  <p className="text-xs text-blue-600 mt-1.5 flex items-center gap-1">
+                    <Tag className="h-3 w-3" />
+                    New model — will be added to inventory automatically on confirm
+                  </p>
+                )}
+                {formModelName && formModelItemId && (
+                  <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Existing inventory item selected
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Summary */}
-          <div className="bg-white border border-border rounded-xl shadow-sm p-5 space-y-3">
-            <h2 className="font-semibold">Summary</h2>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Total Units</span>
-              <span className="font-bold">{totalQty}</span>
-            </div>
-            <div>
-              <button
-                type="button"
-                className="flex items-center justify-between w-full text-sm"
-                onClick={() => setShowBreakdown(b => !b)}
-              >
-                <span className="text-muted-foreground">Total Cost</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-[#1A6DB5]">{fmtRWF(String(totalCost))}</span>
-                  {showBreakdown
-                    ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                    : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                </div>
-              </button>
-              {showBreakdown && (
-                <div className="mt-2 pl-4 space-y-1 border-l-2 border-border">
-                  {PAYMENT_METHODS.map(m => {
-                    const amt = byPayment[m.value] ?? 0;
-                    return (
-                      <div key={m.value} className="flex justify-between text-xs text-muted-foreground">
-                        <span>{m.label}</span>
-                        <span>{fmtRWF(String(amt))}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* Unit Cards (only show after category + model selected) */}
+          {formModelName && (
+            <div className="space-y-4">
+              {isSerial ? (
+                <>
+                  {rows.map((row, idx) => (
+                    <UnitCard
+                      key={row.id}
+                      row={row}
+                      index={idx}
+                      total={rows.length}
+                      colors={colors}
+                      storageOptions={storageOptions}
+                      ramOptions={ramOptions}
+                      vendorList={vendorList}
+                      requiresSerial={isSerial}
+                      serialLabel={serialLabel}
+                      onUpdate={updateRow}
+                      onRemove={removeRow}
+                      onCreateColor={createColor}
+                      onCreateStorage={createStorage}
+                      onCreateRam={createRam}
+                      onAddVendorSave={handleVendorSaveForRow}
+                    />
+                  ))}
+                  {flags.showAddUnitButton && (
+                    <button
+                      type="button"
+                      onClick={addRow}
+                      className="w-full py-3 border-2 border-dashed border-border rounded-xl text-muted-foreground hover:border-[#1A6DB5] hover:text-[#1A6DB5] transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                    >
+                      <Plus className="h-4 w-4" />Add Another Unit
+                    </button>
+                  )}
+                </>
+              ) : (
+                <SimpleCard
+                  form={simple}
+                  vendorList={vendorList}
+                  onChange={updateSimple}
+                  onAddVendorSave={handleVendorSaveSimple}
+                />
               )}
             </div>
-          </div>
+          )}
+
+          {/* Summary */}
+          {formModelName && (
+            <div className="bg-white border border-border rounded-xl shadow-sm p-5 space-y-3">
+              <h2 className="font-semibold">Summary</h2>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Model</span>
+                <span className="font-medium">{formModelName}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Total Units</span>
+                <span className="font-bold">{totalQty}</span>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  className="flex items-center justify-between w-full text-sm"
+                  onClick={() => setShowBreakdown(b => !b)}
+                >
+                  <span className="text-muted-foreground">Total Cost</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-[#1A6DB5]">{fmtRWF(String(totalCost))}</span>
+                    {showBreakdown
+                      ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                </button>
+                {showBreakdown && (
+                  <div className="mt-2 pl-4 space-y-1 border-l-2 border-border">
+                    {PAYMENT_METHODS.map(m => {
+                      const amt = byPayment[m.value] ?? 0;
+                      return (
+                        <div key={m.value} className="flex justify-between text-xs text-muted-foreground">
+                          <span>{m.label}</span>
+                          <span>{fmtRWF(String(amt))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="pb-8">
-            {/* Desktop layout */}
             <div className="hidden sm:flex items-center gap-3">
               <Button
                 variant="outline"
@@ -1246,7 +1335,7 @@ export default function PurchasesPage() {
                 <X className="h-4 w-4 mr-1.5" />Cancel Purchase
               </Button>
               <div className="flex-1" />
-              <Button variant="outline" onClick={handleSaveDraft} disabled={saving}>
+              <Button variant="outline" onClick={handleSaveDraft} disabled={saving || !formModelName}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
                 Save
               </Button>
@@ -1273,7 +1362,6 @@ export default function PurchasesPage() {
               </div>
             </div>
 
-            {/* Mobile layout — Confirm on top */}
             <div className="flex flex-col gap-3 sm:hidden">
               <div className="relative group">
                 <Button
@@ -1294,7 +1382,7 @@ export default function PurchasesPage() {
               >
                 <FileCheck className="h-4 w-4 mr-1.5" />Verify
               </Button>
-              <Button className="w-full" variant="outline" onClick={handleSaveDraft} disabled={saving}>
+              <Button className="w-full" variant="outline" onClick={handleSaveDraft} disabled={saving || !formModelName}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
                 Save
               </Button>

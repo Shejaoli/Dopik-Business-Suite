@@ -128,6 +128,34 @@ async function searchItemsByName(name: string) {
     .limit(8);
 }
 
+router.post("/items/find-or-create", async (req, res): Promise<void> => {
+  const { name, category, trackSerial } = req.body;
+  if (!name || !category) {
+    res.status(400).json({ error: "name and category required" });
+    return;
+  }
+  const [existing] = await db
+    .select({ id: itemsTable.id, name: itemsTable.name, category: itemsTable.category, trackSerial: itemsTable.trackSerial, purchasePrice: itemsTable.purchasePrice, salePrice: itemsTable.salePrice, stockQuantity: stockTable.quantity })
+    .from(itemsTable)
+    .leftJoin(stockTable, eq(itemsTable.id, stockTable.itemId))
+    .where(and(ilike(itemsTable.name, name.trim()), eq(itemsTable.category, category)))
+    .limit(1);
+
+  if (existing) {
+    res.json({ ...existing, isNew: false });
+    return;
+  }
+
+  const [item] = await db.insert(itemsTable).values({
+    name: name.trim(), category,
+    trackSerial: trackSerial === true || trackSerial === "true",
+    purchasePrice: "0", salePrice: "0",
+  }).returning();
+
+  await db.insert(stockTable).values({ itemId: item.id, quantity: "0", minStock: "0" });
+  res.status(201).json({ ...item, stockQuantity: "0", isNew: true });
+});
+
 router.get("/items/search", async (req, res): Promise<void> => {
   const raw = req.query.name as string | undefined;
   res.json(await searchItemsByName(raw ?? ""));

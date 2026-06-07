@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive, Activity, Search, ShieldAlert, Trash2 } from "lucide-react";
+import { Loader2, User, Lock, Download, Upload, Database, CheckCircle2, AlertTriangle, Wallet, PencilLine, CloudUpload, Clock, HardDrive, Activity, Search, ShieldAlert, Trash2, Zap } from "lucide-react";
 import { useGetBalances } from "@workspace/api-client-react";
+import { useFeatureFlags } from "@/lib/use-feature-flags";
 
 type ActivityLog = {
   id: number; userId?: number; userName?: string; userRole?: string;
@@ -26,6 +27,7 @@ const BALANCE_METHODS = [
 export default function SettingsPage() {
   const { user, setUser } = useAuth();
   const { toast } = useToast();
+  const { flags, setFlag } = useFeatureFlags();
   const [profileForm, setProfileForm] = useState({ name: user?.name ?? "", email: user?.email ?? "" });
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -219,6 +221,7 @@ export default function SettingsPage() {
           {isAdmin && <TabsTrigger value="backup-cloud">Cloud Backup</TabsTrigger>}
           {isAdmin && <TabsTrigger value="activity-log">Activity Log</TabsTrigger>}
           <TabsTrigger value="system">System</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
           {isOwner && (
             <TabsTrigger value="danger-zone" className="text-red-600 data-[state=active]:bg-red-50 data-[state=active]:text-red-700">
               Danger Zone
@@ -836,6 +839,73 @@ export default function SettingsPage() {
             </div>
           </TabsContent>
         )}
+
+        {/* ── Features ─────────────────────────────── */}
+        <TabsContent value="features" className="mt-4">
+          <div className="glass-panel p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                <Zap className="h-4 w-4 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold font-sora">Feature Flags</h2>
+                <p className="text-xs text-muted-foreground">Enable or disable experimental and optional features</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {/* showItemsPage */}
+              <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-border bg-gray-50/50">
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Items Page</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Show the Items page in the sidebar. Useful for viewing raw catalog entries. Disabled by default — manage inventory via Stock instead.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFlag("showItemsPage", !flags.showItemsPage)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    flags.showItemsPage ? "bg-[#1A6DB5]" : "bg-gray-200"
+                  }`}
+                  role="switch"
+                  aria-checked={flags.showItemsPage}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+                      flags.showItemsPage ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* showAddUnitButton */}
+              <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-border bg-gray-50/50">
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Add Unit Button (Purchase Form)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Show the "Add Another Unit" button when recording serialized purchases. Disable to prevent adding multiple units per purchase entry.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFlag("showAddUnitButton", !flags.showAddUnitButton)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    flags.showAddUnitButton ? "bg-[#1A6DB5]" : "bg-gray-200"
+                  }`}
+                  role="switch"
+                  aria-checked={flags.showAddUnitButton}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+                      flags.showAddUnitButton ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-4">Changes take effect immediately and are saved per-device.</p>
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );

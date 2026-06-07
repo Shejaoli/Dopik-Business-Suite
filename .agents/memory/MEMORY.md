@@ -6,3 +6,5 @@
 - [DB migration strategy](db-migration-strategy.md) — drizzle-kit push hangs in non-TTY when new tables cause schema conflict prompts; use lib/db/src/migrate.ts (raw SQL CREATE TABLE IF NOT EXISTS) instead; dev script now skips push entirely
 - [Admin router routing bug](admin-router-routing.md) — router.use(middleware) without path prefix in a sub-router intercepts ALL requests; always apply auth middleware inline per route in admin.ts
 - [Category separation](category-separation.md) — SuperCat filter: all/Phones/Computers/Accessories; CategoryTabs component + useCategoryTab hook; backend getCategoriesForSuper(); api.get() supports 2nd params arg
+- [Purchase form v2 architecture](purchase-form-v2.md) — category→model picker replaces per-unit item selector; PurchaseRow no longer has itemId; model resolved via POST /items/find-or-create on confirm; draft notes format "v2" with formCategory/formModelName/formModelItemId
+- [Feature flags](feature-flags.md) — localStorage-based flags in use-feature-flags.ts; showItemsPage (default false) hides /items from sidebar; showAddUnitButton (default true) gates Add Another Unit button; managed via Settings → Features tab

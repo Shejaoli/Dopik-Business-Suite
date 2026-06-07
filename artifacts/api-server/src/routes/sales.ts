@@ -233,6 +233,72 @@ router.post("/sales", async (req, res): Promise<void> => {
   res.status(201).json(result);
 });
 
+// Edit sale metadata (date, customer, notes — no financial reversal)
+router.patch("/sales/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const [existing] = await db.select().from(salesTable).where(eq(salesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Sale not found" }); return; }
+
+  const { customerName, customerPhone, customerId, paymentMethod, saleDate } = req.body;
+  const updates: any = {};
+  if (customerName !== undefined) updates.customerName = customerName || null;
+  if (customerPhone !== undefined) updates.customerPhone = customerPhone || null;
+  if (customerId !== undefined) updates.customerId = customerId || null;
+  if (paymentMethod) updates.paymentMethod = paymentMethod;
+  if (saleDate) updates.createdAt = new Date(saleDate);
+
+  const [updated] = await db.update(salesTable).set(updates).where(eq(salesTable.id, id)).returning();
+  const result = await buildSaleResponse(updated);
+  res.json(result);
+});
+
+// Delete a sale (reverse stock, balance, then hard delete)
+router.delete("/sales/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const [sale] = await db.select().from(salesTable).where(eq(salesTable.id, id));
+  if (!sale) { res.status(404).json({ error: "Sale not found" }); return; }
+
+  const items = await db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, id));
+
+  for (const si of items) {
+    if (si.serializedUnitId) {
+      await db.update(serializedUnitsTable)
+        .set({ status: "in_stock", saleId: null, soldAt: null, soldPrice: null, soldToCustomerId: null })
+        .where(eq(serializedUnitsTable.id, si.serializedUnitId));
+      const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, si.itemId));
+      if (stockRow) {
+        const newQty = parseFloat(stockRow.quantity) + 1;
+        await db.update(stockTable).set({ quantity: String(newQty), updatedAt: new Date() }).where(eq(stockTable.id, stockRow.id));
+      }
+    } else {
+      const [stockRow] = await db.select().from(stockTable).where(eq(stockTable.itemId, si.itemId));
+      if (stockRow) {
+        const newQty = parseFloat(stockRow.quantity) + parseFloat(si.quantity);
+        await db.update(stockTable).set({ quantity: String(newQty), updatedAt: new Date() }).where(eq(stockTable.id, stockRow.id));
+      }
+    }
+  }
+
+  if (!sale.reverted) {
+    const method = sale.paymentMethod?.toLowerCase() ?? "cash";
+    if (method !== "credit") {
+      if (method === "split") {
+        const amt1 = parseFloat(String(sale.splitPaymentAmount1 ?? 0));
+        const amt2 = parseFloat(String(sale.splitPaymentAmount2 ?? 0));
+        const m2 = (sale.splitPaymentMethod2 || "cash").toLowerCase();
+        if (amt1 > 0) await updateBalance("cash", -amt1);
+        if (amt2 > 0) await updateBalance(m2, -amt2);
+      } else {
+        await updateBalance(method, -parseFloat(sale.totalAmount));
+      }
+    }
+  }
+
+  await db.delete(saleItemsTable).where(eq(saleItemsTable.saleId, id));
+  await db.delete(salesTable).where(eq(salesTable.id, id));
+  res.json({ ok: true });
+});
+
 router.post("/sales/:id/revert", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);

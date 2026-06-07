@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Scale, Plus, Search, ShieldAlert, Loader2, Undo2, Receipt } from "lucide-react";
+import { Scale, Plus, Search, ShieldAlert, Loader2, Undo2, Receipt, Pencil, Trash2 } from "lucide-react";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { useCategoryTab, matchesSuperCat, SUPER_CATS, type SuperCat } from "@/lib/categories";
@@ -112,10 +112,153 @@ function RevertDialog({ sale, open, onClose, onReverted }: {
   );
 }
 
+const PAYMENT_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "mobile_money", label: "Mobile Money" },
+  { value: "bank", label: "Bank Transfer" },
+  { value: "credit", label: "Credit" },
+  { value: "split", label: "Split" },
+];
+
+function EditSaleDialog({ sale, open, onClose, onSaved }: {
+  sale: Sale; open: boolean; onClose: () => void; onSaved: () => void;
+}) {
+  const [customerName, setCustomerName] = useState(sale.customerName ?? "");
+  const [paymentMethod, setPaymentMethod] = useState(sale.paymentMethod ?? "cash");
+  const [date, setDate] = useState(
+    sale.createdAt ? new Date(sale.createdAt).toISOString().slice(0, 10) : ""
+  );
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.patch<any>(`/sales/${sale.id}`, {
+        customerName: customerName || null,
+        paymentMethod,
+        date: date || undefined,
+      });
+      toast({ title: "Sale updated" });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4" /> Edit Sale #{sale.id}
+          </DialogTitle>
+          <DialogDescription>Update sale metadata. Stock quantities and amounts are not changed.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="space-y-1.5">
+            <Label>Customer Name</Label>
+            <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in (leave blank)" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Payment Method</Label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value)}
+            >
+              {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Date</Label>
+            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90">
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteSaleDialog({ sale, open, onClose, onDeleted }: {
+  sale: Sale; open: boolean; onClose: () => void; onDeleted: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  const phrase = `delete sale #${sale.id}`;
+  const matches = typed === phrase;
+
+  const handleDelete = async () => {
+    if (!matches) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/sales/${sale.id}`);
+      toast({ title: "Sale deleted", description: "Stock and balance have been reversed." });
+      onDeleted();
+      onClose();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setDeleting(false); setTyped(""); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setTyped(""); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-red-600">
+            <Trash2 className="h-5 w-5" /> Delete Sale #{sale.id}
+          </DialogTitle>
+          <DialogDescription>
+            This permanently removes the sale and reverses all stock and balance changes.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm space-y-1">
+            <p className="text-red-700 font-medium">Sale #{sale.id} — {sale.customerName ?? "Walk-in"}</p>
+            <p className="text-red-600">
+              {fmtRWF(sale.totalAmount)} · {(sale.items ?? []).map(i => i.itemName).join(", ") || "—"}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm">
+              Type <span className="font-mono font-bold bg-gray-100 px-1.5 py-0.5 rounded text-gray-800">{phrase}</span> to confirm:
+            </Label>
+            <Input
+              value={typed}
+              onChange={e => setTyped(e.target.value)}
+              placeholder={phrase}
+              className={`font-mono text-sm ${typed && !matches ? "border-red-300" : typed && matches ? "border-green-400" : ""}`}
+              autoFocus
+              onKeyDown={e => e.key === "Enter" && matches && handleDelete()}
+            />
+            {typed && !matches && <p className="text-xs text-red-500">Phrase does not match</p>}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { onClose(); setTyped(""); }}>Cancel</Button>
+          <Button onClick={handleDelete} disabled={!matches || deleting} className="bg-red-600 hover:bg-red-700 text-white">
+            {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Delete Sale
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SalesHistoryPage() {
   const [search, setSearch] = useState("");
   const [superCat, setSuperCat] = useCategoryTab("sales");
   const [revertSale, setRevertSale] = useState<Sale | null>(null);
+  const [editSale, setEditSale] = useState<Sale | null>(null);
+  const [deleteSale, setDeleteSale] = useState<Sale | null>(null);
   const [receiptSaleId, setReceiptSaleId] = useState<number | null>(null);
   const { data: sales, isLoading } = useListSales({});
   const qc = useQueryClient();
@@ -141,6 +284,8 @@ export default function SalesHistoryPage() {
   }
 
   const totalRevenue = filtered.reduce((s, sale) => s + parseFloat(sale.totalAmount ?? "0"), 0);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: getListSalesQueryKey() });
 
   return (
     <div className="space-y-5">
@@ -236,11 +381,21 @@ export default function SalesHistoryPage() {
                           </Button>
                         )}
                         {!s.reverted && (
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-[#1A6DB5] hover:bg-blue-50"
+                            onClick={() => setEditSale(s)} title="Edit sale">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {!s.reverted && (
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-orange-500 hover:text-orange-600 hover:bg-orange-50"
                             onClick={() => setRevertSale(s)} title="Revert sale">
                             <Undo2 className="h-4 w-4" />
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => setDeleteSale(s)} title="Delete sale">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -253,7 +408,17 @@ export default function SalesHistoryPage() {
 
       {revertSale && (
         <RevertDialog sale={revertSale} open={!!revertSale} onClose={() => setRevertSale(null)}
-          onReverted={() => qc.invalidateQueries({ queryKey: getListSalesQueryKey() })} />
+          onReverted={refresh} />
+      )}
+
+      {editSale && (
+        <EditSaleDialog sale={editSale} open={!!editSale} onClose={() => setEditSale(null)}
+          onSaved={refresh} />
+      )}
+
+      {deleteSale && (
+        <DeleteSaleDialog sale={deleteSale} open={!!deleteSale} onClose={() => setDeleteSale(null)}
+          onDeleted={refresh} />
       )}
 
       {receiptSaleId !== null && (
