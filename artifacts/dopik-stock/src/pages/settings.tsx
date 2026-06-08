@@ -866,69 +866,82 @@ export default function SettingsPage() {
         )}
 
         {/* ── Features ─────────────────────────────── */}
-        <TabsContent value="features" className="mt-4">
+        <TabsContent value="features" className="mt-4 space-y-4">
+          {/* Core features */}
           <div className="glass-panel p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
                 <Zap className="h-4 w-4 text-purple-600" />
               </div>
               <div>
-                <h2 className="font-semibold font-sora">Feature Flags</h2>
-                <p className="text-xs text-muted-foreground">Enable or disable experimental and optional features</p>
+                <h2 className="font-semibold font-sora">Feature Management</h2>
+                <p className="text-xs text-muted-foreground">Enable or disable modules — changes apply immediately for all users</p>
               </div>
             </div>
-            <div className="space-y-4">
-              {/* showItemsPage */}
-              <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-border bg-gray-50/50">
-                <div className="flex-1">
-                  <p className="font-medium text-sm">Items Page</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Show the Items page in the sidebar. Useful for viewing raw catalog entries. Disabled by default — manage inventory via Stock instead.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFlag("showItemsPage", !flags.showItemsPage)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                    flags.showItemsPage ? "bg-[#1A6DB5]" : "bg-gray-200"
-                  }`}
-                  role="switch"
-                  aria-checked={flags.showItemsPage}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
-                      flags.showItemsPage ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
 
-              {/* showAddUnitButton */}
-              <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-border bg-gray-50/50">
-                <div className="flex-1">
-                  <p className="font-medium text-sm">Add Unit Button (Purchase Form)</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Show the "Add Another Unit" button when recording serialized purchases. Disable to prevent adding multiple units per purchase entry.
-                  </p>
+            {/* Core — always on */}
+            <p className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-3">Core Features (always enabled)</p>
+            <div className="space-y-2 mb-6">
+              {[
+                { label: "Sales Management", desc: "Record and manage all product sales" },
+                { label: "Purchase Management", desc: "Record stock purchases from vendors" },
+                { label: "Stock Management", desc: "Track inventory levels and stock movements" },
+              ].map(f => (
+                <div key={f.label} className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl border border-border bg-gray-50/30">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{f.label}</p>
+                    <p className="text-xs text-muted-foreground">{f.desc}</p>
+                  </div>
+                  <span className="text-xs text-green-600 font-semibold bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">Always On</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setFlag("showAddUnitButton", !flags.showAddUnitButton)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                    flags.showAddUnitButton ? "bg-[#1A6DB5]" : "bg-gray-200"
-                  }`}
-                  role="switch"
-                  aria-checked={flags.showAddUnitButton}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
-                      flags.showAddUnitButton ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
+              ))}
             </div>
-            <p className="text-xs text-muted-foreground mt-4">Changes take effect immediately and are saved per-device.</p>
+
+            {/* Optional modules */}
+            <p className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-3">Optional Modules</p>
+            <div className="space-y-2">
+              {([
+                { key: "repairTracking", label: "Repair / Service Tracking", desc: "Track device repairs and service jobs" },
+                { key: "creditInstallments", label: "Credit & Installments", desc: "Manage credit sales and payment plans" },
+                { key: "customerCRM", label: "Customer CRM & Contacts", desc: "Customer database, vendors, payables and receivables" },
+                { key: "expenseTracking", label: "Expense Tracking", desc: "Record business expenses and view balances" },
+                { key: "staffPermissions", label: "Staff & Permissions", desc: "Manage staff accounts and access roles" },
+                { key: "chartsAnalytics", label: "Charts & Analytics", desc: "Revenue charts, dashboards and business insights" },
+                { key: "reports", label: "Reports", desc: "Sales, purchase, expense and summary reports" },
+                { key: "consignment", label: "Consignment Sales", desc: "External vendor consignment tracking" },
+                { key: "loans", label: "Loans", desc: "Track business loans and repayments" },
+                { key: "stockCount", label: "Stock Count Mode", desc: "Perform periodic physical stock counts" },
+                { key: "restockIntelligence", label: "Restock Intelligence", desc: "AI-powered restock recommendations" },
+                { key: "announcements", label: "Announcements", desc: "Post announcements and notices for staff" },
+                { key: "receiptScanner", label: "Camera Receipt Scanner", desc: "Scan receipts using camera or AI" },
+                { key: "usageAnalytics", label: "Usage Analytics", desc: "Track which features staff use most" },
+                { key: "showItemsPage", label: "Items Catalog Page", desc: "Show raw item catalog in sidebar (Stock page recommended instead)" },
+                { key: "showAddUnitButton", label: "Add Multiple Units (Purchase)", desc: "Allow adding multiple serialized units per purchase entry" },
+              ] as Array<{ key: keyof typeof flags; label: string; desc: string }>).map(f => (
+                <div key={f.key} className="flex items-start justify-between gap-4 px-4 py-3 rounded-xl border border-border bg-gray-50/30">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{f.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{f.desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFlag(f.key, !flags[f.key])}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 mt-0.5 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                      flags[f.key] ? "bg-[#1A6DB5]" : "bg-gray-200"
+                    }`}
+                    role="switch"
+                    aria-checked={flags[f.key]}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+                        flags[f.key] ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-4">Changes take effect immediately and are shared across all staff accounts.</p>
           </div>
         </TabsContent>
 

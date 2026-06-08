@@ -112,6 +112,12 @@ const migrations = [
   `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2)`,
   `ALTER TABLE serialized_units ADD COLUMN IF NOT EXISTS min_selling_price NUMERIC(12,2)`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS category_access TEXT DEFAULT 'all'`,
+
+  `CREATE TABLE IF NOT EXISTS app_settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
 ];
 
 async function run() {

@@ -1,0 +1,37 @@
+FIX 3 — SETTINGS: FEATURE TOGGLES
+Add a "Features" section in Settings (Owner only) where admin can enable or disable each major feature module:
+┌─────────────────────────────────────────────────┐
+│ ⚙️ Feature Management                           │
+│                                                 │
+│ Core Features (cannot be disabled):             │
+│ ✅ Sales Management                             │
+│ ✅ Purchase Management                          │
+│ ✅ Stock Management                             │
+│                                                 │
+│ Optional Features:                              │
+│ [✅ ON] Repair / Service Tracking               │
+│ [✅ ON] Credit & Installments                   │
+│ [✅ ON] Customer CRM                            │
+│ [✅ ON] Expense Tracking                        │
+│ [✅ ON] Staff & Permissions                     │
+│ [✅ ON] Charts & Analytics                      │
+│ [✅ ON] Reports                                 │
+│ [✅ ON] Warranty Public Page                    │
+│ [✅ ON] Quick Sale (POS Mode)                   │
+│ [✅ ON] Stock Count Mode                        │
+│ [✅ ON] Restock Intelligence                    │
+│ [✅ ON] Notification Center                     │
+│ [✅ ON] Announcements                           │
+│ [✅ ON] Referral System                         │
+│ [✅ ON] Public Product Catalog                  │
+│ [✅ ON] Daily WhatsApp Summary                  │
+│ [✅ ON] Cloud Backup (Google Drive/OneDrive)    │
+│ [✅ ON] Camera Receipt Scanner (AI)             │
+│ [✅ ON] Sales Hold / Queue                      │
+│ [✅ ON] Consignment / External Vendor Sales     │
+└─────────────────────────────────────────────────┘
+
+When a feature is toggled OFF: hide its navigation item from the sidebar, hide its page, and hide any related buttons throughout the system
+Changes take effect immediately without page reload
+Store feature toggle states in the database settings table as JSON
+Feature states are per-tenant (each shop configures their own)

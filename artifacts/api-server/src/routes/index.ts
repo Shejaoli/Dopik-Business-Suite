@@ -31,6 +31,7 @@ import stockCountRouter from "./stock-count";
 import receiptScannerRouter from "./receipt-scanner";
 import usageAnalyticsRouter from "./usage-analytics";
 import consignmentRouter from "./consignment";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(stockCountRouter);
 router.use(receiptScannerRouter);
 router.use(usageAnalyticsRouter);
 router.use(consignmentRouter);
+router.use(settingsRouter);
 
 export default router;

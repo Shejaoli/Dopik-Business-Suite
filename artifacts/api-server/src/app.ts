@@ -10,6 +10,9 @@ import { runBackup } from "./lib/pg-backup";
 
 const app: Express = express();
 
+// Trust the reverse proxy (Replit, Nginx, etc.) so req.secure is correct on HTTPS deployments
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
@@ -43,7 +46,8 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
