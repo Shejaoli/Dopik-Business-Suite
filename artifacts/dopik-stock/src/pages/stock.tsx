@@ -1,17 +1,22 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useListStock, useGetStockAlerts, useListStockAdjustments, getListStockQueryKey } from "@workspace/api-client-react";
 import { api, fmtRWF, fmtDate, fmtDateTime, statusBadgeColor } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
-import { Search, AlertTriangle, TrendingUp, TrendingDown, Loader2, Boxes, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, AlertTriangle, TrendingUp, TrendingDown, Loader2, Boxes, ChevronDown, ChevronUp, History } from "lucide-react";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { useCategoryTab, matchesSuperCat, SUPER_CATS, type SuperCat } from "@/lib/categories";
+
+const HISTORY_PERIODS = [
+  { key: "today", label: "Today" },
+  { key: "week",  label: "This Week" },
+  { key: "month", label: "This Month" },
+  { key: "year",  label: "This Year" },
+];
 
 type StockEntry = {
   id: number; itemId: number; itemName: string; category: string; trackSerial: boolean;
@@ -22,11 +27,9 @@ type StockEntry = {
 export default function StockPage() {
   const [search, setSearch] = useState("");
   const [superCat, setSuperCat] = useCategoryTab("stock");
-  const [adjustItem, setAdjustItem] = useState<StockEntry | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
-  const [form, setForm] = useState({ adjustmentType: "increase", quantity: "", reason: "" });
-  const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
+  const [historyPeriod, setHistoryPeriod] = useState("month");
+  const [, navigate] = useLocation();
   const qc = useQueryClient();
 
   const { data: stockData, isLoading } = useListStock({ search: search || undefined });
@@ -34,9 +37,9 @@ export default function StockPage() {
   const { data: adjustments } = useListStockAdjustments({});
   const allStock: StockEntry[] = (stockData as any) ?? [];
 
-  const { data: expandedUnits, isLoading: unitsLoading } = useQuery<any[]>({
-    queryKey: ["stock-units", expandedItemId],
-    queryFn: () => api.get(`/stock/${expandedItemId}/units`),
+  const { data: itemHistory, isLoading: historyLoading } = useQuery<any[]>({
+    queryKey: ["stock-history", expandedItemId, historyPeriod],
+    queryFn: () => api.get(`/stock/${expandedItemId}/history?period=${historyPeriod}`),
     enabled: expandedItemId !== null,
   });
 
@@ -50,25 +53,6 @@ export default function StockPage() {
   const alertsData = alerts as any;
   const outOfStockFiltered = (alertsData?.outOfStock ?? []).filter((s: StockEntry) => matchesSuperCat(s.category, superCat));
   const lowStockFiltered = (alertsData?.lowStock ?? []).filter((s: StockEntry) => matchesSuperCat(s.category, superCat));
-
-  const handleAdjust = async () => {
-    if (!adjustItem || !form.quantity) return;
-    setSaving(true);
-    try {
-      await api.post("/stock/adjust", {
-        itemId: adjustItem.itemId,
-        adjustmentType: form.adjustmentType,
-        quantity: parseFloat(form.quantity),
-        reason: form.reason,
-      });
-      toast({ title: "Stock adjusted" });
-      setAdjustItem(null);
-      setForm({ adjustmentType: "increase", quantity: "", reason: "" });
-      qc.invalidateQueries({ queryKey: getListStockQueryKey() });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setSaving(false); }
-  };
 
   return (
     <div className="space-y-5">
@@ -155,64 +139,97 @@ export default function StockPage() {
                           <Button
                             size="sm" variant="ghost"
                             className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                            onClick={() => { setAdjustItem(s); setForm(f => ({ ...f, adjustmentType: "increase" })); }}
+                            title="Increase stock"
+                            onClick={() => navigate(`/stock-adjustment?itemId=${s.itemId}&type=increase`)}
                           >
                             <TrendingUp className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm" variant="ghost"
                             className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => { setAdjustItem(s); setForm(f => ({ ...f, adjustmentType: "decrease" })); }}
+                            title="Decrease stock"
+                            onClick={() => navigate(`/stock-adjustment?itemId=${s.itemId}&type=decrease`)}
                           >
                             <TrendingDown className="h-4 w-4" />
                           </Button>
-                          {s.trackSerial && (
-                            <Button
-                              size="sm" variant="ghost"
-                              className="text-[#1A6DB5] hover:bg-[#1A6DB5]/10"
-                              onClick={() => setExpandedItemId(expandedItemId === s.itemId ? null : s.itemId)}
-                              title="View individual units"
-                            >
-                              {expandedItemId === s.itemId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </Button>
-                          )}
+                          <Button
+                            size="sm" variant="ghost"
+                            className="text-[#1A6DB5] hover:bg-[#1A6DB5]/10"
+                            onClick={() => setExpandedItemId(expandedItemId === s.itemId ? null : s.itemId)}
+                            title="View item history"
+                          >
+                            {expandedItemId === s.itemId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
                         </div>
                       </td>
                     </tr>
-                    {s.trackSerial && expandedItemId === s.itemId && (
-                      <tr key={`${s.id}-units`} className="bg-muted/20">
+                    {expandedItemId === s.itemId && (
+                      <tr key={`${s.id}-history`} className="bg-muted/20">
                         <td colSpan={8} className="px-6 pb-4 pt-2">
-                          {unitsLoading ? (
-                            <div className="flex items-center gap-2 text-muted-foreground text-xs py-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading units...</div>
-                          ) : !expandedUnits?.length ? (
-                            <p className="text-xs text-muted-foreground py-2">No individual units recorded for this item.</p>
+                          <div className="flex items-center gap-2 mb-3">
+                            <History className="h-3.5 w-3.5 text-[#1A6DB5]" />
+                            <span className="text-xs font-semibold text-gray-600">Item History</span>
+                            <div className="flex gap-1 ml-2">
+                              {HISTORY_PERIODS.map(p => (
+                                <button
+                                  key={p.key}
+                                  onClick={() => setHistoryPeriod(p.key)}
+                                  className={`px-2.5 py-1 text-[10px] font-medium rounded-full transition-colors ${
+                                    historyPeriod === p.key
+                                      ? "bg-[#1A6DB5] text-white"
+                                      : "bg-white border border-border text-muted-foreground hover:border-[#1A6DB5]"
+                                  }`}
+                                >
+                                  {p.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {historyLoading ? (
+                            <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />Loading history...
+                            </div>
+                          ) : !itemHistory?.length ? (
+                            <p className="text-xs text-muted-foreground py-3 text-center">
+                              No activity recorded for this period.
+                            </p>
                           ) : (
                             <div className="overflow-x-auto">
                               <table className="w-full text-xs border-collapse">
                                 <thead>
                                   <tr className="border-b border-border">
-                                    {["IMEI / Serial", "Color", "RAM", "Storage", "Condition", "Status", "Notes", "Date In"].map(h => (
+                                    {["Event", "IMEI / Serial", "Color", "RAM", "Storage", "Qty", "Reason / Status", "Date"].map(h => (
                                       <th key={h} className="text-left px-2 py-1.5 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                                     ))}
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {expandedUnits.map((u: any) => (
-                                    <tr key={u.id} className="border-b border-border/50 hover:bg-muted/30">
-                                      <td className="px-2 py-1.5 font-mono text-[10px]">{u.imeiOrSerial || "—"}</td>
-                                      <td className="px-2 py-1.5">{u.color || "—"}</td>
-                                      <td className="px-2 py-1.5">{u.ram || "—"}</td>
-                                      <td className="px-2 py-1.5">{u.storage || "—"}</td>
-                                      <td className="px-2 py-1.5">{u.condition || "—"}</td>
-                                      <td className="px-2 py-1.5">
-                                        <Badge className={`text-[10px] px-1.5 py-0 ${statusBadgeColor(u.status || "")}`}>{u.status || "—"}</Badge>
-                                      </td>
-                                      <td className="px-2 py-1.5 max-w-[180px]">
-                                        {u.additionalInfo ? <span className="italic text-gray-500 truncate block">{u.additionalInfo}</span> : <span className="text-muted-foreground">—</span>}
-                                      </td>
-                                      <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDate(u.dateReceived)}</td>
-                                    </tr>
-                                  ))}
+                                  {itemHistory.map((h: any, idx: number) => {
+                                    const isUnit = h.source === "unit";
+                                    const eventLabel = isUnit
+                                      ? (h.status === "in_stock" ? "Received" : h.status === "sold" ? "Sold" : h.status ?? "Unit")
+                                      : h.event === "increase" || h.event === "in" ? "Increase" : "Decrease";
+                                    const eventColor = eventLabel === "Received" || eventLabel === "Increase"
+                                      ? "bg-green-100 text-green-700"
+                                      : eventLabel === "Sold" ? "bg-blue-100 text-blue-700"
+                                      : "bg-red-100 text-red-700";
+                                    return (
+                                      <tr key={idx} className="border-b border-border/50 hover:bg-muted/30">
+                                        <td className="px-2 py-1.5">
+                                          <Badge className={`text-[10px] px-1.5 py-0 ${eventColor}`}>{eventLabel}</Badge>
+                                        </td>
+                                        <td className="px-2 py-1.5 font-mono text-[10px]">{h.imeiOrSerial || "—"}</td>
+                                        <td className="px-2 py-1.5">{h.color || "—"}</td>
+                                        <td className="px-2 py-1.5">{h.ram || "—"}</td>
+                                        <td className="px-2 py-1.5">{h.storage || "—"}</td>
+                                        <td className="px-2 py-1.5 font-medium">{h.quantity ?? "—"}</td>
+                                        <td className="px-2 py-1.5 max-w-[160px]">
+                                          <span className="truncate block text-muted-foreground">{h.reason || h.condition || "—"}</span>
+                                        </td>
+                                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDate(h.date)}</td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -266,93 +283,6 @@ export default function StockPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!adjustItem} onOpenChange={open => !open && setAdjustItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Adjust Stock — {adjustItem?.itemName}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              Current stock: <strong>{parseFloat(adjustItem?.quantity ?? "0").toLocaleString()}</strong> &bull; Min: <strong>{parseFloat(adjustItem?.minStock ?? "0").toLocaleString()}</strong>
-            </p>
-
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Quick Reasons</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "📦 New stock received", type: "increase" },
-                  { label: "🔄 Stock count correction +", type: "increase" },
-                  { label: "↩️ Returned to supplier", type: "decrease" },
-                  { label: "💥 Damaged / Lost", type: "decrease" },
-                  { label: "🔧 Used internally", type: "decrease" },
-                  { label: "📊 Inventory count fix −", type: "decrease" },
-                ].map(opt => (
-                  <button
-                    key={opt.label}
-                    onClick={() => setForm(f => ({ ...f, adjustmentType: opt.type, reason: opt.label.replace(/^.{2}\s/, "") }))}
-                    className={`text-left px-3 py-2 rounded-xl border text-xs font-medium transition-all ${
-                      form.reason === opt.label.replace(/^.{2}\s/, "")
-                        ? opt.type === "increase"
-                          ? "border-green-500 bg-green-50 text-green-700"
-                          : "border-red-400 bg-red-50 text-red-700"
-                        : "border-border text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              {["increase", "decrease"].map(type => (
-                <button
-                  key={type}
-                  onClick={() => setForm(f => ({ ...f, adjustmentType: type }))}
-                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium capitalize transition-all ${
-                    form.adjustmentType === type
-                      ? type === "increase"
-                        ? "border-green-500 bg-green-50 text-green-700"
-                        : "border-red-400 bg-red-50 text-red-700"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {type === "increase" ? "▲" : "▼"} {type}
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Quantity *</Label>
-              <Input
-                type="number" min={0.01} step={0.01}
-                value={form.quantity}
-                onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Reason (optional — edit above or type below)</Label>
-              <Input
-                value={form.reason}
-                onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-                placeholder="e.g. Damaged goods, correction..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAdjustItem(null)}>Cancel</Button>
-            <Button
-              onClick={handleAdjust}
-              disabled={saving || !form.quantity}
-              className={form.adjustmentType === "increase" ? "bg-green-600 hover:bg-green-700" : "bg-red-500 hover:bg-red-600"}
-            >
-              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Confirm Adjustment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

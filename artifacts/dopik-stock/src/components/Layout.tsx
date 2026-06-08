@@ -166,26 +166,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isSectionActive = (section: NavSection) =>
     section.items.some(item => isActive(item.href));
 
-  // Which sections start expanded: the one containing the active route, plus all others default open
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    navSections.forEach(s => {
-      init[s.label] = true;
-    });
-    return init;
+  // Accordion: all sections start closed; only one open at a time
+  const [expandedSection, setExpandedSection] = useState<string | null>(() => {
+    // Auto-open the section that contains the current active route
+    for (const s of navSections) {
+      if (s.items.some(item => {
+        if (item.href === "/") return false;
+        const loc = window.location.pathname;
+        return loc === item.href || loc.startsWith(item.href + "/");
+      })) return s.label;
+    }
+    return null;
   });
 
-  // When route changes, ensure the section containing the active item is expanded
+  // When route changes, open the section containing the active item
   useEffect(() => {
-    navSections.forEach(s => {
+    for (const s of navSections) {
       if (isSectionActive(s)) {
-        setExpandedSections(prev => ({ ...prev, [s.label]: true }));
+        setExpandedSection(s.label);
+        return;
       }
-    });
+    }
   }, [location]);
 
   const toggleSection = (label: string) => {
-    setExpandedSections(prev => ({ ...prev, [label]: !prev[label] }));
+    setExpandedSection(prev => prev === label ? null : label);
   };
 
   const userRole = user?.role;
@@ -249,7 +254,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             );
             if (visibleItems.length === 0) return null;
 
-            const expanded = expandedSections[section.label] ?? true;
+            const expanded = expandedSection === section.label;
             const active = isSectionActive(section);
             const SectionIcon = section.icon;
 

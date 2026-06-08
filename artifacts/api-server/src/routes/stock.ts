@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, ilike, sql, inArray, and, desc } from "drizzle-orm";
+import { eq, ilike, sql, inArray, and, desc, gte, lte } from "drizzle-orm";
 import { db, stockTable, itemsTable, stockAdjustmentsTable, usersTable, serialNumbersTable, serializedUnitsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getCategoriesForSuper } from "../lib/category-filter";
@@ -175,6 +175,70 @@ router.get("/stock/:itemId/units", async (req, res): Promise<void> => {
     .where(eq(serializedUnitsTable.itemId, itemId))
     .orderBy(desc(serializedUnitsTable.dateReceived));
   res.json(units);
+});
+
+router.get("/stock/:itemId/history", async (req, res): Promise<void> => {
+  const itemId = parseInt(req.params.itemId);
+  if (isNaN(itemId)) { res.status(400).json({ error: "Invalid itemId" }); return; }
+
+  const period = (req.query.period as string) || "month";
+  const now = new Date();
+  let start: Date;
+  switch (period) {
+    case "today": start = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
+    case "week":  start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+    case "year":  start = new Date(now.getFullYear(), 0, 1); break;
+    default:      start = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  const [adjustments, units] = await Promise.all([
+    db.select({
+      id: stockAdjustmentsTable.id,
+      source: sql<string>`'adjustment'`,
+      event: stockAdjustmentsTable.adjustmentType,
+      quantity: stockAdjustmentsTable.quantity,
+      reason: stockAdjustmentsTable.reason,
+      date: stockAdjustmentsTable.createdAt,
+      imeiOrSerial: sql<string | null>`NULL`,
+      color: sql<string | null>`NULL`,
+      ram: sql<string | null>`NULL`,
+      storage: sql<string | null>`NULL`,
+      condition: sql<string | null>`NULL`,
+      status: sql<string | null>`NULL`,
+    }).from(stockAdjustmentsTable)
+      .where(and(
+        eq(stockAdjustmentsTable.itemId, itemId),
+        gte(stockAdjustmentsTable.createdAt, start),
+        lte(stockAdjustmentsTable.createdAt, now),
+      ))
+      .orderBy(desc(stockAdjustmentsTable.createdAt)),
+
+    db.select({
+      id: serializedUnitsTable.id,
+      source: sql<string>`'unit'`,
+      event: serializedUnitsTable.status,
+      quantity: sql<string>`'1'`,
+      reason: sql<string | null>`NULL`,
+      date: serializedUnitsTable.dateReceived,
+      imeiOrSerial: serializedUnitsTable.imeiOrSerial,
+      color: serializedUnitsTable.color,
+      ram: serializedUnitsTable.ram,
+      storage: serializedUnitsTable.storage,
+      condition: serializedUnitsTable.condition,
+      status: serializedUnitsTable.status,
+    }).from(serializedUnitsTable)
+      .where(and(
+        eq(serializedUnitsTable.itemId, itemId),
+        gte(serializedUnitsTable.dateReceived, start),
+        lte(serializedUnitsTable.dateReceived, now),
+      ))
+      .orderBy(desc(serializedUnitsTable.dateReceived)),
+  ]);
+
+  const combined = [...adjustments, ...units]
+    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime());
+
+  res.json(combined);
 });
 
 export default router;

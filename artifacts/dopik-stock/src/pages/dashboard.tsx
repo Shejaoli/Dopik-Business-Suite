@@ -417,13 +417,15 @@ function SlideMonthlyOverview() {
   const { data, isLoading } = useAnalytics("monthly-overview", { year: String(year) });
   const rows: any[] = data ?? [];
 
-  if (isLoading) return <div className="h-[200px] flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1A6DB5] border-t-transparent" /></div>;
+  if (isLoading) return <div className="h-[220px] flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1A6DB5] border-t-transparent" /></div>;
 
   const fmt = (v: number) => {
     if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
     if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
     return String(Math.round(v));
   };
+
+  const allZero = rows.every(r => !r.sales && !r.expenses && !r.purchases);
 
   return (
     <div className="space-y-3">
@@ -433,19 +435,29 @@ function SlideMonthlyOverview() {
         <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-red-400" />Expenses</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-[#1A6DB5]" />Purchases</span>
       </div>
-      <ResponsiveContainer width="100%" height={190}>
-        <BarChart data={rows} barCategoryGap="20%" barGap={2}>
-          <XAxis dataKey="month" tick={{ fontSize: 9 }} />
-          <YAxis tick={{ fontSize: 9 }} tickFormatter={fmt} width={36} />
-          <Tooltip
-            formatter={(v: any, name: string) => [fmtRWF(String(v)), name.charAt(0).toUpperCase() + name.slice(1)]}
-            contentStyle={{ fontSize: 11 }}
-          />
-          <Bar dataKey="sales" fill="#10b981" radius={[3, 3, 0, 0]} name="sales" />
-          <Bar dataKey="expenses" fill="#f87171" radius={[3, 3, 0, 0]} name="expenses" />
-          <Bar dataKey="purchases" fill="#1A6DB5" radius={[3, 3, 0, 0]} name="purchases" />
-        </BarChart>
-      </ResponsiveContainer>
+      {rows.length === 0 ? (
+        <div className="h-[160px] flex flex-col items-center justify-center text-center gap-2">
+          <div className="text-muted-foreground opacity-30 text-4xl">📊</div>
+          <p className="text-sm text-muted-foreground">No data yet for {year}</p>
+          <p className="text-xs text-muted-foreground opacity-70">Record sales, purchases or expenses to see the chart</p>
+        </div>
+      ) : (
+        <div style={{ width: "100%", height: 185 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={rows} barCategoryGap="20%" barGap={2}>
+              <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 9 }} tickFormatter={fmt} width={36} domain={allZero ? [0, 10] : [0, "auto"]} />
+              <Tooltip
+                formatter={(v: any, name: string) => [fmtRWF(String(v)), name.charAt(0).toUpperCase() + name.slice(1)]}
+                contentStyle={{ fontSize: 11 }}
+              />
+              <Bar dataKey="sales" fill="#10b981" radius={[3, 3, 0, 0]} name="sales" minPointSize={allZero ? 0 : 1} />
+              <Bar dataKey="expenses" fill="#f87171" radius={[3, 3, 0, 0]} name="expenses" minPointSize={allZero ? 0 : 1} />
+              <Bar dataKey="purchases" fill="#1A6DB5" radius={[3, 3, 0, 0]} name="purchases" minPointSize={allZero ? 0 : 1} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

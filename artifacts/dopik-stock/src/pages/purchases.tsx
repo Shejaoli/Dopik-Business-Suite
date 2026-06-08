@@ -41,6 +41,23 @@ const PURCHASE_CAT_GROUPS: Record<string, string[]> = {
   "Others": ["Phone Accessories", "Smartwatches", "Audio", "Cameras", "Camera Accessories", "Others"],
 };
 
+const COLOR_MAP: Record<string, string> = {
+  black: "#1a1a1a", white: "#f5f5f5", silver: "#c0c0c0", gray: "#808080", grey: "#808080",
+  red: "#ef4444", blue: "#3b82f6", green: "#22c55e", yellow: "#eab308", gold: "#d4af37",
+  purple: "#a855f7", pink: "#ec4899", orange: "#f97316", brown: "#92400e", navy: "#1e3a8a",
+  "dark blue": "#1e40af", "sky blue": "#38bdf8", "pacific blue": "#0077b6",
+  "sierra blue": "#87ceeb", "alpine green": "#4a8c5c", "deep purple": "#4b0082",
+  "space gray": "#6b7280", "rose gold": "#f4a0b5", "midnight": "#1a1a2e",
+  "starlight": "#f5e6d3", "natural titanium": "#b8a99a", "blue titanium": "#6b9dc5",
+  "black titanium": "#2d2d2d", "white titanium": "#f0f0f0",
+};
+
+function getColorSwatch(name: string): string | null {
+  if (!name) return null;
+  const lower = name.toLowerCase().trim();
+  return COLOR_MAP[lower] ?? null;
+}
+
 function generatePO() {
   const d = new Date();
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
@@ -58,14 +75,27 @@ function pmLabel(val: string) {
   return PAYMENT_METHODS.find(m => m.value === val)?.label ?? val.replace(/_/g, " ");
 }
 
+function ColorChip({ name }: { name: string }) {
+  const hex = getColorSwatch(name);
+  if (!hex) return null;
+  const isLight = ["#f5f5f5", "#f5e6d3", "#f0f0f0"].includes(hex);
+  return (
+    <span
+      className="inline-block w-3.5 h-3.5 rounded-sm border flex-shrink-0"
+      style={{ backgroundColor: hex, borderColor: isLight ? "#d1d5db" : hex }}
+    />
+  );
+}
+
 function SearchableSelect({
-  options, value, onChange, placeholder, onCreate,
+  options, value, onChange, placeholder, onCreate, showSwatchFor,
 }: {
   options: { id: string | number; name: string; outOfStock?: boolean }[];
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   onCreate?: (name: string) => Promise<void>;
+  showSwatchFor?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -88,9 +118,10 @@ function SearchableSelect({
       <button
         type="button"
         onClick={() => { setOpen(!open); setQ(""); }}
-        className="w-full h-9 text-left flex items-center justify-between rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className="w-full h-9 text-left flex items-center justify-between rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring gap-2"
       >
-        <span className={selected ? (selected.outOfStock ? "text-muted-foreground italic" : "text-foreground") : "text-muted-foreground"}>
+        <span className={`flex items-center gap-2 truncate ${selected ? (selected.outOfStock ? "text-muted-foreground italic" : "text-foreground") : "text-muted-foreground"}`}>
+          {showSwatchFor && selected && <ColorChip name={selected.name} />}
           {selected?.name ?? placeholder ?? "Select…"}
         </span>
         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -110,8 +141,9 @@ function SearchableSelect({
             )}
             {filtered.map(o => (
               <button key={o.id} type="button"
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${o.outOfStock ? "text-muted-foreground italic" : ""}`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2 ${o.outOfStock ? "text-muted-foreground italic" : ""}`}
                 onClick={() => { onChange(String(o.id)); setOpen(false); setQ(""); }}>
+                {showSwatchFor && <ColorChip name={o.name} />}
                 {o.name}
               </button>
             ))}
@@ -469,6 +501,7 @@ function UnitCard({
               value={row.color ? String(colors.find(c => c.name === row.color)?.id ?? "") : ""}
               onChange={v => { const c = colors.find(c => String(c.id) === v); onUpdate(row.id, "color", c?.name ?? ""); }}
               placeholder="Select color…"
+              showSwatchFor
               onCreate={async name => {
                 await onCreateColor(name);
                 const fresh = await api.get<any[]>("/colors");
@@ -1368,30 +1401,31 @@ export default function PurchasesPage() {
                 )}
               </div>
             )}
-          </div>
 
-          {/* Pricing & Stock (step 3) */}
-          {formModelName && (
-            <div className="bg-white border border-border rounded-xl shadow-sm p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-3">
-                3. Pricing &amp; Stock <span className="text-xs font-normal text-muted-foreground">(optional — updates item on confirm)</span>
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <p className="text-sm font-medium mb-1.5">Selling Price (RWF)</p>
-                  <Input type="number" min={0} value={formSalePrice} onChange={e => setFormSalePrice(e.target.value)} placeholder="0" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1.5">Min Selling Price (RWF)</p>
-                  <Input type="number" min={0} value={formMinSalePrice} onChange={e => setFormMinSalePrice(e.target.value)} placeholder="0" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1.5">Min Stock Level</p>
-                  <Input type="number" min={0} value={formMinStock} onChange={e => setFormMinStock(e.target.value)} placeholder="0" />
+            {/* Pricing & Stock — now part of step 2 */}
+            {formModelName && (
+              <div className="pt-3 border-t border-border mt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Pricing &amp; Stock <span className="font-normal normal-case text-muted-foreground">(optional — updates item on confirm)</span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-sm font-medium mb-1.5">Selling Price (RWF)</p>
+                    <Input type="number" min={0} value={formSalePrice} onChange={e => setFormSalePrice(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium mb-1.5">Min Selling Price (RWF)</p>
+                    <Input type="number" min={0} value={formMinSalePrice} onChange={e => setFormMinSalePrice(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium mb-1.5">Min Stock Level</p>
+                    <Input type="number" min={0} value={formMinStock} onChange={e => setFormMinStock(e.target.value)} placeholder="0" />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
 
           {/* Unit Cards (only show after category + model selected) */}
           {formModelName && (

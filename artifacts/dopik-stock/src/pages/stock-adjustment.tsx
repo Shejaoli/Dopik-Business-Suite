@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useListItems, useListStockAdjustments } from "@workspace/api-client-react";
 import { api, fmtDate } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  SlidersHorizontal, TrendingDown, ShoppingCart, Loader2,
+  SlidersHorizontal, TrendingDown, TrendingUp, ShoppingCart, Loader2,
   Barcode, ArrowLeft, Search, CheckSquare, Square, AlertCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,15 @@ export default function StockAdjustmentPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, navigate] = useLocation();
+  const search = useSearch();
+
+  // Parse URL params: ?itemId=5&type=increase|decrease
+  const urlParams = new URLSearchParams(search);
+  const urlItemId = urlParams.get("itemId") ?? "";
+  const urlType = (urlParams.get("type") ?? "") as "increase" | "decrease" | "";
 
   const [showForm, setShowForm] = useState(false);
+  const [formType, setFormType] = useState<"increase" | "decrease">("decrease");
   const [submitting, setSubmitting] = useState(false);
 
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -34,6 +41,8 @@ export default function StockAdjustmentPage() {
   const [reason, setReason] = useState("");
   const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
   const [nonSerialQty, setNonSerialQty] = useState("");
+  const [increaseQty, setIncreaseQty] = useState("");
+  const [increaseReason, setIncreaseReason] = useState("");
 
   const allItems: any[] = itemsData?.items ?? [];
   const filteredItems = allItems.filter(i =>
@@ -44,6 +53,19 @@ export default function StockAdjustmentPage() {
 
   const { data: unitList = [] } = useInStockUnits(tracksSerial && selectedItemId ? selectedItemId : null);
   const inStockUnits: any[] = (unitList as any[]).filter((u: any) => u.status === "in_stock");
+
+  // Auto-fill item and type from URL params once items load
+  useEffect(() => {
+    if (urlItemId && allItems.length > 0) {
+      const item = allItems.find(i => String(i.id) === urlItemId);
+      if (item) {
+        setSelectedItemId(urlItemId);
+        setItemSearch(item.name);
+        setFormType(urlType === "increase" ? "increase" : "decrease");
+        setShowForm(true);
+      }
+    }
+  }, [urlItemId, urlType, allItems.length]);
 
   const toggleUnit = (id: number) => {
     setSelectedUnits(prev =>
@@ -57,14 +79,19 @@ export default function StockAdjustmentPage() {
     setReason("");
     setSelectedUnits([]);
     setNonSerialQty("");
+    setIncreaseQty("");
+    setIncreaseReason("");
     setShowForm(false);
+    if (urlItemId) navigate("/stock-adjustment");
   };
 
-  const canSubmit = selectedItemId && reason.trim() &&
+  const canSubmitDecrease = selectedItemId && reason.trim() &&
     (tracksSerial ? selectedUnits.length > 0 : parseFloat(nonSerialQty) > 0);
 
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
+  const canSubmitIncrease = selectedItemId && increaseReason.trim() && parseFloat(increaseQty) > 0;
+
+  const handleSubmitDecrease = async () => {
+    if (!canSubmitDecrease) return;
     setSubmitting(true);
     try {
       if (tracksSerial) {
@@ -92,19 +119,51 @@ export default function StockAdjustmentPage() {
     } finally { setSubmitting(false); }
   };
 
+  const handleSubmitIncrease = async () => {
+    if (!canSubmitIncrease) return;
+    setSubmitting(true);
+    try {
+      await api.post("/stock/adjust", {
+        itemId: Number(selectedItemId),
+        adjustmentType: "increase",
+        quantity: increaseQty,
+        reason: increaseReason.trim(),
+      });
+      toast({ title: "Stock increase recorded successfully" });
+      qc.invalidateQueries({ queryKey: ["stock"] });
+      refetch();
+      resetForm();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setSubmitting(false); }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-800">Stock Adjustment</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Record stock decreases or go to Purchases to add stock</p>
+          <p className="text-sm text-gray-400 mt-0.5">Record stock increases or decreases</p>
         </div>
       </div>
 
       {!showForm && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => { setFormType("increase"); setShowForm(true); }}
+            className="flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-green-200 bg-green-50 hover:bg-green-100 transition-colors group"
+          >
+            <div className="h-12 w-12 rounded-full bg-green-100 group-hover:bg-green-200 flex items-center justify-center transition-colors">
+              <TrendingUp className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="text-center">
+              <p className="font-semibold text-green-700 text-base">Record Stock Increase</p>
+              <p className="text-xs text-green-500 mt-1">Correction, return, or manual add</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => { setFormType("decrease"); setShowForm(true); }}
             className="flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-red-200 bg-red-50 hover:bg-red-100 transition-colors group"
           >
             <div className="h-12 w-12 rounded-full bg-red-100 group-hover:bg-red-200 flex items-center justify-center transition-colors">
@@ -118,14 +177,14 @@ export default function StockAdjustmentPage() {
 
           <button
             onClick={() => navigate("/purchases")}
-            className="flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-green-200 bg-green-50 hover:bg-green-100 transition-colors group"
+            className="flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-[#1A6DB5]/30 bg-blue-50 hover:bg-blue-100 transition-colors group"
           >
-            <div className="h-12 w-12 rounded-full bg-green-100 group-hover:bg-green-200 flex items-center justify-center transition-colors">
-              <ShoppingCart className="h-6 w-6 text-green-600" />
+            <div className="h-12 w-12 rounded-full bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center transition-colors">
+              <ShoppingCart className="h-6 w-6 text-[#1A6DB5]" />
             </div>
             <div className="text-center">
-              <p className="font-semibold text-green-700 text-base">Record New Purchase</p>
-              <p className="text-xs text-green-500 mt-1">Add new stock via the Purchases page</p>
+              <p className="font-semibold text-[#1A6DB5] text-base">Record New Purchase</p>
+              <p className="text-xs text-blue-400 mt-1">Add new stock via the Purchases page</p>
             </div>
           </button>
         </div>
@@ -134,18 +193,26 @@ export default function StockAdjustmentPage() {
       {showForm && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
           <div className="flex items-center gap-3">
-            <button
-              onClick={resetForm}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <button onClick={resetForm} className="text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <div>
+            <div className="flex-1">
               <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-500" />
-                Record Stock Decrease
+                {formType === "increase"
+                  ? <TrendingUp className="h-4 w-4 text-green-500" />
+                  : <TrendingDown className="h-4 w-4 text-red-500" />}
+                Record Stock {formType === "increase" ? "Increase" : "Decrease"}
               </h2>
-              <p className="text-xs text-gray-400 mt-0.5">Select the item and specify which units were removed</p>
+            </div>
+            <div className="flex rounded-xl overflow-hidden border border-gray-200">
+              <button
+                onClick={() => setFormType("increase")}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${formType === "increase" ? "bg-green-100 text-green-700" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+              >▲ Increase</button>
+              <button
+                onClick={() => setFormType("decrease")}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors border-l border-gray-200 ${formType === "decrease" ? "bg-red-100 text-red-700" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+              >▼ Decrease</button>
             </div>
           </div>
 
@@ -251,7 +318,31 @@ export default function StockAdjustmentPage() {
             </div>
           )}
 
-          {selectedItem && !tracksSerial && (
+          {/* ── INCREASE form ─────────────────────────────── */}
+          {formType === "increase" && selectedItem && (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Quantity to Add *</label>
+                <Input
+                  type="number" min="0.01" step="0.01"
+                  value={increaseQty}
+                  onChange={e => setIncreaseQty(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Reason *</label>
+                <Input
+                  value={increaseReason}
+                  onChange={e => setIncreaseReason(e.target.value)}
+                  placeholder="e.g. Stock count correction, returned goods…"
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── DECREASE non-serial qty ──────────────────── */}
+          {formType === "decrease" && selectedItem && !tracksSerial && (
             <div className="space-y-2">
               <label className="text-xs font-semibold text-gray-500 uppercase">Quantity to Remove *</label>
               <Input
@@ -263,7 +354,7 @@ export default function StockAdjustmentPage() {
             </div>
           )}
 
-          {selectedItem && (
+          {formType === "decrease" && selectedItem && (
             <div className="space-y-2">
               <label className="text-xs font-semibold text-gray-500 uppercase">Reason * <span className="font-normal text-gray-400">(required)</span></label>
               <Input
@@ -276,16 +367,27 @@ export default function StockAdjustmentPage() {
 
           {selectedItem && (
             <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || !canSubmit}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50"
-              >
-                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {tracksSerial
-                  ? `Remove ${selectedUnits.length} Unit${selectedUnits.length !== 1 ? "s" : ""}`
-                  : "Record Decrease"}
-              </button>
+              {formType === "increase" ? (
+                <button
+                  onClick={handleSubmitIncrease}
+                  disabled={submitting || !canSubmitIncrease}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition disabled:opacity-50"
+                >
+                  {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Record Increase
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmitDecrease}
+                  disabled={submitting || !canSubmitDecrease}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {tracksSerial
+                    ? `Remove ${selectedUnits.length} Unit${selectedUnits.length !== 1 ? "s" : ""}`
+                    : "Record Decrease"}
+                </button>
+              )}
               <button
                 onClick={resetForm}
                 className="px-5 py-2 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition"
