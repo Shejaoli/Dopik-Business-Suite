@@ -382,50 +382,117 @@ function HeatmapCard() {
   );
 }
 
-// ── Monthly Target Progress ───────────────────────────────────────────────────
+// ── Flexible Target Progress ──────────────────────────────────────────────────
+type ItemTarget = { itemId: string; itemName: string; targetQty: number; period: string };
+
 function TargetCard() {
-  const [target, setTarget] = useState(() => Number(localStorage.getItem("monthlyTarget") || "0"));
+  const [mode, setMode] = useState<"revenue" | "profit">(() =>
+    (localStorage.getItem("targetMode") as "revenue" | "profit") || "revenue"
+  );
+  const [period, setPeriod] = useState(() => localStorage.getItem("targetPeriod") || "month");
+  const [target, setTarget] = useState(() => Number(localStorage.getItem("mainTarget") || localStorage.getItem("monthlyTarget") || "0"));
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const { data } = useAnalytics("revenue", { period: "month" });
-  const rows: any[] = data ?? [];
-  const achieved = rows.reduce((s: number, r: any) => s + (r.revenue ?? 0), 0);
+  const [itemTargets, setItemTargets] = useState<ItemTarget[]>(() => {
+    try { return JSON.parse(localStorage.getItem("itemTargets") || "[]"); } catch { return []; }
+  });
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItemId, setNewItemId] = useState("");
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemQty, setNewItemQty] = useState("");
+  const [newItemPeriod, setNewItemPeriod] = useState("month");
+
+  const { data: revenueData } = useAnalytics("revenue", { period });
+  const { data: profitData } = useQuery({
+    queryKey: ["dashboard-for-target", period],
+    queryFn: () => api.get<any>(`/dashboard?period=${period}`),
+    enabled: mode === "profit",
+  });
+
+  const revenueRows: any[] = revenueData ?? [];
+  const achieved = mode === "revenue"
+    ? revenueRows.reduce((s: number, r: any) => s + (r.revenue ?? 0), 0)
+    : parseFloat((profitData as any)?.netProfit ?? "0");
+
   const pct = target > 0 ? Math.min(100, (achieved / target) * 100) : 0;
   const remaining = Math.max(0, target - achieved);
 
+  const saveTarget = () => {
+    const t = Number(draft);
+    setTarget(t);
+    localStorage.setItem("mainTarget", String(t));
+    localStorage.setItem("monthlyTarget", String(t));
+    localStorage.setItem("targetMode", mode);
+    localStorage.setItem("targetPeriod", period);
+    setEditing(false);
+  };
+
+  const saveItemTarget = () => {
+    if (!newItemName.trim() || !newItemQty) return;
+    const updated = [...itemTargets, {
+      itemId: newItemId || newItemName,
+      itemName: newItemName.trim(),
+      targetQty: Number(newItemQty),
+      period: newItemPeriod,
+    }];
+    setItemTargets(updated);
+    localStorage.setItem("itemTargets", JSON.stringify(updated));
+    setNewItemId(""); setNewItemName(""); setNewItemQty(""); setShowAddItem(false);
+  };
+
+  const removeItemTarget = (idx: number) => {
+    const updated = itemTargets.filter((_, i) => i !== idx);
+    setItemTargets(updated);
+    localStorage.setItem("itemTargets", JSON.stringify(updated));
+  };
+
+  const periodLabel: Record<string, string> = { week: "This Week", month: "This Month", year: "This Year" };
+
   return (
-    <ChartCard title="Monthly Target Progress" subtitle="Sales progress toward your monthly target" icon={Target}>
-      <div className="space-y-4">
+    <ChartCard title="Target Progress" subtitle="Set and track revenue, profit, or item-quantity targets" icon={Target}>
+      <div className="space-y-5">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+            {(["revenue", "profit"] as const).map(m => (
+              <button key={m} onClick={() => { setMode(m); localStorage.setItem("targetMode", m); }}
+                className={`px-3 py-1.5 font-medium transition-colors ${mode === m ? "bg-[#1A6DB5] text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                {m === "revenue" ? "Revenue" : "Profit"}
+              </button>
+            ))}
+          </div>
+          <select value={period} onChange={e => { setPeriod(e.target.value); localStorage.setItem("targetPeriod", e.target.value); }}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none">
+            {PERIODS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+        </div>
+
         {editing ? (
           <div className="flex gap-2">
             <input className="flex-1 h-8 rounded border border-input px-2 text-sm" type="number"
-              value={draft} onChange={e => setDraft(e.target.value)} placeholder="Enter target (RWF)" />
-            <button className="px-3 py-1.5 bg-[#1A6DB5] text-white text-xs rounded hover:bg-[#1A6DB5]/90"
-              onClick={() => { const t = Number(draft); setTarget(t); localStorage.setItem("monthlyTarget", String(t)); setEditing(false); }}>
-              Save
-            </button>
+              value={draft} onChange={e => setDraft(e.target.value)}
+              placeholder={`Enter ${mode} target (RWF)`} autoFocus />
+            <button className="px-3 py-1.5 bg-[#1A6DB5] text-white text-xs rounded hover:bg-[#1A6DB5]/90" onClick={saveTarget}>Save</button>
+            <button className="px-3 py-1.5 border border-gray-200 text-xs rounded" onClick={() => setEditing(false)}>Cancel</button>
           </div>
         ) : (
           <button onClick={() => { setDraft(String(target)); setEditing(true); }}
             className="text-xs text-[#1A6DB5] hover:underline">
-            {target ? `Target: ${fmtRWF(String(target))} — Click to edit` : "Set monthly target"}
+            {target ? `${mode === "revenue" ? "Revenue" : "Profit"} target: ${fmtRWF(String(target))} (${periodLabel[period] ?? period}) — Click to edit` : `Set ${mode} target`}
           </button>
         )}
+
         {target > 0 && (
           <>
             <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
-                style={{ width: `${pct}%`, background: pct >= 100 ? "#10b981" : "#1A6DB5" }}
-              />
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white mix-blend-normal" style={{ textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>
-                {pct.toFixed(1)}%
-              </span>
+              <div className="absolute left-0 top-0 h-full rounded-full transition-all duration-500"
+                style={{ width: `${pct}%`, background: pct >= 100 ? "#10b981" : mode === "profit" ? "#8b5cf6" : "#1A6DB5" }} />
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white"
+                style={{ textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>{pct.toFixed(1)}%</span>
             </div>
             <div className="flex justify-between text-sm">
               <div>
-                <p className="text-muted-foreground text-xs">Achieved</p>
-                <p className="font-bold text-green-600">{fmtRWF(String(achieved))}</p>
+                <p className="text-muted-foreground text-xs">Achieved ({periodLabel[period] ?? period})</p>
+                <p className="font-bold text-green-600">{fmtRWF(String(Math.max(0, achieved)))}</p>
               </div>
               <div className="text-right">
                 <p className="text-muted-foreground text-xs">Remaining</p>
@@ -434,6 +501,48 @@ function TargetCard() {
             </div>
           </>
         )}
+
+        <div className="border-t border-gray-100 pt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Item Quantity Targets</p>
+            <button onClick={() => setShowAddItem(v => !v)}
+              className="text-xs text-[#1A6DB5] hover:underline">+ Add item target</button>
+          </div>
+
+          {showAddItem && (
+            <div className="p-3 rounded-xl border border-blue-100 bg-blue-50 space-y-2">
+              <input className="w-full h-8 rounded border border-input px-2 text-sm" placeholder="Item name…"
+                value={newItemName} onChange={e => setNewItemName(e.target.value)} />
+              <div className="flex gap-2">
+                <input className="flex-1 h-8 rounded border border-input px-2 text-sm" type="number" placeholder="Target qty"
+                  value={newItemQty} onChange={e => setNewItemQty(e.target.value)} />
+                <select value={newItemPeriod} onChange={e => setNewItemPeriod(e.target.value)}
+                  className="text-xs border border-input rounded px-2 bg-white outline-none">
+                  {PERIODS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={saveItemTarget} disabled={!newItemName.trim() || !newItemQty}
+                  className="px-3 py-1.5 bg-[#1A6DB5] text-white text-xs rounded hover:bg-[#1A6DB5]/90 disabled:opacity-50">Save</button>
+                <button onClick={() => setShowAddItem(false)}
+                  className="px-3 py-1.5 border border-gray-200 text-xs rounded">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {itemTargets.length === 0 && !showAddItem && (
+            <p className="text-xs text-muted-foreground">No item targets set. Add one above.</p>
+          )}
+          {itemTargets.map((t, i) => (
+            <div key={i} className="flex items-center justify-between p-2.5 rounded-xl border border-gray-100 bg-gray-50">
+              <div>
+                <p className="text-sm font-medium">{t.itemName}</p>
+                <p className="text-xs text-muted-foreground">Target: {t.targetQty.toLocaleString()} units · {periodLabel[t.period] ?? t.period}</p>
+              </div>
+              <button onClick={() => removeItemTarget(i)} className="text-xs text-red-400 hover:text-red-600 px-2 py-1">✕</button>
+            </div>
+          ))}
+        </div>
       </div>
     </ChartCard>
   );

@@ -412,6 +412,44 @@ function SlideCreditSummary() {
   );
 }
 
+function SlideMonthlyOverview() {
+  const year = new Date().getFullYear();
+  const { data, isLoading } = useAnalytics("monthly-overview", { year: String(year) });
+  const rows: any[] = data ?? [];
+
+  if (isLoading) return <div className="h-[200px] flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1A6DB5] border-t-transparent" /></div>;
+
+  const fmt = (v: number) => {
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+    return String(Math.round(v));
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="font-semibold text-sm">Monthly Overview {year}</h3>
+      <div className="flex gap-3 flex-wrap text-xs">
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-green-500" />Sales</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-red-400" />Expenses</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-[#1A6DB5]" />Purchases</span>
+      </div>
+      <ResponsiveContainer width="100%" height={190}>
+        <BarChart data={rows} barCategoryGap="20%" barGap={2}>
+          <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+          <YAxis tick={{ fontSize: 9 }} tickFormatter={fmt} width={36} />
+          <Tooltip
+            formatter={(v: any, name: string) => [fmtRWF(String(v)), name.charAt(0).toUpperCase() + name.slice(1)]}
+            contentStyle={{ fontSize: 11 }}
+          />
+          <Bar dataKey="sales" fill="#10b981" radius={[3, 3, 0, 0]} name="sales" />
+          <Bar dataKey="expenses" fill="#f87171" radius={[3, 3, 0, 0]} name="expenses" />
+          <Bar dataKey="purchases" fill="#1A6DB5" radius={[3, 3, 0, 0]} name="purchases" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function SlideMonthlyTarget() {
   const [target] = useState(() => Number(localStorage.getItem("monthlyTarget") || "0"));
   const { data } = useAnalytics("revenue", { period: "month" });
@@ -464,6 +502,7 @@ function SlideMonthlyTarget() {
 }
 
 const SLIDES = [
+  { id: "monthly-overview", label: "Monthly Overview", component: SlideMonthlyOverview },
   { id: "revenue", label: "Revenue Over Time", component: SlideRevenue },
   { id: "categories", label: "Sales by Category", component: SlideCategories },
   { id: "top-products", label: "Top Products", component: SlideTopProducts },
@@ -533,6 +572,116 @@ function ChartCarousel() {
             )}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Top 10 Sections ────────────────────────────────────────────────────────
+function Top10Sections() {
+  const [period, setPeriod] = useState("month");
+  const { data: topItems, isLoading: li } = useAnalytics("top-products", { period, limit: "10" });
+  const { data: topExpenses, isLoading: le } = useAnalytics("top-expenses", { period });
+  const { data: topCustomers, isLoading: lc } = useAnalytics("top-customers", { period });
+
+  const items: any[] = topItems ?? [];
+  const expenses: any[] = topExpenses ?? [];
+  const customers: any[] = topCustomers ?? [];
+
+  const maxItem = items[0]?.revenue ?? 1;
+  const maxExp = expenses[0]?.total ?? 1;
+  const maxCust = customers[0]?.total ?? 1;
+
+  const periodLabel: Record<string, string> = { today: "Today", yesterday: "Yesterday", week: "This Week", month: "This Month", year: "This Year" };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold font-sora">Top 10 Rankings</h2>
+        <select
+          value={period} onChange={e => setPeriod(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none"
+        >
+          {PERIODS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="glass-panel p-5">
+          <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-green-600" />Top Items by Revenue
+          </h3>
+          {li ? <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div> :
+            items.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No sales data for {periodLabel[period]}</p> :
+            <div className="space-y-3">
+              {items.slice(0, 10).map((item: any, i: number) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium truncate mr-2 flex items-center gap-1.5">
+                      <span className="text-muted-foreground w-4 text-right">{i + 1}.</span>
+                      <span className="truncate">{item.itemName}</span>
+                    </span>
+                    <span className="font-bold text-green-600 whitespace-nowrap">{fmtRWF(String(item.revenue ?? 0))}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-400 rounded-full" style={{ width: `${Math.round((item.revenue / maxItem) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          }
+        </div>
+
+        <div className="glass-panel p-5">
+          <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+            <Receipt className="h-4 w-4 text-red-500" />Top Expenses
+          </h3>
+          {le ? <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div> :
+            expenses.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No expenses for {periodLabel[period]}</p> :
+            <div className="space-y-3">
+              {expenses.slice(0, 10).map((exp: any, i: number) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium truncate mr-2 flex items-center gap-1.5">
+                      <span className="text-muted-foreground w-4 text-right">{i + 1}.</span>
+                      <span className="truncate">{exp.name}</span>
+                    </span>
+                    <span className="font-bold text-red-500 whitespace-nowrap">{fmtRWF(String(exp.total ?? 0))}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-400 rounded-full" style={{ width: `${Math.round((exp.total / maxExp) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          }
+        </div>
+
+        <div className="glass-panel p-5">
+          <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+            <Users className="h-4 w-4 text-blue-600" />Top Customers
+          </h3>
+          {lc ? <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div> :
+            customers.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No customer data for {periodLabel[period]}</p> :
+            <div className="space-y-3">
+              {customers.slice(0, 10).map((cust: any, i: number) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium truncate mr-2 flex items-center gap-1.5">
+                      <span className="text-muted-foreground w-4 text-right">{i + 1}.</span>
+                      <span className="truncate">{cust.name}</span>
+                    </span>
+                    <span className="font-bold text-[#1A6DB5] whitespace-nowrap">{fmtRWF(String(cust.total ?? 0))}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#1A6DB5] rounded-full" style={{ width: `${Math.round((cust.total / maxCust) * 100)}%` }} />
+                  </div>
+                  {cust.phone && <p className="text-[10px] text-muted-foreground pl-5">{cust.phone}</p>}
+                </div>
+              ))}
+            </div>
+          }
+        </div>
       </div>
     </div>
   );
@@ -634,6 +783,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Top 10 Sections */}
+      <Top10Sections />
 
       {/* Recent Transactions */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

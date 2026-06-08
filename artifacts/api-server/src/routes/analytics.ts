@@ -307,4 +307,90 @@ router.get("/analytics/restock-intelligence", async (req, res): Promise<void> =>
   res.json(results);
 });
 
+// Monthly overview — grouped bar chart (sales / expenses / purchases per month)
+router.get("/analytics/monthly-overview", async (req, res): Promise<void> => {
+  const year = parseInt(req.query.year as string) || new Date().getFullYear();
+  const start = new Date(year, 0, 1, 0, 0, 0, 0);
+  const end = new Date(year, 11, 31, 23, 59, 59, 999);
+
+  const [salesRows, expRows, purchRows] = await Promise.all([
+    db.select({
+      month: sql<number>`EXTRACT(MONTH FROM ${salesTable.createdAt})`,
+      total: sql<string>`SUM(${salesTable.totalAmount})`,
+    }).from(salesTable)
+      .where(and(gte(salesTable.createdAt, start), lte(salesTable.createdAt, end), eq(salesTable.reverted, false)))
+      .groupBy(sql`EXTRACT(MONTH FROM ${salesTable.createdAt})`),
+
+    db.select({
+      month: sql<number>`EXTRACT(MONTH FROM ${expensesTable.createdAt})`,
+      total: sql<string>`SUM(${expensesTable.amount})`,
+    }).from(expensesTable)
+      .where(and(gte(expensesTable.createdAt, start), lte(expensesTable.createdAt, end)))
+      .groupBy(sql`EXTRACT(MONTH FROM ${expensesTable.createdAt})`),
+
+    db.select({
+      month: sql<number>`EXTRACT(MONTH FROM ${purchasesTable.createdAt})`,
+      total: sql<string>`SUM(${purchasesTable.totalCost})`,
+    }).from(purchasesTable)
+      .where(and(gte(purchasesTable.createdAt, start), lte(purchasesTable.createdAt, end), eq(purchasesTable.status, "confirmed")))
+      .groupBy(sql`EXTRACT(MONTH FROM ${purchasesTable.createdAt})`),
+  ]);
+
+  const sMap: Record<number, number> = {};
+  const eMap: Record<number, number> = {};
+  const pMap: Record<number, number> = {};
+  for (const r of salesRows) sMap[Number(r.month)] = parseFloat(r.total ?? "0");
+  for (const r of expRows) eMap[Number(r.month)] = parseFloat(r.total ?? "0");
+  for (const r of purchRows) pMap[Number(r.month)] = parseFloat(r.total ?? "0");
+
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  res.json(MONTHS.map((name, i) => ({
+    month: name,
+    sales: sMap[i + 1] ?? 0,
+    expenses: eMap[i + 1] ?? 0,
+    purchases: pMap[i + 1] ?? 0,
+  })));
+});
+
+// Top expenses by name
+router.get("/analytics/top-expenses", async (req, res): Promise<void> => {
+  const period = (req.query.period as string) || "month";
+  const { start, end } = periodBounds(period);
+  const rows = await db.select({
+    name: expensesTable.name,
+    total: sql<string>`SUM(${expensesTable.amount})`,
+    count: sql<string>`COUNT(*)`,
+  }).from(expensesTable)
+    .where(and(gte(expensesTable.createdAt, start), lte(expensesTable.createdAt, end)))
+    .groupBy(expensesTable.name)
+    .orderBy(desc(sql`SUM(${expensesTable.amount})`))
+    .limit(10);
+  res.json(rows.map(r => ({ name: r.name, total: parseFloat(r.total ?? "0"), count: parseInt(r.count ?? "0") })));
+});
+
+// Top customers by spending
+router.get("/analytics/top-customers", async (req, res): Promise<void> => {
+  const period = (req.query.period as string) || "month";
+  const { start, end } = periodBounds(period);
+  const rows = await db.select({
+    customerId: salesTable.customerId,
+    customerName: customersTable.name,
+    customerPhone: customersTable.phone,
+    total: sql<string>`SUM(${salesTable.totalAmount})`,
+    count: sql<string>`COUNT(*)`,
+  }).from(salesTable)
+    .leftJoin(customersTable, eq(salesTable.customerId, customersTable.id))
+    .where(and(gte(salesTable.createdAt, start), lte(salesTable.createdAt, end), eq(salesTable.reverted, false)))
+    .groupBy(salesTable.customerId, customersTable.name, customersTable.phone)
+    .orderBy(desc(sql`SUM(${salesTable.totalAmount})`))
+    .limit(10);
+  res.json(rows.map(r => ({
+    id: r.customerId,
+    name: r.customerName ?? "Walk-in",
+    phone: r.customerPhone,
+    total: parseFloat(r.total ?? "0"),
+    count: parseInt(r.count ?? "0"),
+  })));
+});
+
 export default router;

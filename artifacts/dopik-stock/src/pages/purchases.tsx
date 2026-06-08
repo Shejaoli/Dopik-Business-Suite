@@ -714,6 +714,9 @@ export default function PurchasesPage() {
   const [formModelItemId, setFormModelItemId] = useState<string | null>(null);
   const [showModelSuggestions, setShowModelSuggestions] = useState(false);
 
+  type SessionItem = { modelName: string; category: string; qty: number; cost: number; po: string };
+  const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
+
   const [rows, setRows] = useState<PurchaseRow[]>([emptyRow()]);
   const [simple, setSimple] = useState<SimpleForm>({
     quantity: "", unitCost: "",
@@ -955,7 +958,7 @@ export default function PurchasesPage() {
     } finally { setSaving(false); }
   };
 
-  const resetForm = () => {
+  const resetItemFields = () => {
     setRows([emptyRow()]);
     setSimple({ quantity: "", unitCost: "", vendorId: "", paymentMethod: "cash", condition: "Brand New", additionalInfo: "" });
     setFormCategory("");
@@ -969,6 +972,75 @@ export default function PurchasesPage() {
     setFormSalePrice("");
     setFormMinSalePrice("");
     setFormMinStock("");
+  };
+
+  const resetForm = () => {
+    resetItemFields();
+    setSessionItems([]);
+  };
+
+  const handleSaveAndAddAnother = async () => {
+    if (!formModelName.trim()) {
+      toast({ title: "Please select a model first", variant: "destructive" });
+      return;
+    }
+    const isValid = isSerial ? rows.some(r => r.unitCost) : !!(simple.quantity && simple.unitCost);
+    if (!isValid) {
+      toast({ title: "Please fill in quantity and cost before saving", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const itemId = await resolveItemId();
+      if (!itemId) { toast({ title: "Could not resolve item", variant: "destructive" }); return; }
+
+      const filledRows = isSerial
+        ? rows.filter(r => r.imeiOrSerial?.trim() || r.unitCost?.trim())
+        : rows;
+      const filledQty = isSerial ? (filledRows.length || 1) : parseFloat(simple.quantity || "0");
+      const filledCost = isSerial
+        ? filledRows.reduce((s, r) => s + parseFloat(r.unitCost || "0"), 0)
+        : parseFloat(simple.unitCost || "0") * parseFloat(simple.quantity || "0");
+
+      const po = generatePO();
+      const payload: any = {
+        itemId,
+        quantity: String(filledQty),
+        totalCost: String(filledCost),
+        paymentMethod: isSerial ? Object.keys(byPayment)[0] || "cash" : simple.paymentMethod,
+        vendorId: isSerial
+          ? (filledRows[0]?.vendorId ? Number(filledRows[0].vendorId) : null)
+          : (simple.vendorId ? Number(simple.vendorId) : null),
+        status: "confirmed",
+        poNumber: po,
+        salePrice: formSalePrice ? parseFloat(formSalePrice) : undefined,
+        minSalePrice: formMinSalePrice ? parseFloat(formMinSalePrice) : undefined,
+        minStock: formMinStock ? parseFloat(formMinStock) : undefined,
+        units: isSerial ? filledRows.map(r => ({
+          imeiOrSerial: r.imeiOrSerial,
+          color: r.color, storage: r.storage, ram: r.ram,
+          additionalInfo: r.additionalInfo, condition: r.condition,
+          vendorId: r.vendorId ? Number(r.vendorId) : null,
+          costPrice: r.unitCost, paymentMethod: r.paymentMethod,
+        })) : undefined,
+      };
+
+      await api.post<any>("/purchases", payload);
+
+      setSessionItems(prev => [...prev, {
+        modelName: formModelName,
+        category: formCategory,
+        qty: filledQty,
+        cost: filledCost,
+        po,
+      }]);
+
+      toast({ title: `${formModelName} saved!`, description: "Add another item below or finish the session." });
+      qc.invalidateQueries({ queryKey: getListPurchasesQueryKey() });
+      resetItemFields();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
   };
 
   const handleCancelClick = () => {
@@ -1173,6 +1245,28 @@ export default function PurchasesPage() {
               </Badge>
             )}
           </div>
+
+          {/* Session items already saved */}
+          {sessionItems.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">
+                ✓ {sessionItems.length} item{sessionItems.length > 1 ? "s" : ""} saved this session
+              </p>
+              {sessionItems.map((s, i) => (
+                <div key={i} className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-green-800 truncate">{s.modelName}</span>
+                  <div className="flex items-center gap-3 text-right flex-shrink-0 ml-2">
+                    <span className="text-green-600 text-xs">Qty: {s.qty}</span>
+                    <span className="font-semibold text-green-700">{fmtRWF(String(s.cost))}</span>
+                  </div>
+                </div>
+              ))}
+              <div className="border-t border-green-200 pt-2 flex justify-between text-sm font-semibold">
+                <span className="text-green-700">Session Total</span>
+                <span className="text-green-800">{fmtRWF(String(sessionItems.reduce((s, i) => s + i.cost, 0)))}</span>
+              </div>
+            </div>
+          )}
 
           {/* Category + Model Picker */}
           <div className="bg-white border border-border rounded-xl shadow-sm p-5 space-y-5">
@@ -1404,19 +1498,31 @@ export default function PurchasesPage() {
           )}
 
           {/* Action Buttons */}
-          <div className="pb-8">
+          <div className="pb-8 space-y-3">
+            {/* Save & Add Another Item */}
+            {formModelName && (
+              <Button
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                onClick={handleSaveAndAddAnother}
+                disabled={saving || !canVerify}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Plus className="h-4 w-4 mr-1.5" />}
+                Save & Add Another Item
+              </Button>
+            )}
+
             <div className="hidden sm:flex items-center gap-3">
               <Button
                 variant="outline"
                 className="text-red-600 border-red-200 hover:bg-red-50"
                 onClick={handleCancelClick}
               >
-                <X className="h-4 w-4 mr-1.5" />Cancel Purchase
+                <X className="h-4 w-4 mr-1.5" />Cancel
               </Button>
               <div className="flex-1" />
               <Button variant="outline" onClick={handleSaveDraft} disabled={saving || !formModelName}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
-                Save
+                Save Draft
               </Button>
               <Button
                 className="bg-[#1A6DB5] hover:bg-[#1A6DB5]/90"
@@ -1463,14 +1569,14 @@ export default function PurchasesPage() {
               </Button>
               <Button className="w-full" variant="outline" onClick={handleSaveDraft} disabled={saving || !formModelName}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
-                Save
+                Save Draft
               </Button>
               <Button
                 className="w-full text-red-600 border-red-200 hover:bg-red-50"
                 variant="outline"
                 onClick={handleCancelClick}
               >
-                <X className="h-4 w-4 mr-1.5" />Cancel Purchase
+                <X className="h-4 w-4 mr-1.5" />Cancel
               </Button>
             </div>
           </div>
